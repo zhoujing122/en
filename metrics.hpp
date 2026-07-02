@@ -28,6 +28,16 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "map_update_rate_hz_last," << m.map_quality.map_update_rate_hz_last << "\n";
     o << "map_known_cells_last," << m.map_quality.map_known_cells_last << "\n";
     o << "map_occupied_cells_last," << m.map_quality.map_occupied_cells_last << "\n";
+    o << "supervisor_state_last," << m.mapping_supervisor.state_last << "\n";
+    o << "supervisor_state_changes," << m.mapping_supervisor.state_changes << "\n";
+    o << "supervisor_mapping_seconds," << m.mapping_supervisor.mapping_seconds << "\n";
+    o << "supervisor_active_scan_recommended_count," << m.mapping_supervisor.active_scan_recommended_count << "\n";
+    o << "supervisor_degraded_count," << m.mapping_supervisor.degraded_count << "\n";
+    o << "supervisor_lost_count," << m.mapping_supervisor.lost_count << "\n";
+    o << "supervisor_active_scan_recommended_seconds," << m.mapping_supervisor.active_scan_recommended_seconds << "\n";
+    o << "supervisor_degraded_seconds," << m.mapping_supervisor.degraded_seconds << "\n";
+    o << "supervisor_lost_seconds," << m.mapping_supervisor.lost_seconds << "\n";
+    o << "supervisor_last_reason," << m.mapping_supervisor.last_reason << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

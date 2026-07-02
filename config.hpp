@@ -196,6 +196,21 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.map_quality_low_quality_score_threshold = get_double(kv, "map_quality.low_quality_score_threshold", c.map_quality_low_quality_score_threshold);
     c.map_quality_degraded_score_threshold = get_double(kv, "map_quality.degraded_score_threshold", c.map_quality_degraded_score_threshold);
     c.map_quality_window_s = get_double(kv, "map_quality.window_s", c.map_quality_window_s);
+    c.mapping_supervisor_enabled = get_bool(kv, "mapping_supervisor.enabled", c.mapping_supervisor_enabled);
+    c.mapping_supervisor_log_hz = get_double(kv, "mapping_supervisor.log_hz", c.mapping_supervisor_log_hz);
+    c.mapping_supervisor_startup_grace_s = get_double(kv, "mapping_supervisor.startup_grace_s", c.mapping_supervisor_startup_grace_s);
+    c.mapping_supervisor_min_ready_time_s = get_double(kv, "mapping_supervisor.min_ready_time_s", c.mapping_supervisor_min_ready_time_s);
+    c.mapping_supervisor_min_good_quality_score = get_double(kv, "mapping_supervisor.min_good_quality_score", c.mapping_supervisor_min_good_quality_score);
+    c.mapping_supervisor_degraded_quality_score = get_double(kv, "mapping_supervisor.degraded_quality_score", c.mapping_supervisor_degraded_quality_score);
+    c.mapping_supervisor_lost_quality_score = get_double(kv, "mapping_supervisor.lost_quality_score", c.mapping_supervisor_lost_quality_score);
+    c.mapping_supervisor_max_degraded_duration_s = get_double(kv, "mapping_supervisor.max_degraded_duration_s", c.mapping_supervisor_max_degraded_duration_s);
+    c.mapping_supervisor_max_no_data_duration_s = get_double(kv, "mapping_supervisor.max_no_data_duration_s", c.mapping_supervisor_max_no_data_duration_s);
+    c.mapping_supervisor_require_two_tof_routes = get_bool(kv, "mapping_supervisor.require_two_tof_routes", c.mapping_supervisor_require_two_tof_routes);
+    c.mapping_supervisor_active_scan_after_low_quality_s = get_double(kv, "mapping_supervisor.active_scan_after_low_quality_s", c.mapping_supervisor_active_scan_after_low_quality_s);
+    c.mapping_supervisor_active_scan_after_low_update_s = get_double(kv, "mapping_supervisor.active_scan_after_low_update_s", c.mapping_supervisor_active_scan_after_low_update_s);
+    c.mapping_supervisor_encoder_error_degraded_threshold = get_int(kv, "mapping_supervisor.encoder_error_degraded_threshold", c.mapping_supervisor_encoder_error_degraded_threshold);
+    c.mapping_supervisor_imu_error_degraded_threshold = get_int(kv, "mapping_supervisor.imu_error_degraded_threshold", c.mapping_supervisor_imu_error_degraded_threshold);
+    c.mapping_supervisor_tof_unhealthy_degraded_threshold = get_int(kv, "mapping_supervisor.tof_unhealthy_degraded_threshold", c.mapping_supervisor_tof_unhealthy_degraded_threshold);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -347,6 +362,22 @@ void validate_config(const Config &c) {
     probability("map_quality.degraded_score_threshold", c.map_quality_degraded_score_threshold);
     if (c.map_quality_degraded_score_threshold > c.map_quality_low_quality_score_threshold) errors.push_back("map_quality.degraded_score_threshold must be <= low_quality_score_threshold");
 
+    positive("mapping_supervisor.log_hz", c.mapping_supervisor_log_hz);
+    non_negative("mapping_supervisor.startup_grace_s", c.mapping_supervisor_startup_grace_s);
+    non_negative("mapping_supervisor.min_ready_time_s", c.mapping_supervisor_min_ready_time_s);
+    probability("mapping_supervisor.min_good_quality_score", c.mapping_supervisor_min_good_quality_score);
+    probability("mapping_supervisor.degraded_quality_score", c.mapping_supervisor_degraded_quality_score);
+    probability("mapping_supervisor.lost_quality_score", c.mapping_supervisor_lost_quality_score);
+    non_negative("mapping_supervisor.max_degraded_duration_s", c.mapping_supervisor_max_degraded_duration_s);
+    non_negative("mapping_supervisor.max_no_data_duration_s", c.mapping_supervisor_max_no_data_duration_s);
+    non_negative("mapping_supervisor.active_scan_after_low_quality_s", c.mapping_supervisor_active_scan_after_low_quality_s);
+    non_negative("mapping_supervisor.active_scan_after_low_update_s", c.mapping_supervisor_active_scan_after_low_update_s);
+    if (c.mapping_supervisor_encoder_error_degraded_threshold < 0) errors.push_back("mapping_supervisor.encoder_error_degraded_threshold must be >= 0");
+    if (c.mapping_supervisor_imu_error_degraded_threshold < 0) errors.push_back("mapping_supervisor.imu_error_degraded_threshold must be >= 0");
+    if (c.mapping_supervisor_tof_unhealthy_degraded_threshold < 0) errors.push_back("mapping_supervisor.tof_unhealthy_degraded_threshold must be >= 0");
+    if (c.mapping_supervisor_lost_quality_score > c.mapping_supervisor_degraded_quality_score) errors.push_back("mapping_supervisor.lost_quality_score must be <= degraded_quality_score");
+    if (c.mapping_supervisor_degraded_quality_score > c.mapping_supervisor_min_good_quality_score) errors.push_back("mapping_supervisor.degraded_quality_score must be <= min_good_quality_score");
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -496,6 +527,22 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  low_quality_score_threshold: " << c.map_quality_low_quality_score_threshold << "\n"
       << "  degraded_score_threshold: " << c.map_quality_degraded_score_threshold << "\n"
       << "  window_s: " << c.map_quality_window_s << "\n";
+    o << "mapping_supervisor:\n"
+      << "  enabled: " << bool_yaml(c.mapping_supervisor_enabled) << "\n"
+      << "  log_hz: " << c.mapping_supervisor_log_hz << "\n"
+      << "  startup_grace_s: " << c.mapping_supervisor_startup_grace_s << "\n"
+      << "  min_ready_time_s: " << c.mapping_supervisor_min_ready_time_s << "\n"
+      << "  min_good_quality_score: " << c.mapping_supervisor_min_good_quality_score << "\n"
+      << "  degraded_quality_score: " << c.mapping_supervisor_degraded_quality_score << "\n"
+      << "  lost_quality_score: " << c.mapping_supervisor_lost_quality_score << "\n"
+      << "  max_degraded_duration_s: " << c.mapping_supervisor_max_degraded_duration_s << "\n"
+      << "  max_no_data_duration_s: " << c.mapping_supervisor_max_no_data_duration_s << "\n"
+      << "  require_two_tof_routes: " << bool_yaml(c.mapping_supervisor_require_two_tof_routes) << "\n"
+      << "  active_scan_after_low_quality_s: " << c.mapping_supervisor_active_scan_after_low_quality_s << "\n"
+      << "  active_scan_after_low_update_s: " << c.mapping_supervisor_active_scan_after_low_update_s << "\n"
+      << "  encoder_error_degraded_threshold: " << c.mapping_supervisor_encoder_error_degraded_threshold << "\n"
+      << "  imu_error_degraded_threshold: " << c.mapping_supervisor_imu_error_degraded_threshold << "\n"
+      << "  tof_unhealthy_degraded_threshold: " << c.mapping_supervisor_tof_unhealthy_degraded_threshold << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

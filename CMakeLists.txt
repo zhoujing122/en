@@ -16,4 +16,7 @@ add_test(NAME test_cjc_bl4820 COMMAND test_cjc_bl4820)
 add_executable(test_map_quality test_map_quality.cpp)
 target_link_libraries(test_map_quality m dl)
 add_test(NAME test_map_quality COMMAND test_map_quality)
+add_executable(test_mapping_supervisor test_mapping_supervisor.cpp)
+target_link_libraries(test_mapping_supervisor m dl)
+add_test(NAME test_mapping_supervisor COMMAND test_mapping_supervisor)
 

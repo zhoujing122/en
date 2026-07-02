@@ -259,6 +259,21 @@ struct Config {
     double map_quality_low_quality_score_threshold = 0.40;
     double map_quality_degraded_score_threshold = 0.25;
     double map_quality_window_s = 5.0;
+    bool mapping_supervisor_enabled = true;
+    double mapping_supervisor_log_hz = 1.0;
+    double mapping_supervisor_startup_grace_s = 3.0;
+    double mapping_supervisor_min_ready_time_s = 2.0;
+    double mapping_supervisor_min_good_quality_score = 0.40;
+    double mapping_supervisor_degraded_quality_score = 0.25;
+    double mapping_supervisor_lost_quality_score = 0.10;
+    double mapping_supervisor_max_degraded_duration_s = 10.0;
+    double mapping_supervisor_max_no_data_duration_s = 5.0;
+    bool mapping_supervisor_require_two_tof_routes = true;
+    double mapping_supervisor_active_scan_after_low_quality_s = 3.0;
+    double mapping_supervisor_active_scan_after_low_update_s = 3.0;
+    int mapping_supervisor_encoder_error_degraded_threshold = 5;
+    int mapping_supervisor_imu_error_degraded_threshold = 5;
+    int mapping_supervisor_tof_unhealthy_degraded_threshold = 1;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -403,6 +418,19 @@ struct MapQualityRunStats {
     uint64_t map_alloc_failures = 0;
 };
 
+struct MappingSupervisorRunStats {
+    std::string state_last = "INIT";
+    std::string last_reason = "startup";
+    uint64_t state_changes = 0;
+    double mapping_seconds = 0.0;
+    uint64_t active_scan_recommended_count = 0;
+    uint64_t degraded_count = 0;
+    uint64_t lost_count = 0;
+    double active_scan_recommended_seconds = 0.0;
+    double degraded_seconds = 0.0;
+    double lost_seconds = 0.0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -440,6 +468,7 @@ struct RunMetrics {
     uint64_t spin_scan_flat_curve_count = 0;
     uint64_t spin_scan_edge_best_count = 0;
     MapQualityRunStats map_quality;
+    MappingSupervisorRunStats mapping_supervisor;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

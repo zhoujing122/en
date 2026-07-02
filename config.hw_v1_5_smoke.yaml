@@ -111,6 +111,23 @@ map_quality:
   degraded_score_threshold: 0.25
   window_s: 5.0
 
+mapping_supervisor:
+  enabled: true
+  log_hz: 1.0
+  startup_grace_s: 3.0
+  min_ready_time_s: 2.0
+  min_good_quality_score: 0.40
+  degraded_quality_score: 0.25
+  lost_quality_score: 0.10
+  max_degraded_duration_s: 10.0
+  max_no_data_duration_s: 5.0
+  require_two_tof_routes: true
+  active_scan_after_low_quality_s: 3.0
+  active_scan_after_low_update_s: 3.0
+  encoder_error_degraded_threshold: 5
+  imu_error_degraded_threshold: 5
+  tof_unhealthy_degraded_threshold: 1
+
 tof_pose_correction:
   enabled: false
   min_candidate_reliability: 0.7
