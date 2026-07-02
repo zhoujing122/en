@@ -211,6 +211,26 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.mapping_supervisor_encoder_error_degraded_threshold = get_int(kv, "mapping_supervisor.encoder_error_degraded_threshold", c.mapping_supervisor_encoder_error_degraded_threshold);
     c.mapping_supervisor_imu_error_degraded_threshold = get_int(kv, "mapping_supervisor.imu_error_degraded_threshold", c.mapping_supervisor_imu_error_degraded_threshold);
     c.mapping_supervisor_tof_unhealthy_degraded_threshold = get_int(kv, "mapping_supervisor.tof_unhealthy_degraded_threshold", c.mapping_supervisor_tof_unhealthy_degraded_threshold);
+    c.active_scan_enabled = get_bool(kv, "active_scan.enabled", c.active_scan_enabled);
+    c.active_scan_log_hz = get_double(kv, "active_scan.log_hz", c.active_scan_log_hz);
+    c.active_scan_startup_scan_enabled = get_bool(kv, "active_scan.startup_scan_enabled", c.active_scan_startup_scan_enabled);
+    c.active_scan_low_quality_scan_enabled = get_bool(kv, "active_scan.low_quality_scan_enabled", c.active_scan_low_quality_scan_enabled);
+    c.active_scan_degraded_scan_enabled = get_bool(kv, "active_scan.degraded_scan_enabled", c.active_scan_degraded_scan_enabled);
+    c.active_scan_lost_scan_enabled = get_bool(kv, "active_scan.lost_scan_enabled", c.active_scan_lost_scan_enabled);
+    c.active_scan_min_interval_s = get_double(kv, "active_scan.min_interval_s", c.active_scan_min_interval_s);
+    c.active_scan_cooldown_s = get_double(kv, "active_scan.cooldown_s", c.active_scan_cooldown_s);
+    c.active_scan_request_hold_s = get_double(kv, "active_scan.request_hold_s", c.active_scan_request_hold_s);
+    c.active_scan_max_pending_s = get_double(kv, "active_scan.max_pending_s", c.active_scan_max_pending_s);
+    c.active_scan_recommended_scan_angle_deg = get_double(kv, "active_scan.recommended_scan_angle_deg", c.active_scan_recommended_scan_angle_deg);
+    c.active_scan_min_useful_scan_angle_deg = get_double(kv, "active_scan.min_useful_scan_angle_deg", c.active_scan_min_useful_scan_angle_deg);
+    c.active_scan_complete_scan_angle_deg = get_double(kv, "active_scan.complete_scan_angle_deg", c.active_scan_complete_scan_angle_deg);
+    c.active_scan_min_tof_valid_ratio_for_scan = get_double(kv, "active_scan.min_tof_valid_ratio_for_scan", c.active_scan_min_tof_valid_ratio_for_scan);
+    c.active_scan_min_valid_tof_routes_for_scan = get_int(kv, "active_scan.min_valid_tof_routes_for_scan", c.active_scan_min_valid_tof_routes_for_scan);
+    c.active_scan_max_linear_speed_for_scan_mps = get_double(kv, "active_scan.max_linear_speed_for_scan_mps", c.active_scan_max_linear_speed_for_scan_mps);
+    c.active_scan_min_yaw_rate_for_observed_scan_dps = get_double(kv, "active_scan.min_yaw_rate_for_observed_scan_dps", c.active_scan_min_yaw_rate_for_observed_scan_dps);
+    c.active_scan_max_yaw_rate_for_observed_scan_dps = get_double(kv, "active_scan.max_yaw_rate_for_observed_scan_dps", c.active_scan_max_yaw_rate_for_observed_scan_dps);
+    c.active_scan_observe_natural_rotation = get_bool(kv, "active_scan.observe_natural_rotation", c.active_scan_observe_natural_rotation);
+    c.active_scan_require_supervisor_recommendation = get_bool(kv, "active_scan.require_supervisor_recommendation", c.active_scan_require_supervisor_recommendation);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -378,6 +398,23 @@ void validate_config(const Config &c) {
     if (c.mapping_supervisor_lost_quality_score > c.mapping_supervisor_degraded_quality_score) errors.push_back("mapping_supervisor.lost_quality_score must be <= degraded_quality_score");
     if (c.mapping_supervisor_degraded_quality_score > c.mapping_supervisor_min_good_quality_score) errors.push_back("mapping_supervisor.degraded_quality_score must be <= min_good_quality_score");
 
+    positive("active_scan.log_hz", c.active_scan_log_hz);
+    non_negative("active_scan.min_interval_s", c.active_scan_min_interval_s);
+    non_negative("active_scan.cooldown_s", c.active_scan_cooldown_s);
+    non_negative("active_scan.request_hold_s", c.active_scan_request_hold_s);
+    non_negative("active_scan.max_pending_s", c.active_scan_max_pending_s);
+    non_negative("active_scan.recommended_scan_angle_deg", c.active_scan_recommended_scan_angle_deg);
+    non_negative("active_scan.min_useful_scan_angle_deg", c.active_scan_min_useful_scan_angle_deg);
+    non_negative("active_scan.complete_scan_angle_deg", c.active_scan_complete_scan_angle_deg);
+    probability("active_scan.min_tof_valid_ratio_for_scan", c.active_scan_min_tof_valid_ratio_for_scan);
+    if (c.active_scan_min_valid_tof_routes_for_scan < 0) errors.push_back("active_scan.min_valid_tof_routes_for_scan must be >= 0");
+    non_negative("active_scan.max_linear_speed_for_scan_mps", c.active_scan_max_linear_speed_for_scan_mps);
+    non_negative("active_scan.min_yaw_rate_for_observed_scan_dps", c.active_scan_min_yaw_rate_for_observed_scan_dps);
+    non_negative("active_scan.max_yaw_rate_for_observed_scan_dps", c.active_scan_max_yaw_rate_for_observed_scan_dps);
+    if (c.active_scan_complete_scan_angle_deg < c.active_scan_min_useful_scan_angle_deg) errors.push_back("active_scan.complete_scan_angle_deg must be >= min_useful_scan_angle_deg");
+    if (c.active_scan_recommended_scan_angle_deg < c.active_scan_min_useful_scan_angle_deg) errors.push_back("active_scan.recommended_scan_angle_deg must be >= min_useful_scan_angle_deg");
+    if (c.active_scan_max_yaw_rate_for_observed_scan_dps < c.active_scan_min_yaw_rate_for_observed_scan_dps) errors.push_back("active_scan.max_yaw_rate_for_observed_scan_dps must be >= min_yaw_rate_for_observed_scan_dps");
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -543,6 +580,27 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  encoder_error_degraded_threshold: " << c.mapping_supervisor_encoder_error_degraded_threshold << "\n"
       << "  imu_error_degraded_threshold: " << c.mapping_supervisor_imu_error_degraded_threshold << "\n"
       << "  tof_unhealthy_degraded_threshold: " << c.mapping_supervisor_tof_unhealthy_degraded_threshold << "\n";
+    o << "active_scan:\n"
+      << "  enabled: " << bool_yaml(c.active_scan_enabled) << "\n"
+      << "  log_hz: " << c.active_scan_log_hz << "\n"
+      << "  startup_scan_enabled: " << bool_yaml(c.active_scan_startup_scan_enabled) << "\n"
+      << "  low_quality_scan_enabled: " << bool_yaml(c.active_scan_low_quality_scan_enabled) << "\n"
+      << "  degraded_scan_enabled: " << bool_yaml(c.active_scan_degraded_scan_enabled) << "\n"
+      << "  lost_scan_enabled: " << bool_yaml(c.active_scan_lost_scan_enabled) << "\n"
+      << "  min_interval_s: " << c.active_scan_min_interval_s << "\n"
+      << "  cooldown_s: " << c.active_scan_cooldown_s << "\n"
+      << "  request_hold_s: " << c.active_scan_request_hold_s << "\n"
+      << "  max_pending_s: " << c.active_scan_max_pending_s << "\n"
+      << "  recommended_scan_angle_deg: " << c.active_scan_recommended_scan_angle_deg << "\n"
+      << "  min_useful_scan_angle_deg: " << c.active_scan_min_useful_scan_angle_deg << "\n"
+      << "  complete_scan_angle_deg: " << c.active_scan_complete_scan_angle_deg << "\n"
+      << "  min_tof_valid_ratio_for_scan: " << c.active_scan_min_tof_valid_ratio_for_scan << "\n"
+      << "  min_valid_tof_routes_for_scan: " << c.active_scan_min_valid_tof_routes_for_scan << "\n"
+      << "  max_linear_speed_for_scan_mps: " << c.active_scan_max_linear_speed_for_scan_mps << "\n"
+      << "  min_yaw_rate_for_observed_scan_dps: " << c.active_scan_min_yaw_rate_for_observed_scan_dps << "\n"
+      << "  max_yaw_rate_for_observed_scan_dps: " << c.active_scan_max_yaw_rate_for_observed_scan_dps << "\n"
+      << "  observe_natural_rotation: " << bool_yaml(c.active_scan_observe_natural_rotation) << "\n"
+      << "  require_supervisor_recommendation: " << bool_yaml(c.active_scan_require_supervisor_recommendation) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

@@ -121,6 +121,28 @@ mapping_supervisor:
   imu_error_degraded_threshold: 5
   tof_unhealthy_degraded_threshold: 1
 
+active_scan:
+  enabled: true
+  log_hz: 1.0
+  startup_scan_enabled: true
+  low_quality_scan_enabled: true
+  degraded_scan_enabled: true
+  lost_scan_enabled: true
+  min_interval_s: 15.0
+  cooldown_s: 10.0
+  request_hold_s: 1.0
+  max_pending_s: 30.0
+  recommended_scan_angle_deg: 360.0
+  min_useful_scan_angle_deg: 90.0
+  complete_scan_angle_deg: 300.0
+  min_tof_valid_ratio_for_scan: 0.20
+  min_valid_tof_routes_for_scan: 1
+  max_linear_speed_for_scan_mps: 0.05
+  min_yaw_rate_for_observed_scan_dps: 5.0
+  max_yaw_rate_for_observed_scan_dps: 90.0
+  observe_natural_rotation: true
+  require_supervisor_recommendation: true
+
 tof_pose_correction:
   enabled: false
   mode: off

@@ -19,4 +19,7 @@ add_test(NAME test_map_quality COMMAND test_map_quality)
 add_executable(test_mapping_supervisor test_mapping_supervisor.cpp)
 target_link_libraries(test_mapping_supervisor m dl)
 add_test(NAME test_mapping_supervisor COMMAND test_mapping_supervisor)
+add_executable(test_active_scan_manager test_active_scan_manager.cpp)
+target_link_libraries(test_active_scan_manager m dl)
+add_test(NAME test_active_scan_manager COMMAND test_active_scan_manager)
 

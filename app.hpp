@@ -1,4 +1,5 @@
 #pragma once
+#include "active_scan_manager.hpp"
 #include "common.hpp"
 #include "config.hpp"
 #include "grid.hpp"
@@ -51,6 +52,7 @@ int real_main(int argc, char **argv) {
     std::ofstream toflog(run_dir + "/tof_log.csv");
     std::ofstream map_quality_log;
     std::ofstream supervisor_log;
+    std::ofstream active_scan_log;
     std::ofstream encoderlog;
     std::ofstream corrlog;
     std::ofstream yawlog;
@@ -63,6 +65,7 @@ int real_main(int argc, char **argv) {
     bool yaw_curve_debug = cfg.tof_pose_correction_enabled && cfg.tof_pose_correction_mode == "yaw_candidate" && cfg.tof_pose_correction_yaw_residual_curve_debug;
     if (cfg.map_quality_enabled) map_quality_log.open(run_dir + "/map_quality.csv");
     if (cfg.mapping_supervisor_enabled) supervisor_log.open(run_dir + "/supervisor_log.csv");
+    if (cfg.active_scan_enabled) active_scan_log.open(run_dir + "/active_scan_log.csv");
     if (cfg.encoder_source == "cjc_bl4820_uart") encoderlog.open(run_dir + "/encoder_log.csv");
     if (cfg.tof_pose_correction_enabled) corrlog.open(run_dir + "/tof_correction_log.csv");
     if (cfg.tof_pose_correction_enabled && cfg.tof_pose_correction_mode == "yaw_candidate") yawlog.open(run_dir + "/candidate_yaw.csv");
@@ -81,6 +84,7 @@ int real_main(int argc, char **argv) {
     toflog << "timestamp_us,id,raw_range_mm,range_status,confidence,range_m,valid,filtered_range_m,filtered_confidence,free_delta,occ_delta,decision\n";
     if (map_quality_log) write_map_quality_header(map_quality_log);
     if (supervisor_log) write_supervisor_log_header(supervisor_log);
+    if (active_scan_log) write_active_scan_log_header(active_scan_log);
     if (encoderlog) encoderlog << "timestamp_us,left_pos_raw,right_pos_raw,left_delta_ticks,right_delta_ticks,left_total_ticks,right_total_ticks,left_rpm,right_rpm,left_current_raw,right_current_raw,left_status,right_status,decision,reason\n";
     if (cfg.tof_pose_correction_enabled) {
         corrlog << "timestamp_us,mode,accepted,reason,localizer_x,localizer_y,localizer_yaw,odom_x,odom_y,odom_yaw,debug_offset_x_m,debug_offset_y_m,debug_offset_yaw_rad,odom_residual,improvement,best_x,best_y,best_yaw,best_dx,best_dy,best_dyaw,best_residual,second_best_residual,used_tof,candidate_count,odom_front_expected_m,odom_left_expected_m,odom_right_expected_m,best_front_expected_m,best_left_expected_m,best_right_expected_m\n";
@@ -108,6 +112,9 @@ int real_main(int argc, char **argv) {
     SpinScanLocalizer spin_scan(cfg);
     MapQuality map_quality(cfg);
     MappingSupervisor supervisor(cfg);
+    ActiveScanManager active_scan(cfg);
+    MapQualitySnapshot latest_map_quality_snapshot;
+    MappingSupervisorSnapshot latest_supervisor_snapshot;
     bool map_alloc_fail_pending = false;
     RunMetrics metrics;
     TofHealth tof_health;
@@ -171,13 +178,34 @@ int real_main(int argc, char **argv) {
     };
 
     auto update_supervisor_from_quality = [&](double now_s, const MapQualitySnapshot &qs, bool force_log) {
-        if (!cfg.mapping_supervisor_enabled) return;
+        if (!cfg.mapping_supervisor_enabled && !cfg.active_scan_enabled) return;
         SupervisorSensorInput sin = make_supervisor_sensor_input();
         bool changed = supervisor.update(now_s, qs, sin);
-        MappingSupervisorSnapshot ss = supervisor.snapshot();
-        if (supervisor_log && (force_log || changed || supervisor.should_log(now_s))) {
-            write_supervisor_log_row(supervisor_log, ss);
-            supervisor.mark_logged(now_s, ss);
+        latest_supervisor_snapshot = supervisor.snapshot();
+        if (cfg.mapping_supervisor_enabled && supervisor_log && (force_log || changed || supervisor.should_log(now_s))) {
+            write_supervisor_log_row(supervisor_log, latest_supervisor_snapshot);
+            supervisor.mark_logged(now_s, latest_supervisor_snapshot);
+        }
+    };
+
+    auto update_active_scan_from_snapshots = [&](double now_s, const MapQualitySnapshot &qs, const MappingSupervisorSnapshot &ss, bool force_log) {
+        if (!cfg.active_scan_enabled) return;
+        const auto &p = loc.pose();
+        ActiveScanInput in;
+        in.timestamp_s = now_s;
+        in.map_quality = qs;
+        in.supervisor = ss;
+        in.pose_x_m = p.x;
+        in.pose_y_m = p.y;
+        in.yaw_rad = p.yaw;
+        in.linear_speed_mps = loc.v();
+        in.yaw_rate_radps = loc.w();
+        in.localization_valid = true;
+        bool changed = active_scan.update(in);
+        ActiveScanSnapshot as = active_scan.snapshot();
+        if (active_scan_log && (force_log || changed || active_scan.should_log(now_s))) {
+            write_active_scan_log_row(active_scan_log, as);
+            active_scan.mark_logged(now_s, as);
         }
     };
 
@@ -269,7 +297,7 @@ int real_main(int argc, char **argv) {
                 seen_tof[t.id] = true;
                 TofFilterResult res = filter.process(t);
                 double map_quality_now_s = (now - start) / 1000000.0;
-                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled) map_quality.record_tof_result(map_quality_now_s, t, res);
+                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled) map_quality.record_tof_result(map_quality_now_s, t, res);
                 spin_tof.push_back({t.t_us, t.id, res.range_m, res.filtered_confidence, t.range_status, res.map_update, res.hit, res.decision});
                 tof_health.record_sample(t.id, res);
                 metrics.tof_samples++;
@@ -319,7 +347,7 @@ int real_main(int argc, char **argv) {
                         metrics.map_alloc_failures++;
                     }
                 }
-                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled) {
+                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled) {
                     map_quality.record_map_update(map_quality_now_s, res.map_update, map_updated, res.hit, free_only);
                 }
             }
@@ -497,20 +525,23 @@ int real_main(int argc, char **argv) {
                         << cres.best_front_expected_m << "," << cres.best_left_expected_m << "," << cres.best_right_expected_m << "\n";
             }
         }
-        if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled) {
+        if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled) {
             double quality_now_s = (now - start) / 1000000.0;
             bool log_quality = cfg.map_quality_enabled && map_quality.should_log(quality_now_s);
             bool supervise_due = cfg.mapping_supervisor_enabled && supervisor.should_log(quality_now_s);
-            if (log_quality || supervise_due) {
+            bool active_scan_due = cfg.active_scan_enabled && active_scan.should_log(quality_now_s);
+            if (log_quality || supervise_due || active_scan_due) {
                 GridStats gst = grid.stats(cfg);
                 gst.map_alloc_failures = metrics.map_alloc_failures;
                 map_quality.update_grid_stats(gst);
                 MapQualitySnapshot qs = map_quality.snapshot(quality_now_s);
+                latest_map_quality_snapshot = qs;
                 if (log_quality) {
                     if (map_quality_log) write_map_quality_row(map_quality_log, qs);
                     map_quality.mark_logged(quality_now_s, qs);
                 }
                 update_supervisor_from_quality(quality_now_s, qs, false);
+                update_active_scan_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, false);
             }
         }
         if ((now - last_log) >= static_cast<uint64_t>(1000000.0 / cfg.log_hz)) {
@@ -525,20 +556,25 @@ int real_main(int argc, char **argv) {
         usleep(1000);
     }
     if (cfg.save_on_exit) grid.save(run_dir + "/map.pgm", run_dir + "/map.yaml", cfg);
-    if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled) {
+    if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled) {
         double quality_now_s = (now_us_steady() - start) / 1000000.0;
         GridStats gst = grid.stats(cfg);
         gst.map_alloc_failures = metrics.map_alloc_failures;
         map_quality.update_grid_stats(gst);
         MapQualitySnapshot qs = map_quality.snapshot(quality_now_s);
+        latest_map_quality_snapshot = qs;
         if (cfg.map_quality_enabled) {
             if (map_quality_log) write_map_quality_row(map_quality_log, qs);
             map_quality.mark_logged(quality_now_s, qs);
             metrics.map_quality = map_quality.run_stats();
         }
-        if (cfg.mapping_supervisor_enabled) {
+        if (cfg.mapping_supervisor_enabled || cfg.active_scan_enabled) {
             update_supervisor_from_quality(quality_now_s, qs, true);
-            metrics.mapping_supervisor = supervisor.run_stats(quality_now_s);
+            if (cfg.mapping_supervisor_enabled) metrics.mapping_supervisor = supervisor.run_stats(quality_now_s);
+        }
+        if (cfg.active_scan_enabled) {
+            update_active_scan_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, true);
+            metrics.active_scan = active_scan.run_stats(quality_now_s);
         }
     }
     write_run_metrics(run_dir + "/metrics.csv", metrics, loc, grid, tof_health, cfg, sensors.encoder_stats());

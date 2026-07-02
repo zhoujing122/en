@@ -274,6 +274,26 @@ struct Config {
     int mapping_supervisor_encoder_error_degraded_threshold = 5;
     int mapping_supervisor_imu_error_degraded_threshold = 5;
     int mapping_supervisor_tof_unhealthy_degraded_threshold = 1;
+    bool active_scan_enabled = true;
+    double active_scan_log_hz = 1.0;
+    bool active_scan_startup_scan_enabled = true;
+    bool active_scan_low_quality_scan_enabled = true;
+    bool active_scan_degraded_scan_enabled = true;
+    bool active_scan_lost_scan_enabled = true;
+    double active_scan_min_interval_s = 15.0;
+    double active_scan_cooldown_s = 10.0;
+    double active_scan_request_hold_s = 1.0;
+    double active_scan_max_pending_s = 30.0;
+    double active_scan_recommended_scan_angle_deg = 360.0;
+    double active_scan_min_useful_scan_angle_deg = 90.0;
+    double active_scan_complete_scan_angle_deg = 300.0;
+    double active_scan_min_tof_valid_ratio_for_scan = 0.20;
+    int active_scan_min_valid_tof_routes_for_scan = 1;
+    double active_scan_max_linear_speed_for_scan_mps = 0.05;
+    double active_scan_min_yaw_rate_for_observed_scan_dps = 5.0;
+    double active_scan_max_yaw_rate_for_observed_scan_dps = 90.0;
+    bool active_scan_observe_natural_rotation = true;
+    bool active_scan_require_supervisor_recommendation = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -431,6 +451,24 @@ struct MappingSupervisorRunStats {
     double lost_seconds = 0.0;
 };
 
+struct ActiveScanRunStats {
+    std::string state_last = "IDLE";
+    std::string last_request_type = "NONE";
+    std::string last_reason = "idle";
+    uint64_t request_count = 0;
+    uint64_t would_start_count = 0;
+    uint64_t blocked_count = 0;
+    uint64_t completed_count = 0;
+    uint64_t useful_observed_count = 0;
+    uint64_t state_changes = 0;
+    double recommended_seconds = 0.0;
+    double observing_seconds = 0.0;
+    double cooldown_seconds = 0.0;
+    double blocked_seconds = 0.0;
+    double last_observed_yaw_delta_deg = 0.0;
+    double max_observed_yaw_delta_deg = 0.0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -469,6 +507,7 @@ struct RunMetrics {
     uint64_t spin_scan_edge_best_count = 0;
     MapQualityRunStats map_quality;
     MappingSupervisorRunStats mapping_supervisor;
+    ActiveScanRunStats active_scan;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {
