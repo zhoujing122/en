@@ -1,0 +1,6 @@
+services:
+  robotslamd:
+    image: robotslamd
+    build:
+      context: .
+      dockerfile: ./Dockerfile

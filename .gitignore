@@ -1,0 +1,15 @@
+build/
+board_map_preview_*/
+runs/
+latest
+latest.txt
+*.o
+*.a
+*.so
+*.so.*
+robot_slamd
+test_cjc_bl4820
+test_map_quality
+*.pgm
+*.yaml.tmp
+.DS_Store

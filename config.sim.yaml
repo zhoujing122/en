@@ -1,0 +1,131 @@
+robot:
+  wheel_base_m: 0.180
+  wheel_radius_left_m: 0.032
+  wheel_radius_right_m: 0.032
+  encoder_ticks_per_rev: 1024
+
+imu:
+  source: sim
+  path: /userdata/imu.csv
+  mode: localization
+  gyro_axis: z
+  gyro_sign: 1
+  gyro_bias_static_calib_s: 0
+  static_gyro_max_abs_rad_s: 0.03
+  yaw_fusion_alpha: 0.95
+
+localization:
+  encoder_max_wheel_speed_mps: 1.0
+  gyro_lpf_alpha: 0.30
+  gyro_spike_radps: 4.0
+  stationary_linear_speed_mps: 0.01
+  stationary_angular_speed_radps: 0.02
+  gyro_bias_adapt_alpha: 0.001
+
+encoder:
+  source: sim
+  path: /userdata/encoder.csv
+  ticks_are_cumulative: true
+
+tof:
+  source: sim
+  csv_path: /userdata/tof.csv
+  frequency_hz: 30
+  min_range_m: 0.05
+  max_range_m: 3.0
+  confidence_min: 70
+  median_window: 5
+  jump_reject_m: 0.6
+  mad_reject_m: 0.20
+  stable_hits_required: 2
+
+tof_devices:
+  front: /dev/mt3801_front
+  left: /dev/mt3801_left
+  right: /dev/mt3801_right
+
+tof_extrinsics:
+  front.x_m: 0.10
+  front.y_m: 0.00
+  front.yaw_deg: 0
+  front.fov_deg: 10
+  left.x_m: 0.00
+  left.y_m: 0.08
+  left.yaw_deg: 90
+  left.fov_deg: 10
+  right.x_m: 0.00
+  right.y_m: -0.08
+  right.yaw_deg: -90
+  right.fov_deg: 10
+
+mapping:
+  resolution_m: 0.05
+  chunk_cells: 64
+  initial_width_m: 10.0
+  initial_height_m: 10.0
+  ray_step_deg: 2.0
+  hit_thickness_m: 0.08
+  log_odds_occ: 0.85
+  log_odds_free: -0.35
+  log_odds_min: -3.5
+  log_odds_max: 3.5
+  occupied_thresh: 0.65
+  free_thresh: 0.25
+  max_cells_per_tof_update: 4096
+  static_scan_stable_required: 3
+  static_scan_boost: 1.5
+
+runtime:
+  localization_hz: 50
+  tof_read_hz: 30
+  mapping_hz: 10
+  log_hz: 10
+
+runtime_limits:
+  max_linear_speed_mps: 0.25
+  pause_linear_speed_mps: 0.40
+  max_angular_speed_radps: 0.785
+  pause_angular_speed_radps: 1.571
+
+logging:
+  output_dir: /userdata/robot_slamd
+
+map_saver:
+  save_on_exit: true
+  autosave_period_s: 0
+
+map_quality:
+  enabled: true
+  log_hz: 1.0
+  min_tof_valid_ratio: 0.30
+  min_map_update_rate_hz: 1.0
+  min_occupied_cells: 5
+  low_quality_score_threshold: 0.40
+  degraded_score_threshold: 0.25
+  window_s: 5.0
+
+tof_pose_correction:
+  enabled: false
+  mode: off
+  update_hz: 3.0
+  search_xy_m: 0.08
+  search_xy_step_m: 0.02
+  search_yaw_deg: 8.0
+  search_yaw_step_deg: 2.0
+  min_valid_tof: 2
+  max_residual_m: 0.25
+  min_margin: 0.05
+  max_xy_m: 0.03
+  max_yaw_deg: 2.0
+  gain: 0.3
+  mapping_mode_apply: false
+  candidate_lpf_alpha: 0.2
+  required_consistency: 3
+  consistency_yaw_deg: 1.0
+  min_candidate_reliability: 0.7
+  min_best_second_margin: 0.02
+  yaw_residual_curve_debug: false
+  debug_pose_offset_x_m: 0.0
+  debug_pose_offset_y_m: 0.0
+  debug_pose_offset_yaw_deg: 0.0
+

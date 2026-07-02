@@ -1,0 +1,96 @@
+#pragma once
+#include "common.hpp"
+#include "grid.hpp"
+#include "localizer.hpp"
+#include "tof.hpp"
+
+namespace robot_slamd {
+
+void write_run_metrics(const std::string &path, const RunMetrics &m, const Localizer &loc, const ChunkedGrid &grid, const TofHealth &health, const Config &cfg, const EncoderStats &encoder_stats) {
+    auto gs = grid.stats(cfg);
+    std::ofstream o(path);
+    o << "key,value\n";
+    o << "localization_updates," << m.localization_updates << "\n";
+    o << "tof_samples," << m.tof_samples << "\n";
+    o << "tof_hit_updates," << m.tof_hit_updates << "\n";
+    o << "tof_free_only," << m.tof_free_only << "\n";
+    o << "tof_rejected," << m.tof_rejected << "\n";
+    o << "map_updates," << m.map_updates << "\n";
+    o << "map_alloc_failures," << m.map_alloc_failures << "\n";
+    o << "map_quality_score_last," << m.map_quality.score_last << "\n";
+    o << "map_quality_score_min," << (m.map_quality.score_count ? m.map_quality.score_min : 0.0) << "\n";
+    o << "map_quality_score_mean," << (m.map_quality.score_count ? m.map_quality.score_sum / m.map_quality.score_count : 0.0) << "\n";
+    o << "map_quality_low_count," << m.map_quality.low_count << "\n";
+    o << "map_quality_degraded_count," << m.map_quality.degraded_count << "\n";
+    o << "active_scan_recommended_count," << m.map_quality.active_scan_recommended_count << "\n";
+    o << "tof_valid_ratio_last," << m.map_quality.tof_valid_ratio_last << "\n";
+    o << "tof_reject_ratio_last," << m.map_quality.tof_reject_ratio_last << "\n";
+    o << "map_update_rate_hz_last," << m.map_quality.map_update_rate_hz_last << "\n";
+    o << "map_known_cells_last," << m.map_quality.map_known_cells_last << "\n";
+    o << "map_occupied_cells_last," << m.map_quality.map_occupied_cells_last << "\n";
+    o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
+    o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
+    o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";
+    o << "tof_correction_attempts," << m.tof_correction_attempts << "\n";
+    o << "tof_correction_accepts," << m.tof_correction_accepts << "\n";
+    o << "tof_correction_rejects," << m.tof_correction_rejects << "\n";
+    o << "tof_correction_mean_residual," << (m.tof_correction_attempts ? m.tof_correction_residual_sum / m.tof_correction_attempts : 0.0) << "\n";
+    o << "tof_correction_odom_residual_mean," << (m.tof_correction_attempts ? m.tof_correction_odom_residual_sum / m.tof_correction_attempts : 0.0) << "\n";
+    o << "tof_correction_best_residual_mean," << (m.tof_correction_attempts ? m.tof_correction_residual_sum / m.tof_correction_attempts : 0.0) << "\n";
+    o << "tof_correction_improvement_mean," << (m.tof_correction_attempts ? m.tof_correction_improvement_sum / m.tof_correction_attempts : 0.0) << "\n";
+    o << "tof_correction_best_shift_mean," << (m.tof_correction_attempts ? m.tof_correction_best_shift_sum / m.tof_correction_attempts : 0.0) << "\n";
+    o << "tof_correction_max_dx," << m.tof_correction_max_dx << "\n";
+    o << "tof_correction_max_dyaw," << m.tof_correction_max_dyaw << "\n";
+    o << "pose_quality_mean," << (m.localization_updates ? m.pose_quality_sum / m.localization_updates : 0.0) << "\n";
+    o << "pose_quality_min," << (m.localization_updates ? m.pose_quality_min : 0.0) << "\n";
+    o << "localization_confidence_mean," << (m.localization_updates ? m.localization_confidence_sum / m.localization_updates : 0.0) << "\n";
+    o << "localization_confidence_min," << (m.localization_updates ? m.localization_confidence_min : 0.0) << "\n";
+    o << "spin_scan_attempts," << m.spin_scan_attempts << "\n";
+    o << "spin_scan_completed," << m.spin_scan_completed << "\n";
+    o << "spin_scan_failed," << m.spin_scan_failed << "\n";
+    o << "spin_scan_matched," << m.spin_scan_matched << "\n";
+    o << "spin_scan_usable," << m.spin_scan_usable << "\n";
+    o << "spin_scan_valid_bins_mean," << (m.spin_scan_attempts ? m.spin_scan_valid_bins_sum / m.spin_scan_attempts : 0.0) << "\n";
+    o << "spin_scan_valid_bin_ratio_mean," << (m.spin_scan_attempts ? m.spin_scan_valid_bin_ratio_sum / m.spin_scan_attempts : 0.0) << "\n";
+    o << "spin_scan_reliability_mean," << (m.spin_scan_attempts ? m.spin_scan_reliability_sum / m.spin_scan_attempts : 0.0) << "\n";
+    o << "spin_scan_reliability_min," << (m.spin_scan_attempts ? m.spin_scan_reliability_min : 0.0) << "\n";
+    o << "spin_scan_multimodal_count," << m.spin_scan_multimodal_count << "\n";
+    o << "spin_scan_flat_curve_count," << m.spin_scan_flat_curve_count << "\n";
+    o << "spin_scan_edge_best_count," << m.spin_scan_edge_best_count << "\n";
+    o << "encoder_rejected_updates," << loc.rejected_encoder_updates() << "\n";
+    o << "encoder_left_reads," << encoder_stats.left_reads << "\n";
+    o << "encoder_right_reads," << encoder_stats.right_reads << "\n";
+    o << "encoder_left_errors," << encoder_stats.left_errors << "\n";
+    o << "encoder_right_errors," << encoder_stats.right_errors << "\n";
+    o << "encoder_left_total_ticks," << encoder_stats.left_total_ticks << "\n";
+    o << "encoder_right_total_ticks," << encoder_stats.right_total_ticks << "\n";
+    o << "encoder_left_rpm," << encoder_stats.left_rpm << "\n";
+    o << "encoder_right_rpm," << encoder_stats.right_rpm << "\n";
+    o << "encoder_uart_checksum_errors," << encoder_stats.uart_checksum_errors << "\n";
+    o << "encoder_uart_timeout_errors," << encoder_stats.uart_timeout_errors << "\n";
+    o << "encoder_uart_status_errors," << encoder_stats.uart_status_errors << "\n";
+    o << "encoder_uart_frame_errors," << encoder_stats.uart_frame_errors << "\n";
+    o << "encoder_jump_rejects," << encoder_stats.jump_rejects << "\n";
+    o << "encoder_left_unhealthy," << (encoder_stats.left_unhealthy ? 1 : 0) << "\n";
+    o << "encoder_right_unhealthy," << (encoder_stats.right_unhealthy ? 1 : 0) << "\n";
+    o << "gyro_spikes," << loc.gyro_spikes() << "\n";
+    o << "gyro_bias_adapt_updates," << loc.bias_adapt_updates() << "\n";
+    o << "final_gyro_bias_rad_s," << loc.gyro_bias() << "\n";
+    for (const auto &id : {"front", "left", "right"}) {
+        const auto &st = health.by_id.at(id);
+        o << id << "_hit_rate," << st.hit_rate() << "\n";
+        o << id << "_reject_rate," << st.reject_rate() << "\n";
+        o << id << "_gap_count," << st.gaps << "\n";
+        o << id << "_confidence_mean," << st.confidence_mean() << "\n";
+        o << id << "_unhealthy," << (st.unhealthy(cfg) ? 1 : 0) << "\n";
+    }
+    o << "map_chunks," << gs.chunks << "\n";
+    o << "map_touched_cells," << gs.touched_cells << "\n";
+    o << "map_width_cells," << gs.width_cells << "\n";
+    o << "map_height_cells," << gs.height_cells << "\n";
+    o << "map_occupied_cells," << gs.occupied_cells << "\n";
+    o << "map_free_cells," << gs.free_cells << "\n";
+    o << "map_unknown_cells," << gs.unknown_cells << "\n";
+}
+
+} // namespace robot_slamd
