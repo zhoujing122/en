@@ -231,6 +231,25 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.active_scan_max_yaw_rate_for_observed_scan_dps = get_double(kv, "active_scan.max_yaw_rate_for_observed_scan_dps", c.active_scan_max_yaw_rate_for_observed_scan_dps);
     c.active_scan_observe_natural_rotation = get_bool(kv, "active_scan.observe_natural_rotation", c.active_scan_observe_natural_rotation);
     c.active_scan_require_supervisor_recommendation = get_bool(kv, "active_scan.require_supervisor_recommendation", c.active_scan_require_supervisor_recommendation);
+    c.active_scan_execution_enabled = get_bool(kv, "active_scan_execution.enabled", c.active_scan_execution_enabled);
+    c.active_scan_execution_mode = get_string(kv, "active_scan_execution.mode", c.active_scan_execution_mode);
+    c.active_scan_execution_log_hz = get_double(kv, "active_scan_execution.log_hz", c.active_scan_execution_log_hz);
+    c.active_scan_execution_require_active_scan_would_start = get_bool(kv, "active_scan_execution.require_active_scan_would_start", c.active_scan_execution_require_active_scan_would_start);
+    c.active_scan_execution_require_scan_recommended = get_bool(kv, "active_scan_execution.require_scan_recommended", c.active_scan_execution_require_scan_recommended);
+    c.active_scan_execution_require_localization_valid = get_bool(kv, "active_scan_execution.require_localization_valid", c.active_scan_execution_require_localization_valid);
+    c.active_scan_execution_target_scan_angle_deg = get_double(kv, "active_scan_execution.target_scan_angle_deg", c.active_scan_execution_target_scan_angle_deg);
+    c.active_scan_execution_complete_scan_angle_deg = get_double(kv, "active_scan_execution.complete_scan_angle_deg", c.active_scan_execution_complete_scan_angle_deg);
+    c.active_scan_execution_min_useful_scan_angle_deg = get_double(kv, "active_scan_execution.min_useful_scan_angle_deg", c.active_scan_execution_min_useful_scan_angle_deg);
+    c.active_scan_execution_target_yaw_rate_dps = get_double(kv, "active_scan_execution.target_yaw_rate_dps", c.active_scan_execution_target_yaw_rate_dps);
+    c.active_scan_execution_min_observed_yaw_rate_dps = get_double(kv, "active_scan_execution.min_observed_yaw_rate_dps", c.active_scan_execution_min_observed_yaw_rate_dps);
+    c.active_scan_execution_max_observed_yaw_rate_dps = get_double(kv, "active_scan_execution.max_observed_yaw_rate_dps", c.active_scan_execution_max_observed_yaw_rate_dps);
+    c.active_scan_execution_max_linear_speed_mps = get_double(kv, "active_scan_execution.max_linear_speed_mps", c.active_scan_execution_max_linear_speed_mps);
+    c.active_scan_execution_precheck_hold_s = get_double(kv, "active_scan_execution.precheck_hold_s", c.active_scan_execution_precheck_hold_s);
+    c.active_scan_execution_command_timeout_s = get_double(kv, "active_scan_execution.command_timeout_s", c.active_scan_execution_command_timeout_s);
+    c.active_scan_execution_cooldown_s = get_double(kv, "active_scan_execution.cooldown_s", c.active_scan_execution_cooldown_s);
+    c.active_scan_execution_emit_zero_command_on_stop = get_bool(kv, "active_scan_execution.emit_zero_command_on_stop", c.active_scan_execution_emit_zero_command_on_stop);
+    c.active_scan_execution_command_log_only = get_bool(kv, "active_scan_execution.command_log_only", c.active_scan_execution_command_log_only);
+    c.active_scan_execution_hardware_write_enabled = get_bool(kv, "active_scan_execution.hardware_write_enabled", c.active_scan_execution_hardware_write_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -414,6 +433,24 @@ void validate_config(const Config &c) {
     if (c.active_scan_complete_scan_angle_deg < c.active_scan_min_useful_scan_angle_deg) errors.push_back("active_scan.complete_scan_angle_deg must be >= min_useful_scan_angle_deg");
     if (c.active_scan_recommended_scan_angle_deg < c.active_scan_min_useful_scan_angle_deg) errors.push_back("active_scan.recommended_scan_angle_deg must be >= min_useful_scan_angle_deg");
     if (c.active_scan_max_yaw_rate_for_observed_scan_dps < c.active_scan_min_yaw_rate_for_observed_scan_dps) errors.push_back("active_scan.max_yaw_rate_for_observed_scan_dps must be >= min_yaw_rate_for_observed_scan_dps");
+
+    if (!one_of(c.active_scan_execution_mode, {"disabled", "dry_run", "command_log_only"})) errors.push_back("active_scan_execution.mode must be disabled, dry_run, or command_log_only; hardware execution unsupported in stage4");
+    if (c.active_scan_execution_mode == "hardware") errors.push_back("active_scan_execution.mode=hardware unsupported in stage4");
+    if (c.active_scan_execution_hardware_write_enabled) errors.push_back("active_scan_execution.hardware_write_enabled=true unsupported in stage4");
+    positive("active_scan_execution.log_hz", c.active_scan_execution_log_hz);
+    non_negative("active_scan_execution.target_scan_angle_deg", c.active_scan_execution_target_scan_angle_deg);
+    non_negative("active_scan_execution.complete_scan_angle_deg", c.active_scan_execution_complete_scan_angle_deg);
+    non_negative("active_scan_execution.min_useful_scan_angle_deg", c.active_scan_execution_min_useful_scan_angle_deg);
+    positive("active_scan_execution.target_yaw_rate_dps", c.active_scan_execution_target_yaw_rate_dps);
+    non_negative("active_scan_execution.min_observed_yaw_rate_dps", c.active_scan_execution_min_observed_yaw_rate_dps);
+    non_negative("active_scan_execution.max_observed_yaw_rate_dps", c.active_scan_execution_max_observed_yaw_rate_dps);
+    non_negative("active_scan_execution.max_linear_speed_mps", c.active_scan_execution_max_linear_speed_mps);
+    non_negative("active_scan_execution.precheck_hold_s", c.active_scan_execution_precheck_hold_s);
+    non_negative("active_scan_execution.command_timeout_s", c.active_scan_execution_command_timeout_s);
+    non_negative("active_scan_execution.cooldown_s", c.active_scan_execution_cooldown_s);
+    if (c.active_scan_execution_complete_scan_angle_deg < c.active_scan_execution_min_useful_scan_angle_deg) errors.push_back("active_scan_execution.complete_scan_angle_deg must be >= min_useful_scan_angle_deg");
+    if (c.active_scan_execution_target_scan_angle_deg < c.active_scan_execution_min_useful_scan_angle_deg) errors.push_back("active_scan_execution.target_scan_angle_deg must be >= min_useful_scan_angle_deg");
+    if (c.active_scan_execution_max_observed_yaw_rate_dps < c.active_scan_execution_min_observed_yaw_rate_dps) errors.push_back("active_scan_execution.max_observed_yaw_rate_dps must be >= min_observed_yaw_rate_dps");
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -601,6 +638,26 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  max_yaw_rate_for_observed_scan_dps: " << c.active_scan_max_yaw_rate_for_observed_scan_dps << "\n"
       << "  observe_natural_rotation: " << bool_yaml(c.active_scan_observe_natural_rotation) << "\n"
       << "  require_supervisor_recommendation: " << bool_yaml(c.active_scan_require_supervisor_recommendation) << "\n";
+    o << "active_scan_execution:\n"
+      << "  enabled: " << bool_yaml(c.active_scan_execution_enabled) << "\n"
+      << "  mode: " << c.active_scan_execution_mode << "\n"
+      << "  log_hz: " << c.active_scan_execution_log_hz << "\n"
+      << "  require_active_scan_would_start: " << bool_yaml(c.active_scan_execution_require_active_scan_would_start) << "\n"
+      << "  require_scan_recommended: " << bool_yaml(c.active_scan_execution_require_scan_recommended) << "\n"
+      << "  require_localization_valid: " << bool_yaml(c.active_scan_execution_require_localization_valid) << "\n"
+      << "  target_scan_angle_deg: " << c.active_scan_execution_target_scan_angle_deg << "\n"
+      << "  complete_scan_angle_deg: " << c.active_scan_execution_complete_scan_angle_deg << "\n"
+      << "  min_useful_scan_angle_deg: " << c.active_scan_execution_min_useful_scan_angle_deg << "\n"
+      << "  target_yaw_rate_dps: " << c.active_scan_execution_target_yaw_rate_dps << "\n"
+      << "  min_observed_yaw_rate_dps: " << c.active_scan_execution_min_observed_yaw_rate_dps << "\n"
+      << "  max_observed_yaw_rate_dps: " << c.active_scan_execution_max_observed_yaw_rate_dps << "\n"
+      << "  max_linear_speed_mps: " << c.active_scan_execution_max_linear_speed_mps << "\n"
+      << "  precheck_hold_s: " << c.active_scan_execution_precheck_hold_s << "\n"
+      << "  command_timeout_s: " << c.active_scan_execution_command_timeout_s << "\n"
+      << "  cooldown_s: " << c.active_scan_execution_cooldown_s << "\n"
+      << "  emit_zero_command_on_stop: " << bool_yaml(c.active_scan_execution_emit_zero_command_on_stop) << "\n"
+      << "  command_log_only: " << bool_yaml(c.active_scan_execution_command_log_only) << "\n"
+      << "  hardware_write_enabled: " << bool_yaml(c.active_scan_execution_hardware_write_enabled) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

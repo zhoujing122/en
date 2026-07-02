@@ -294,6 +294,25 @@ struct Config {
     double active_scan_max_yaw_rate_for_observed_scan_dps = 90.0;
     bool active_scan_observe_natural_rotation = true;
     bool active_scan_require_supervisor_recommendation = true;
+    bool active_scan_execution_enabled = true;
+    std::string active_scan_execution_mode = "dry_run";
+    double active_scan_execution_log_hz = 5.0;
+    bool active_scan_execution_require_active_scan_would_start = true;
+    bool active_scan_execution_require_scan_recommended = true;
+    bool active_scan_execution_require_localization_valid = true;
+    double active_scan_execution_target_scan_angle_deg = 360.0;
+    double active_scan_execution_complete_scan_angle_deg = 300.0;
+    double active_scan_execution_min_useful_scan_angle_deg = 90.0;
+    double active_scan_execution_target_yaw_rate_dps = 20.0;
+    double active_scan_execution_min_observed_yaw_rate_dps = 3.0;
+    double active_scan_execution_max_observed_yaw_rate_dps = 60.0;
+    double active_scan_execution_max_linear_speed_mps = 0.05;
+    double active_scan_execution_precheck_hold_s = 0.5;
+    double active_scan_execution_command_timeout_s = 30.0;
+    double active_scan_execution_cooldown_s = 10.0;
+    bool active_scan_execution_emit_zero_command_on_stop = true;
+    bool active_scan_execution_command_log_only = true;
+    bool active_scan_execution_hardware_write_enabled = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -469,6 +488,25 @@ struct ActiveScanRunStats {
     double max_observed_yaw_delta_deg = 0.0;
 };
 
+struct ActiveScanCommandRunStats {
+    std::string state_last = "IDLE";
+    std::string last_reason = "idle";
+    std::string last_request_type = "NONE";
+    uint64_t state_changes = 0;
+    uint64_t precheck_count = 0;
+    uint64_t command_start_count = 0;
+    uint64_t zero_command_count = 0;
+    uint64_t completed_count = 0;
+    uint64_t aborted_count = 0;
+    uint64_t blocked_count = 0;
+    double command_active_seconds = 0.0;
+    double verifying_seconds = 0.0;
+    double cooldown_seconds = 0.0;
+    double blocked_seconds = 0.0;
+    double last_observed_yaw_delta_deg = 0.0;
+    double max_observed_yaw_delta_deg = 0.0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -508,6 +546,7 @@ struct RunMetrics {
     MapQualityRunStats map_quality;
     MappingSupervisorRunStats mapping_supervisor;
     ActiveScanRunStats active_scan;
+    ActiveScanCommandRunStats active_scan_command;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

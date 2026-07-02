@@ -22,4 +22,7 @@ add_test(NAME test_mapping_supervisor COMMAND test_mapping_supervisor)
 add_executable(test_active_scan_manager test_active_scan_manager.cpp)
 target_link_libraries(test_active_scan_manager m dl)
 add_test(NAME test_active_scan_manager COMMAND test_active_scan_manager)
+add_executable(test_active_scan_command_planner test_active_scan_command_planner.cpp)
+target_link_libraries(test_active_scan_command_planner m dl)
+add_test(NAME test_active_scan_command_planner COMMAND test_active_scan_command_planner)
 

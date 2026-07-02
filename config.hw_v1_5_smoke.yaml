@@ -150,6 +150,27 @@ active_scan:
   observe_natural_rotation: true
   require_supervisor_recommendation: true
 
+active_scan_execution:
+  enabled: true
+  mode: dry_run
+  log_hz: 5.0
+  require_active_scan_would_start: true
+  require_scan_recommended: true
+  require_localization_valid: true
+  target_scan_angle_deg: 360.0
+  complete_scan_angle_deg: 300.0
+  min_useful_scan_angle_deg: 90.0
+  target_yaw_rate_dps: 20.0
+  min_observed_yaw_rate_dps: 3.0
+  max_observed_yaw_rate_dps: 60.0
+  max_linear_speed_mps: 0.05
+  precheck_hold_s: 0.5
+  command_timeout_s: 30.0
+  cooldown_s: 10.0
+  emit_zero_command_on_stop: true
+  command_log_only: true
+  hardware_write_enabled: false
+
 tof_pose_correction:
   enabled: false
   min_candidate_reliability: 0.7
