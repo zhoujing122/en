@@ -49,6 +49,13 @@ robot_slamd::Config gate_config() {
     c.yaw_correction_require_mapping_state_ok = true;
     c.yaw_correction_require_low_speed_or_static = true;
     c.yaw_correction_require_active_scan_complete = true;
+    c.yaw_correction_scan_completion_source = "either";
+    c.yaw_correction_allow_yaw_match_evidence_complete = true;
+    c.yaw_correction_min_match_observed_yaw_delta_deg = 90.0;
+    c.yaw_correction_min_match_valid_samples = 15;
+    c.yaw_correction_min_match_valid_bins = 8;
+    c.yaw_correction_min_match_valid_bin_ratio = 0.10;
+    c.yaw_correction_require_yaw_match_attempted = true;
     c.yaw_correction_max_linear_speed_mps = 0.05;
     c.yaw_correction_max_abs_yaw_rate_dps = 5.0;
     c.yaw_correction_min_best_score = 0.20;
@@ -81,6 +88,10 @@ robot_slamd::SparseScanYawMatchSummary match(uint64_t id, double t, double delta
     s.curve_flat = false;
     s.curve_flatness = 0.2;
     s.multimodal = false;
+    s.observed_yaw_delta_deg = 120.0;
+    s.valid_samples = 20;
+    s.valid_bins = 10;
+    s.valid_bin_ratio = 0.25;
     return s;
 }
 
@@ -103,6 +114,14 @@ robot_slamd::YawCorrectionGateInput input(uint64_t id, double t, double delta_de
     return in;
 }
 
+void clear_active_scan_completion(robot_slamd::YawCorrectionGateInput &in) {
+    in.active_scan.state = "IDLE";
+    in.active_scan.completed = false;
+    in.active_scan.useful_scan_observed = false;
+    in.active_scan_command.state = "IDLE";
+    in.active_scan_command.completed = false;
+}
+
 robot_slamd::YawCorrectionGateSnapshot update_once(robot_slamd::YawCorrectionGate &gate, const robot_slamd::YawCorrectionGateInput &in) {
     gate.update(in);
     return gate.snapshot();
@@ -115,6 +134,7 @@ int main() {
 
     Config cfg = gate_config();
     expect_no_throw([&] { validate_config(cfg); }, "valid yaw_correction config should pass");
+    expect(cfg.yaw_correction_scan_completion_source == "either", "default scan completion source should be either");
 
     YawCorrectionGate gate(cfg);
     expect(gate.snapshot().state == "IDLE", "default enabled gate should start IDLE");
@@ -173,6 +193,21 @@ int main() {
     invalid = cfg;
     invalid.yaw_correction_cooldown_s = -0.1;
     expect_throw([&] { validate_config(invalid); }, "negative cooldown should be fatal");
+    invalid = cfg;
+    invalid.yaw_correction_scan_completion_source = "bad_source";
+    expect_throw([&] { validate_config(invalid); }, "invalid scan_completion_source should be fatal");
+    invalid = cfg;
+    invalid.yaw_correction_min_match_observed_yaw_delta_deg = -0.1;
+    expect_throw([&] { validate_config(invalid); }, "negative min_match_observed_yaw_delta_deg should be fatal");
+    invalid = cfg;
+    invalid.yaw_correction_min_match_valid_samples = -1;
+    expect_throw([&] { validate_config(invalid); }, "negative min_match_valid_samples should be fatal");
+    invalid = cfg;
+    invalid.yaw_correction_min_match_valid_bins = -1;
+    expect_throw([&] { validate_config(invalid); }, "negative min_match_valid_bins should be fatal");
+    invalid = cfg;
+    invalid.yaw_correction_min_match_valid_bin_ratio = 1.1;
+    expect_throw([&] { validate_config(invalid); }, "invalid min_match_valid_bin_ratio should be fatal");
 
     YawCorrectionGate seen(cfg);
     auto first = update_once(seen, input(1, 1.0, 2.0));
@@ -201,7 +236,45 @@ int main() {
     reject_case("yaw_rate_too_high", [](auto &in) { in.yaw_rate_radps = deg2rad(8.0); });
     reject_case("localization_invalid", [](auto &in) { in.localization_valid = false; });
     reject_case("supervisor_lost", [](auto &in) { in.supervisor.state = "LOST"; });
-    reject_case("active_scan_not_complete", [](auto &in) { in.active_scan.completed = false; in.active_scan.state = "MAPPING"; in.active_scan_command.completed = false; in.active_scan_command.state = "IDLE"; });
+
+    Config evidence_cfg = cfg;
+    evidence_cfg.yaw_correction_consistency_window = 1;
+    YawCorrectionGate old_active_path(evidence_cfg);
+    auto active_path_in = input(80, 1.0, 2.0);
+    active_path_in.yaw_match.observed_yaw_delta_deg = 10.0;
+    active_path_in.yaw_match.valid_samples = 1;
+    active_path_in.yaw_match.valid_bins = 1;
+    active_path_in.yaw_match.valid_bin_ratio = 0.01;
+    auto active_path_s = update_once(old_active_path, active_path_in);
+    expect(active_path_s.would_apply && active_path_s.active_scan_evidence_ok && !active_path_s.yaw_match_evidence_ok && active_path_s.scan_evidence_ok, "active_scan completed evidence should still pass default either mode");
+
+    YawCorrectionGate natural_rotation_path(evidence_cfg);
+    auto natural_in = input(81, 1.0, 2.0);
+    clear_active_scan_completion(natural_in);
+    auto natural_s = update_once(natural_rotation_path, natural_in);
+    expect(natural_s.would_apply && !natural_s.active_scan_evidence_ok && natural_s.yaw_match_evidence_ok && natural_s.scan_evidence_ok, "yaw_match evidence should pass when active scan is not completed in either mode");
+
+    Config active_only_cfg = evidence_cfg;
+    active_only_cfg.yaw_correction_scan_completion_source = "active_scan_only";
+    YawCorrectionGate active_only(active_only_cfg);
+    auto active_only_in = input(82, 1.0, 2.0);
+    clear_active_scan_completion(active_only_in);
+    auto active_only_s = update_once(active_only, active_only_in);
+    expect(active_only_s.state == "REJECTED" && active_only_s.reason == "active_scan_evidence_not_complete", "active_scan_only should reject without active scan evidence");
+
+    auto reject_yaw_match_source = [&](const char *expected, const std::function<void(YawCorrectionGateInput &)> &mutate) {
+        Config yaw_only_cfg = evidence_cfg;
+        yaw_only_cfg.yaw_correction_scan_completion_source = "yaw_match_only";
+        YawCorrectionGate g(yaw_only_cfg);
+        auto in = input(90, 1.0, 2.0);
+        mutate(in);
+        auto s = update_once(g, in);
+        expect(s.state == "REJECTED" && s.reason == expected && s.active_scan_evidence_ok && !s.yaw_match_evidence_ok && !s.scan_evidence_ok, expected);
+    };
+    reject_yaw_match_source("match_yaw_coverage_too_low", [](auto &in) { in.yaw_match.observed_yaw_delta_deg = 20.0; });
+    reject_yaw_match_source("match_valid_samples_too_low", [](auto &in) { in.yaw_match.valid_samples = 1; });
+    reject_yaw_match_source("match_valid_bins_too_low", [](auto &in) { in.yaw_match.valid_bins = 1; });
+    reject_yaw_match_source("match_valid_bin_ratio_too_low", [](auto &in) { in.yaw_match.valid_bin_ratio = 0.01; });
 
     YawCorrectionGate consistency(cfg);
     auto c1 = update_once(consistency, input(20, 1.0, 2.0));

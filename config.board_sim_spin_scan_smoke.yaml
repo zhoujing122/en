@@ -231,6 +231,13 @@ yaw_correction:
   require_mapping_state_ok: true
   require_low_speed_or_static: true
   require_active_scan_complete: true
+  scan_completion_source: either
+  allow_yaw_match_evidence_complete: true
+  min_match_observed_yaw_delta_deg: 90.0
+  min_match_valid_samples: 15
+  min_match_valid_bins: 8
+  min_match_valid_bin_ratio: 0.10
+  require_yaw_match_attempted: true
   max_linear_speed_mps: 0.05
   max_abs_yaw_rate_dps: 5.0
   min_best_score: 0.20

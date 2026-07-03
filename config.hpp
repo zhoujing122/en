@@ -312,6 +312,13 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.yaw_correction_require_mapping_state_ok = get_bool(kv, "yaw_correction.require_mapping_state_ok", c.yaw_correction_require_mapping_state_ok);
     c.yaw_correction_require_low_speed_or_static = get_bool(kv, "yaw_correction.require_low_speed_or_static", c.yaw_correction_require_low_speed_or_static);
     c.yaw_correction_require_active_scan_complete = get_bool(kv, "yaw_correction.require_active_scan_complete", c.yaw_correction_require_active_scan_complete);
+    c.yaw_correction_scan_completion_source = get_string(kv, "yaw_correction.scan_completion_source", c.yaw_correction_scan_completion_source);
+    c.yaw_correction_allow_yaw_match_evidence_complete = get_bool(kv, "yaw_correction.allow_yaw_match_evidence_complete", c.yaw_correction_allow_yaw_match_evidence_complete);
+    c.yaw_correction_min_match_observed_yaw_delta_deg = get_double(kv, "yaw_correction.min_match_observed_yaw_delta_deg", c.yaw_correction_min_match_observed_yaw_delta_deg);
+    c.yaw_correction_min_match_valid_samples = get_int(kv, "yaw_correction.min_match_valid_samples", c.yaw_correction_min_match_valid_samples);
+    c.yaw_correction_min_match_valid_bins = get_int(kv, "yaw_correction.min_match_valid_bins", c.yaw_correction_min_match_valid_bins);
+    c.yaw_correction_min_match_valid_bin_ratio = get_double(kv, "yaw_correction.min_match_valid_bin_ratio", c.yaw_correction_min_match_valid_bin_ratio);
+    c.yaw_correction_require_yaw_match_attempted = get_bool(kv, "yaw_correction.require_yaw_match_attempted", c.yaw_correction_require_yaw_match_attempted);
     c.yaw_correction_max_linear_speed_mps = get_double(kv, "yaw_correction.max_linear_speed_mps", c.yaw_correction_max_linear_speed_mps);
     c.yaw_correction_max_abs_yaw_rate_dps = get_double(kv, "yaw_correction.max_abs_yaw_rate_dps", c.yaw_correction_max_abs_yaw_rate_dps);
     c.yaw_correction_min_best_score = get_double(kv, "yaw_correction.min_best_score", c.yaw_correction_min_best_score);
@@ -577,6 +584,7 @@ void validate_config(const Config &c) {
     if (!one_of(c.yaw_correction_mode, {"disabled", "dry_run"})) errors.push_back("yaw_correction.mode must be disabled or dry_run");
     if (c.yaw_correction_mode == "writeback") errors.push_back("yaw_correction.mode=writeback unsupported in stage4B");
     if (c.yaw_correction_writeback_enabled) errors.push_back("yaw_correction.writeback_enabled=true unsupported in stage4B");
+    if (!one_of(c.yaw_correction_scan_completion_source, {"active_scan_only", "yaw_match_only", "either"})) errors.push_back("yaw_correction.scan_completion_source must be active_scan_only, yaw_match_only, or either");
     positive("yaw_correction.log_hz", c.yaw_correction_log_hz);
     non_negative("yaw_correction.max_linear_speed_mps", c.yaw_correction_max_linear_speed_mps);
     non_negative("yaw_correction.max_abs_yaw_rate_dps", c.yaw_correction_max_abs_yaw_rate_dps);
@@ -594,6 +602,10 @@ void validate_config(const Config &c) {
     if (c.yaw_correction_consistency_window < 1) errors.push_back("yaw_correction.consistency_window must be >= 1");
     non_negative("yaw_correction.max_consistency_spread_deg", c.yaw_correction_max_consistency_spread_deg);
     non_negative("yaw_correction.cooldown_s", c.yaw_correction_cooldown_s);
+    non_negative("yaw_correction.min_match_observed_yaw_delta_deg", c.yaw_correction_min_match_observed_yaw_delta_deg);
+    if (c.yaw_correction_min_match_valid_samples < 0) errors.push_back("yaw_correction.min_match_valid_samples must be >= 0");
+    if (c.yaw_correction_min_match_valid_bins < 0) errors.push_back("yaw_correction.min_match_valid_bins must be >= 0");
+    probability("yaw_correction.min_match_valid_bin_ratio", c.yaw_correction_min_match_valid_bin_ratio);
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -866,6 +878,13 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_mapping_state_ok: " << bool_yaml(c.yaw_correction_require_mapping_state_ok) << "\n"
       << "  require_low_speed_or_static: " << bool_yaml(c.yaw_correction_require_low_speed_or_static) << "\n"
       << "  require_active_scan_complete: " << bool_yaml(c.yaw_correction_require_active_scan_complete) << "\n"
+      << "  scan_completion_source: " << c.yaw_correction_scan_completion_source << "\n"
+      << "  allow_yaw_match_evidence_complete: " << bool_yaml(c.yaw_correction_allow_yaw_match_evidence_complete) << "\n"
+      << "  min_match_observed_yaw_delta_deg: " << c.yaw_correction_min_match_observed_yaw_delta_deg << "\n"
+      << "  min_match_valid_samples: " << c.yaw_correction_min_match_valid_samples << "\n"
+      << "  min_match_valid_bins: " << c.yaw_correction_min_match_valid_bins << "\n"
+      << "  min_match_valid_bin_ratio: " << c.yaw_correction_min_match_valid_bin_ratio << "\n"
+      << "  require_yaw_match_attempted: " << bool_yaml(c.yaw_correction_require_yaw_match_attempted) << "\n"
       << "  max_linear_speed_mps: " << c.yaw_correction_max_linear_speed_mps << "\n"
       << "  max_abs_yaw_rate_dps: " << c.yaw_correction_max_abs_yaw_rate_dps << "\n"
       << "  min_best_score: " << c.yaw_correction_min_best_score << "\n"

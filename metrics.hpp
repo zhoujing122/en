@@ -109,6 +109,16 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "yaw_correction_robot_moving_reject_count," << m.yaw_correction.robot_moving_reject_count << "\n";
     o << "yaw_correction_low_quality_reject_count," << m.yaw_correction.low_quality_reject_count << "\n";
     o << "yaw_correction_consistency_reject_count," << m.yaw_correction.consistency_reject_count << "\n";
+    o << "yaw_correction_scan_evidence_reject_count," << m.yaw_correction.scan_evidence_reject_count << "\n";
+    o << "yaw_correction_active_scan_evidence_reject_count," << m.yaw_correction.active_scan_evidence_reject_count << "\n";
+    o << "yaw_correction_yaw_match_evidence_reject_count," << m.yaw_correction.yaw_match_evidence_reject_count << "\n";
+    o << "yaw_correction_last_scan_evidence_ok," << (m.yaw_correction.last_scan_evidence_ok ? 1 : 0) << "\n";
+    o << "yaw_correction_last_active_scan_evidence_ok," << (m.yaw_correction.last_active_scan_evidence_ok ? 1 : 0) << "\n";
+    o << "yaw_correction_last_yaw_match_evidence_ok," << (m.yaw_correction.last_yaw_match_evidence_ok ? 1 : 0) << "\n";
+    o << "yaw_correction_last_match_observed_yaw_delta_deg," << m.yaw_correction.last_match_observed_yaw_delta_deg << "\n";
+    o << "yaw_correction_last_match_valid_samples," << m.yaw_correction.last_match_valid_samples << "\n";
+    o << "yaw_correction_last_match_valid_bins," << m.yaw_correction.last_match_valid_bins << "\n";
+    o << "yaw_correction_last_match_valid_bin_ratio," << m.yaw_correction.last_match_valid_bin_ratio << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

@@ -68,6 +68,14 @@ struct YawCorrectionGateSnapshot {
     double yaw_rate_dps = 0.0;
     std::string supervisor_state;
     std::string yaw_match_reason;
+    bool active_scan_evidence_ok = false;
+    bool yaw_match_evidence_ok = false;
+    bool scan_evidence_ok = false;
+    std::string scan_completion_source = "either";
+    double match_observed_yaw_delta_deg = 0.0;
+    int match_valid_samples = 0;
+    int match_valid_bins = 0;
+    double match_valid_bin_ratio = 0.0;
 };
 
 class YawCorrectionGate {
@@ -238,6 +246,14 @@ private:
         s.yaw_rate_dps = std::fabs(in.yaw_rate_radps) * 180.0 / kPi;
         s.supervisor_state = in.supervisor.state;
         s.yaw_match_reason = in.yaw_match.reason;
+        s.active_scan_evidence_ok = active_scan_evidence_complete(in);
+        s.yaw_match_evidence_ok = yaw_match_evidence_complete(in);
+        s.scan_evidence_ok = scan_evidence_complete(in);
+        s.scan_completion_source = cfg_.yaw_correction_scan_completion_source;
+        s.match_observed_yaw_delta_deg = in.yaw_match.observed_yaw_delta_deg;
+        s.match_valid_samples = in.yaw_match.valid_samples;
+        s.match_valid_bins = in.yaw_match.valid_bins;
+        s.match_valid_bin_ratio = in.yaw_match.valid_bin_ratio;
         return s;
     }
 
@@ -257,16 +273,55 @@ private:
         if (cfg_.yaw_correction_require_low_speed_or_static && std::fabs(in.yaw_rate_radps) * 180.0 / kPi > cfg_.yaw_correction_max_abs_yaw_rate_dps) return "yaw_rate_too_high";
         if (!in.localization_valid) return "localization_invalid";
         if (cfg_.yaw_correction_require_mapping_state_ok && in.supervisor.state == "LOST") return "supervisor_lost";
-        if (cfg_.yaw_correction_require_active_scan_complete && !active_scan_complete(in)) return "active_scan_not_complete";
+        if (cfg_.yaw_correction_require_active_scan_complete) {
+            std::string scan_reason = scan_evidence_reject_reason(in);
+            if (!scan_reason.empty()) return scan_reason;
+        }
         return "";
     }
 
-    bool active_scan_complete(const YawCorrectionGateInput &in) const {
+    bool active_scan_evidence_complete(const YawCorrectionGateInput &in) const {
         return in.active_scan.completed ||
                in.active_scan.useful_scan_observed ||
                in.active_scan.state == "COMPLETED" ||
                in.active_scan_command.completed ||
                in.active_scan_command.state == "COMPLETED";
+    }
+
+    std::string yaw_match_evidence_reject_reason(const YawCorrectionGateInput &in) const {
+        const auto &m = in.yaw_match;
+        if (!cfg_.yaw_correction_allow_yaw_match_evidence_complete) return "yaw_match_evidence_not_complete";
+        if (cfg_.yaw_correction_require_yaw_match_attempted && !m.attempted) return "yaw_match_evidence_not_complete";
+        if (!m.usable) return "yaw_match_evidence_not_complete";
+        if (m.observed_yaw_delta_deg < cfg_.yaw_correction_min_match_observed_yaw_delta_deg) return "match_yaw_coverage_too_low";
+        if (m.valid_samples < cfg_.yaw_correction_min_match_valid_samples) return "match_valid_samples_too_low";
+        if (m.valid_bins < cfg_.yaw_correction_min_match_valid_bins) return "match_valid_bins_too_low";
+        if (m.valid_bin_ratio < cfg_.yaw_correction_min_match_valid_bin_ratio) return "match_valid_bin_ratio_too_low";
+        return "";
+    }
+
+    bool yaw_match_evidence_complete(const YawCorrectionGateInput &in) const {
+        return yaw_match_evidence_reject_reason(in).empty();
+    }
+
+    bool scan_evidence_complete(const YawCorrectionGateInput &in) const {
+        if (cfg_.yaw_correction_scan_completion_source == "active_scan_only") return active_scan_evidence_complete(in);
+        if (cfg_.yaw_correction_scan_completion_source == "yaw_match_only") return yaw_match_evidence_complete(in);
+        return active_scan_evidence_complete(in) || yaw_match_evidence_complete(in);
+    }
+
+    std::string scan_evidence_reject_reason(const YawCorrectionGateInput &in) const {
+        bool active_ok = active_scan_evidence_complete(in);
+        bool yaw_ok = yaw_match_evidence_complete(in);
+        if (cfg_.yaw_correction_scan_completion_source == "active_scan_only") {
+            return active_ok ? "" : "active_scan_evidence_not_complete";
+        }
+        if (cfg_.yaw_correction_scan_completion_source == "yaw_match_only") {
+            return yaw_ok ? "" : yaw_match_evidence_reject_reason(in);
+        }
+        if (active_ok || yaw_ok) return "";
+        std::string yaw_reason = yaw_match_evidence_reject_reason(in);
+        return yaw_reason.empty() ? "scan_evidence_not_complete" : yaw_reason;
     }
 
     void add_consistency_candidate(double yaw_delta_deg) {
@@ -305,6 +360,12 @@ private:
             reason == "low_score_margin" || reason == "low_inlier_ratio" || reason == "curve_flat" || reason == "multimodal") {
             stats_.low_quality_reject_count++;
         }
+        if (reason == "scan_evidence_not_complete" || reason == "active_scan_evidence_not_complete" ||
+            reason == "yaw_match_evidence_not_complete" || reason.rfind("match_", 0) == 0) {
+            stats_.scan_evidence_reject_count++;
+        }
+        if (reason == "active_scan_evidence_not_complete") stats_.active_scan_evidence_reject_count++;
+        if (reason == "yaw_match_evidence_not_complete" || reason.rfind("match_", 0) == 0) stats_.yaw_match_evidence_reject_count++;
         cooldown_until_s_ = now_s + cfg_.yaw_correction_cooldown_s;
         update_last_stats(latest_);
     }
@@ -315,6 +376,13 @@ private:
         stats_.last_reason = s.reason;
         stats_.consistency_count_last = s.consistency_count;
         stats_.consistency_spread_deg_last = s.consistency_spread_deg;
+        stats_.last_scan_evidence_ok = s.scan_evidence_ok;
+        stats_.last_active_scan_evidence_ok = s.active_scan_evidence_ok;
+        stats_.last_yaw_match_evidence_ok = s.yaw_match_evidence_ok;
+        stats_.last_match_observed_yaw_delta_deg = s.match_observed_yaw_delta_deg;
+        stats_.last_match_valid_samples = s.match_valid_samples;
+        stats_.last_match_valid_bins = s.match_valid_bins;
+        stats_.last_match_valid_bin_ratio = s.match_valid_bin_ratio;
     }
 
     const Config &cfg_;
@@ -331,7 +399,7 @@ private:
 };
 
 inline void write_yaw_correction_gate_header(std::ofstream &o) {
-    o << "timestamp_s,state,previous_state,reason,candidate_seen,would_apply,rejected,candidate_yaw_delta_deg,suggested_correction_deg,suggested_new_yaw_rad,best_score,score_margin,inlier_ratio,curve_flatness,multimodal,consistency_count,consistency_spread_deg,linear_speed_mps,yaw_rate_dps,supervisor_state,yaw_match_reason\n";
+    o << "timestamp_s,state,previous_state,reason,candidate_seen,would_apply,rejected,candidate_yaw_delta_deg,suggested_correction_deg,suggested_new_yaw_rad,best_score,score_margin,inlier_ratio,curve_flatness,multimodal,consistency_count,consistency_spread_deg,linear_speed_mps,yaw_rate_dps,supervisor_state,yaw_match_reason,active_scan_evidence_ok,yaw_match_evidence_ok,scan_evidence_ok,scan_completion_source,match_observed_yaw_delta_deg,match_valid_samples,match_valid_bins,match_valid_bin_ratio\n";
 }
 
 inline void write_yaw_correction_gate_row(std::ofstream &o, const YawCorrectionGateSnapshot &s) {
@@ -340,7 +408,11 @@ inline void write_yaw_correction_gate_row(std::ofstream &o, const YawCorrectionG
       << s.candidate_yaw_delta_deg << "," << s.suggested_correction_deg << "," << s.suggested_new_yaw_rad << ","
       << s.best_score << "," << s.score_margin << "," << s.inlier_ratio << "," << s.curve_flatness << ","
       << (s.multimodal ? 1 : 0) << "," << s.consistency_count << "," << s.consistency_spread_deg << ","
-      << s.linear_speed_mps << "," << s.yaw_rate_dps << "," << s.supervisor_state << "," << s.yaw_match_reason << "\n";
+      << s.linear_speed_mps << "," << s.yaw_rate_dps << "," << s.supervisor_state << "," << s.yaw_match_reason << ","
+      << (s.active_scan_evidence_ok ? 1 : 0) << "," << (s.yaw_match_evidence_ok ? 1 : 0) << ","
+      << (s.scan_evidence_ok ? 1 : 0) << "," << s.scan_completion_source << ","
+      << s.match_observed_yaw_delta_deg << "," << s.match_valid_samples << ","
+      << s.match_valid_bins << "," << s.match_valid_bin_ratio << "\n";
 }
 
 } // namespace robot_slamd

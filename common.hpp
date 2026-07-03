@@ -375,6 +375,13 @@ struct Config {
     bool yaw_correction_require_mapping_state_ok = true;
     bool yaw_correction_require_low_speed_or_static = true;
     bool yaw_correction_require_active_scan_complete = true;
+    std::string yaw_correction_scan_completion_source = "either";
+    bool yaw_correction_allow_yaw_match_evidence_complete = true;
+    double yaw_correction_min_match_observed_yaw_delta_deg = 90.0;
+    int yaw_correction_min_match_valid_samples = 15;
+    int yaw_correction_min_match_valid_bins = 8;
+    double yaw_correction_min_match_valid_bin_ratio = 0.10;
+    bool yaw_correction_require_yaw_match_attempted = true;
     double yaw_correction_max_linear_speed_mps = 0.05;
     double yaw_correction_max_abs_yaw_rate_dps = 5.0;
     double yaw_correction_min_best_score = 0.20;
@@ -633,6 +640,16 @@ struct YawCorrectionGateRunStats {
     uint64_t robot_moving_reject_count = 0;
     uint64_t low_quality_reject_count = 0;
     uint64_t consistency_reject_count = 0;
+    uint64_t scan_evidence_reject_count = 0;
+    uint64_t active_scan_evidence_reject_count = 0;
+    uint64_t yaw_match_evidence_reject_count = 0;
+    bool last_scan_evidence_ok = false;
+    bool last_active_scan_evidence_ok = false;
+    bool last_yaw_match_evidence_ok = false;
+    double last_match_observed_yaw_delta_deg = 0.0;
+    int last_match_valid_samples = 0;
+    int last_match_valid_bins = 0;
+    double last_match_valid_bin_ratio = 0.0;
 };
 
 struct RunMetrics {

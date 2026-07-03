@@ -190,6 +190,11 @@ int main() {
     expect(good_summary.attempted, "good scan should attempt matching");
     expect(good_summary.usable, "occupied wall scan should be usable");
     expect_near(good_summary.best_yaw_delta_deg, -5.0, 0.35, "measured +5 deg yaw bias should match -5 deg yaw_delta");
+    // best_yaw_delta_deg 的符号定义为：应加到当前 yaw 上的修正方向。
+    double current_yaw_error_deg = 5.0;
+    double correction_gain = 0.15;
+    double suggested_new_yaw_error_deg = current_yaw_error_deg + good_summary.best_yaw_delta_deg * correction_gain;
+    expect(std::fabs(suggested_new_yaw_error_deg) < std::fabs(current_yaw_error_deg), "known yaw bias sign convention should reduce yaw error after gain");
     expect(good_summary.best_score > good_summary.second_score, "best score should exceed second score");
     expect_near(good_summary.score_margin, good_summary.best_score - good_summary.second_score, 1e-9, "score margin should be best minus second");
     expect(good_summary.inlier_ratio >= 0.8, "nearest occupied reward should produce high inlier ratio");
