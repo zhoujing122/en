@@ -92,6 +92,26 @@ robot_slamd::MappingSupervisorSnapshot supervisor_snapshot(const std::string &st
     return s;
 }
 
+robot_slamd::EncoderSample encoder_sample(uint64_t t_us, int64_t left_ticks, int64_t right_ticks) {
+    robot_slamd::EncoderSample e;
+    e.t_us = t_us;
+    e.left_ticks = left_ticks;
+    e.right_ticks = right_ticks;
+    return e;
+}
+
+robot_slamd::ImuSample imu_sample(uint64_t t_us, double gyro_radps = 0.0) {
+    robot_slamd::ImuSample imu;
+    imu.t_us = t_us;
+    imu.gyro_z_rad_s = gyro_radps;
+    imu.raw_gyro_z_rad_s = gyro_radps;
+    return imu;
+}
+
+void init_localizer(robot_slamd::Localizer &loc) {
+    loc.update(encoder_sample(0, 0, 0), imu_sample(0), 0.1);
+}
+
 robot_slamd::YawCorrectionApplySnapshot apply_once(robot_slamd::YawCorrectionApply &apply,
                                                    robot_slamd::Localizer &loc,
                                                    const robot_slamd::YawCorrectionGateSnapshot &gate,
@@ -125,6 +145,7 @@ void static_safety_search() {
         "set_pose",
         "reset_pose",
         "relocalization",
+        "lost_recovery",
         "motor_write",
         "bl4820_write",
         "pwm",
@@ -150,6 +171,7 @@ int main() {
     auto dry_snap = apply_once(dry_apply, dry_loc, gate_snapshot(), 1.0);
     expect(!dry_snap.attempted && !dry_snap.applied && dry_snap.reason == "not_writeback_mode", "default dry_run should not attempt writeback");
     expect_near(dry_loc.pose().yaw, 0.0, 1e-12, "default dry_run should not change yaw");
+    expect_near(dry_loc.yaw_correction_offset_rad(), 0.0, 1e-12, "default dry_run should not change yaw correction offset");
 
     Config invalid = writeback_config();
     invalid.yaw_correction_writeback_enabled = false;
@@ -191,6 +213,7 @@ int main() {
         auto s = apply_once(apply, loc, g, 1.0, linear_speed, yaw_rate_radps, supervisor_state, localization_valid);
         expect(s.attempted && !s.applied && s.reason == expected, expected);
         expect_near(loc.pose().yaw, 0.0, 1e-12, "rejected writeback should not change yaw");
+        expect_near(loc.yaw_correction_offset_rad(), 0.0, 1e-12, "rejected writeback should not change yaw correction offset");
     };
 
     reject_case("gate_not_would_apply", [](auto &g) { g.would_apply = false; });
@@ -216,6 +239,76 @@ int main() {
         expect_near(loc.pose().x, old_x, 1e-12, "writeback must not change x");
         expect_near(loc.pose().y, old_y, 1e-12, "writeback must not change y");
         expect(apply.run_stats().attempts == 1 && apply.run_stats().success_count == 1, "success metrics should increment");
+        expect_near(loc.yaw_correction_offset_rad(), deg2rad(0.5), 1e-12, "YawCorrectionApply should update localizer offset on apply");
+        expect(s.old_yaw_correction_offset_rad == 0.0 && s.new_yaw_correction_offset_rad == loc.yaw_correction_offset_rad(), "apply snapshot should record old and new localizer offset");
+        expect(s.localizer_yaw_correction_apply_count == loc.yaw_correction_apply_count(), "apply snapshot should record localizer correction count");
+    }
+
+    {
+        Config ok = writeback_config();
+        Localizer loc(ok);
+        init_localizer(loc);
+        const double yaw0 = loc.pose().yaw;
+        const double x0 = loc.pose().x;
+        const double y0 = loc.pose().y;
+        const double yaw_enc0 = loc.yaw_enc();
+        const double yaw_imu0 = loc.yaw_imu();
+        expect(loc.apply_yaw_correction_only(deg2rad(1.0), "direct_test"), "direct yaw correction should apply");
+        expect_near(loc.pose().yaw, wrap_pi(yaw0 + deg2rad(1.0)), 1e-12, "direct apply should change pose yaw immediately");
+        expect_near(loc.pose().x, x0, 1e-12, "direct apply should not change x");
+        expect_near(loc.pose().y, y0, 1e-12, "direct apply should not change y");
+        expect_near(loc.yaw_enc(), yaw_enc0, 1e-12, "direct apply should not change yaw_enc");
+        expect_near(loc.yaw_imu(), yaw_imu0, 1e-12, "direct apply should not change yaw_imu");
+        expect_near(loc.yaw_correction_offset_rad(), deg2rad(1.0), 1e-12, "direct apply should update correction offset");
+        expect(loc.yaw_correction_apply_count() == 1, "direct apply should increment localizer apply count");
+        expect_near(loc.yaw_correction_total_abs_deg(), 1.0, 1e-12, "direct apply should update total abs correction");
+        expect(loc.yaw_correction_last_reason() == "direct_test", "direct apply should record last reason");
+    }
+
+    {
+        Config ok = writeback_config();
+        Localizer loc(ok);
+        init_localizer(loc);
+        expect(loc.apply_yaw_correction_only(deg2rad(1.0), "persist_test"), "persistence apply should succeed");
+        loc.update(encoder_sample(100000, 0, 0), imu_sample(100000), 0.1);
+        expect_near(loc.pose().yaw, wrap_pi(loc.fused_yaw_without_correction_rad() + loc.yaw_correction_offset_rad()), 1e-12, "test_yaw_correction_persists_after_localizer_update");
+        expect_near(loc.yaw_correction_offset_rad(), deg2rad(1.0), 1e-12, "offset should persist after update");
+    }
+
+    {
+        Config ok = writeback_config();
+        ok.yaw_correction_max_writeback_abs_deg = 100.0;
+        Localizer loc(ok);
+        init_localizer(loc);
+        expect(loc.apply_yaw_correction_only(deg2rad(90.0), "movement_direction"), "movement direction correction should apply");
+        const double x0 = loc.pose().x;
+        const double y0 = loc.pose().y;
+        loc.update(encoder_sample(1000000, 256, 256), imu_sample(1000000), 1.0);
+        expect(std::fabs(loc.pose().x - x0) < 1e-6, "forward integration after yaw correction should not move materially in x at 90 deg");
+        expect(loc.pose().y > y0 + 0.04, "forward integration should use corrected yaw direction for y");
+    }
+
+    {
+        Config ok = writeback_config();
+        ok.yaw_correction_max_writeback_abs_deg = 200.0;
+        Localizer loc(ok);
+        init_localizer(loc);
+        expect(loc.apply_yaw_correction_only(deg2rad(179.0), "first"), "first wrap offset apply should succeed");
+        expect(loc.apply_yaw_correction_only(deg2rad(5.0), "second"), "second wrap offset apply should succeed");
+        expect_near(loc.yaw_correction_offset_rad(), deg2rad(-176.0), 1e-12, "multiple applies should accumulate and wrap offset");
+        expect(loc.yaw_correction_apply_count() == 2, "multiple applies should increment count");
+        expect_near(loc.yaw_correction_total_abs_deg(), 184.0, 1e-9, "multiple applies should accumulate total abs degrees");
+        expect(loc.yaw_correction_last_reason() == "second", "multiple applies should keep last reason");
+    }
+
+    {
+        Config ok = writeback_config();
+        Localizer loc(ok);
+        init_localizer(loc);
+        expect(!loc.apply_yaw_correction_only(std::numeric_limits<double>::quiet_NaN(), "nan"), "non-finite direct correction should reject");
+        expect(!loc.apply_yaw_correction_only(deg2rad(2.0), "too_large"), "direct correction above max_writeback_abs should reject");
+        expect_near(loc.yaw_correction_offset_rad(), 0.0, 1e-12, "rejected direct correction should not change offset");
+        expect(loc.yaw_correction_apply_count() == 0, "rejected direct correction should not increment count");
     }
 
     {
@@ -293,7 +386,9 @@ int main() {
         Localizer loc(ok);
         auto g = gate_snapshot(2.0);
         auto s = apply_once(apply, loc, g, 1.0);
+        const double offset_before = loc.yaw_correction_offset_rad();
         expect(!s.applied && s.reason == "correction_too_large", "rejection metrics scenario should reject");
+        expect_near(loc.yaw_correction_offset_rad(), offset_before, 1e-12, "YawCorrectionApply rejected path should not change localizer offset");
         auto stats = apply.run_stats();
         expect(stats.attempts == 1 && stats.rejected_count == 1 && stats.safety_reject_count == 1, "rejection metrics should increment");
     }
@@ -305,6 +400,7 @@ int main() {
         std::string csv = out.str();
         expect(csv.find("timestamp_s,state,reason,attempted,applied") != std::string::npos, "apply csv header should contain leading fields");
         expect(csv.find("gate_scan_evidence_ok,gate_yaw_match_evidence_ok") != std::string::npos, "apply csv header should contain gate evidence fields");
+        expect(csv.find("old_yaw_correction_offset_rad,new_yaw_correction_offset_rad,localizer_yaw_correction_apply_count,localizer_yaw_correction_total_abs_deg") != std::string::npos, "apply csv header should contain localizer offset fields");
     }
 
     static_safety_search();

@@ -60,7 +60,8 @@ public:
         dyaw_enc_ = (dr_m_ - dl_m_) / cfg_.wheel_base_m;
         yaw_enc_ = wrap_pi(yaw_enc_ + dyaw_enc_);
         yaw_imu_ = wrap_pi(yaw_imu_ + (gyro_filtered_ - gyro_bias_) * dt);
-        pose_.yaw = wrap_pi(yaw_enc_ + (1.0 - cfg_.yaw_fusion_alpha) * wrap_pi(yaw_imu_ - yaw_enc_));
+        fused_yaw_without_correction_ = wrap_pi(yaw_enc_ + (1.0 - cfg_.yaw_fusion_alpha) * wrap_pi(yaw_imu_ - yaw_enc_));
+        pose_.yaw = wrap_pi(fused_yaw_without_correction_ + yaw_correction_offset_rad_);
         pose_.x += ds_m_ * std::cos(pose_.yaw);
         pose_.y += ds_m_ * std::sin(pose_.yaw);
         v_ = ds_m_ / dt;
@@ -76,10 +77,13 @@ public:
     }
     void set_gyro_bias(double b) { gyro_bias_ = b; gyro_filtered_ = b; have_gyro_filter_ = true; }
     bool apply_yaw_correction_only(double delta_yaw_rad, const std::string &reason) {
-        (void)reason;
         if (!std::isfinite(delta_yaw_rad)) return false;
         if (std::fabs(delta_yaw_rad) > deg2rad(cfg_.yaw_correction_max_writeback_abs_deg)) return false;
+        yaw_correction_offset_rad_ = wrap_pi(yaw_correction_offset_rad_ + delta_yaw_rad);
         pose_.yaw = wrap_pi(pose_.yaw + delta_yaw_rad);
+        yaw_correction_apply_count_++;
+        yaw_correction_total_abs_deg_ += std::fabs(delta_yaw_rad) * 180.0 / kPi;
+        yaw_correction_last_reason_ = reason;
         return true;
     }
     std::vector<std::string> consume_warnings() { std::vector<std::string> out; out.swap(warnings_); return out; }
@@ -92,6 +96,11 @@ public:
     double dyaw_enc() const { return dyaw_enc_; }
     double yaw_enc() const { return yaw_enc_; }
     double yaw_imu() const { return yaw_imu_; }
+    double yaw_correction_offset_rad() const { return yaw_correction_offset_rad_; }
+    uint64_t yaw_correction_apply_count() const { return yaw_correction_apply_count_; }
+    double yaw_correction_total_abs_deg() const { return yaw_correction_total_abs_deg_; }
+    std::string yaw_correction_last_reason() const { return yaw_correction_last_reason_; }
+    double fused_yaw_without_correction_rad() const { return fused_yaw_without_correction_; }
     double gyro_bias() const { return gyro_bias_; }
     double gyro_filtered() const { return gyro_filtered_; }
     int64_t left_delta_ticks() const { return left_delta_ticks_; }
@@ -109,6 +118,10 @@ private:
     EncoderSample last_;
     Pose pose_;
     double yaw_enc_ = 0.0, yaw_imu_ = 0.0, gyro_bias_ = 0.0, gyro_filtered_ = 0.0;
+    double fused_yaw_without_correction_ = 0.0, yaw_correction_offset_rad_ = 0.0;
+    uint64_t yaw_correction_apply_count_ = 0;
+    double yaw_correction_total_abs_deg_ = 0.0;
+    std::string yaw_correction_last_reason_;
     double v_ = 0.0, w_ = 0.0, dl_m_ = 0.0, dr_m_ = 0.0, ds_m_ = 0.0, dyaw_enc_ = 0.0;
     int64_t left_delta_ticks_ = 0, right_delta_ticks_ = 0;
     uint64_t rejected_encoder_updates_ = 0;

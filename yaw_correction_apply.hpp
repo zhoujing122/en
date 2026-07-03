@@ -53,6 +53,10 @@ struct YawCorrectionApplySnapshot {
     uint64_t session_apply_count = 0;
     double session_total_abs_correction_deg = 0.0;
     double time_since_last_apply_s = -1.0;
+    double old_yaw_correction_offset_rad = 0.0;
+    double new_yaw_correction_offset_rad = 0.0;
+    uint64_t localizer_yaw_correction_apply_count = 0;
+    double localizer_yaw_correction_total_abs_deg = 0.0;
 };
 
 class YawCorrectionApply {
@@ -69,6 +73,10 @@ public:
                                       bool localization_valid = true) {
         YawCorrectionApplySnapshot s = make_snapshot(timestamp_s, gate, current_yaw_rad,
                                                      linear_speed_mps, yaw_rate_radps, supervisor);
+        s.old_yaw_correction_offset_rad = localizer.yaw_correction_offset_rad();
+        s.new_yaw_correction_offset_rad = s.old_yaw_correction_offset_rad;
+        s.localizer_yaw_correction_apply_count = localizer.yaw_correction_apply_count();
+        s.localizer_yaw_correction_total_abs_deg = localizer.yaw_correction_total_abs_deg();
         if (!cfg_.yaw_correction_enabled || cfg_.yaw_correction_mode == "disabled") {
             state_ = YawCorrectionApplyState::DISABLED;
             s.state = yaw_correction_apply_state_name(state_);
@@ -192,6 +200,9 @@ public:
         s.delta_yaw_deg = gate.suggested_correction_deg;
         const bool applied = localizer.apply_yaw_correction_only(deg2rad(gate.suggested_correction_deg), "yaw_correction_gate");
         s.new_yaw_rad = localizer.pose().yaw;
+        s.new_yaw_correction_offset_rad = localizer.yaw_correction_offset_rad();
+        s.localizer_yaw_correction_apply_count = localizer.yaw_correction_apply_count();
+        s.localizer_yaw_correction_total_abs_deg = localizer.yaw_correction_total_abs_deg();
         if (!applied) {
             reject(s, "localizer_rejected", RejectBucket::Safety);
             latest_ = s;
@@ -282,7 +293,7 @@ private:
 };
 
 inline void write_yaw_correction_apply_header(std::ostream &o) {
-    o << "timestamp_s,state,reason,attempted,applied,old_yaw_rad,delta_yaw_deg,new_yaw_rad,gate_would_apply,gate_reason,gate_candidate_yaw_delta_deg,gate_suggested_correction_deg,gate_best_score,gate_score_margin,gate_inlier_ratio,gate_scan_evidence_ok,gate_yaw_match_evidence_ok,linear_speed_mps,yaw_rate_dps,supervisor_state,session_apply_count,session_total_abs_correction_deg,time_since_last_apply_s\n";
+    o << "timestamp_s,state,reason,attempted,applied,old_yaw_rad,delta_yaw_deg,new_yaw_rad,gate_would_apply,gate_reason,gate_candidate_yaw_delta_deg,gate_suggested_correction_deg,gate_best_score,gate_score_margin,gate_inlier_ratio,gate_scan_evidence_ok,gate_yaw_match_evidence_ok,linear_speed_mps,yaw_rate_dps,supervisor_state,session_apply_count,session_total_abs_correction_deg,time_since_last_apply_s,old_yaw_correction_offset_rad,new_yaw_correction_offset_rad,localizer_yaw_correction_apply_count,localizer_yaw_correction_total_abs_deg\n";
 }
 
 inline void write_yaw_correction_apply_row(std::ostream &o, const YawCorrectionApplySnapshot &s) {
@@ -296,7 +307,9 @@ inline void write_yaw_correction_apply_row(std::ostream &o, const YawCorrectionA
       << (s.gate_scan_evidence_ok ? 1 : 0) << ',' << (s.gate_yaw_match_evidence_ok ? 1 : 0) << ','
       << s.linear_speed_mps << ',' << s.yaw_rate_dps << ',' << s.supervisor_state << ','
       << s.session_apply_count << ',' << s.session_total_abs_correction_deg << ','
-      << s.time_since_last_apply_s << "\n";
+      << s.time_since_last_apply_s << ',' << s.old_yaw_correction_offset_rad << ','
+      << s.new_yaw_correction_offset_rad << ',' << s.localizer_yaw_correction_apply_count << ','
+      << s.localizer_yaw_correction_total_abs_deg << "\n";
 }
 
 } // namespace robot_slamd

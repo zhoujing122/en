@@ -180,6 +180,10 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "gyro_spikes," << loc.gyro_spikes() << "\n";
     o << "gyro_bias_adapt_updates," << loc.bias_adapt_updates() << "\n";
     o << "final_gyro_bias_rad_s," << loc.gyro_bias() << "\n";
+    o << "localizer_yaw_correction_offset_rad," << loc.yaw_correction_offset_rad() << "\n";
+    o << "localizer_yaw_correction_apply_count," << loc.yaw_correction_apply_count() << "\n";
+    o << "localizer_yaw_correction_total_abs_deg," << loc.yaw_correction_total_abs_deg() << "\n";
+    o << "localizer_yaw_correction_last_reason," << loc.yaw_correction_last_reason() << "\n";
     for (const auto &id : {"front", "left", "right"}) {
         const auto &st = health.by_id.at(id);
         o << id << "_hit_rate," << st.hit_rate() << "\n";
