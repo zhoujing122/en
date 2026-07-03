@@ -274,6 +274,17 @@ yaw_correction:
   cooldown_s: 5.0
   writeback_enabled: false
   acknowledgement: ""
+  writeback_acknowledgement: ""
+  required_writeback_acknowledgement: I_UNDERSTAND_YAW_ONLY_CORRECTION_RISK
+  max_writeback_abs_deg: 1.0
+  max_total_writeback_per_session_deg: 3.0
+  max_writeback_count_per_session: 5
+  min_seconds_between_writebacks: 5.0
+  require_gate_would_apply: true
+  require_gate_reason: would_apply_dry_run
+  require_scan_evidence_ok: true
+  require_yaw_match_evidence_ok: true
+  apply_log_enabled: true
 
 tof_pose_correction:
   enabled: true

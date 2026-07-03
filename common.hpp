@@ -398,6 +398,17 @@ struct Config {
     double yaw_correction_cooldown_s = 5.0;
     bool yaw_correction_writeback_enabled = false;
     std::string yaw_correction_acknowledgement = "";
+    std::string yaw_correction_writeback_acknowledgement = "";
+    std::string yaw_correction_required_writeback_acknowledgement = "I_UNDERSTAND_YAW_ONLY_CORRECTION_RISK";
+    double yaw_correction_max_writeback_abs_deg = 1.0;
+    double yaw_correction_max_total_writeback_per_session_deg = 3.0;
+    int yaw_correction_max_writeback_count_per_session = 5;
+    double yaw_correction_min_seconds_between_writebacks = 5.0;
+    bool yaw_correction_require_gate_would_apply = true;
+    std::string yaw_correction_require_gate_reason = "would_apply_dry_run";
+    bool yaw_correction_require_scan_evidence_ok = true;
+    bool yaw_correction_require_yaw_match_evidence_ok = true;
+    bool yaw_correction_apply_log_enabled = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -652,6 +663,22 @@ struct YawCorrectionGateRunStats {
     double last_match_valid_bin_ratio = 0.0;
 };
 
+struct YawCorrectionApplyRunStats {
+    uint64_t attempts = 0;
+    uint64_t success_count = 0;
+    uint64_t rejected_count = 0;
+    bool last_applied = false;
+    std::string last_reason = "idle";
+    double last_delta_deg = 0.0;
+    double last_old_yaw_rad = 0.0;
+    double last_new_yaw_rad = 0.0;
+    uint64_t session_count = 0;
+    double session_total_abs_deg = 0.0;
+    uint64_t cooldown_reject_count = 0;
+    uint64_t gate_reject_count = 0;
+    uint64_t safety_reject_count = 0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -695,6 +722,7 @@ struct RunMetrics {
     SparseScanRunStats sparse_scan;
     SparseScanYawMatchRunStats sparse_scan_yaw_match;
     YawCorrectionGateRunStats yaw_correction;
+    YawCorrectionApplyRunStats yaw_correction_apply;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

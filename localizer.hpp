@@ -75,6 +75,13 @@ public:
         }
     }
     void set_gyro_bias(double b) { gyro_bias_ = b; gyro_filtered_ = b; have_gyro_filter_ = true; }
+    bool apply_yaw_correction_only(double delta_yaw_rad, const std::string &reason) {
+        (void)reason;
+        if (!std::isfinite(delta_yaw_rad)) return false;
+        if (std::fabs(delta_yaw_rad) > deg2rad(cfg_.yaw_correction_max_writeback_abs_deg)) return false;
+        pose_.yaw = wrap_pi(pose_.yaw + delta_yaw_rad);
+        return true;
+    }
     std::vector<std::string> consume_warnings() { std::vector<std::string> out; out.swap(warnings_); return out; }
     const Pose &pose() const { return pose_; }
     double v() const { return v_; }

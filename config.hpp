@@ -335,6 +335,18 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.yaw_correction_cooldown_s = get_double(kv, "yaw_correction.cooldown_s", c.yaw_correction_cooldown_s);
     c.yaw_correction_writeback_enabled = get_bool(kv, "yaw_correction.writeback_enabled", c.yaw_correction_writeback_enabled);
     c.yaw_correction_acknowledgement = get_string(kv, "yaw_correction.acknowledgement", c.yaw_correction_acknowledgement);
+    c.yaw_correction_writeback_acknowledgement = get_string(kv, "yaw_correction.acknowledgement", c.yaw_correction_writeback_acknowledgement);
+    c.yaw_correction_writeback_acknowledgement = get_string(kv, "yaw_correction.writeback_acknowledgement", c.yaw_correction_writeback_acknowledgement);
+    c.yaw_correction_required_writeback_acknowledgement = get_string(kv, "yaw_correction.required_writeback_acknowledgement", c.yaw_correction_required_writeback_acknowledgement);
+    c.yaw_correction_max_writeback_abs_deg = get_double(kv, "yaw_correction.max_writeback_abs_deg", c.yaw_correction_max_writeback_abs_deg);
+    c.yaw_correction_max_total_writeback_per_session_deg = get_double(kv, "yaw_correction.max_total_writeback_per_session_deg", c.yaw_correction_max_total_writeback_per_session_deg);
+    c.yaw_correction_max_writeback_count_per_session = get_int(kv, "yaw_correction.max_writeback_count_per_session", c.yaw_correction_max_writeback_count_per_session);
+    c.yaw_correction_min_seconds_between_writebacks = get_double(kv, "yaw_correction.min_seconds_between_writebacks", c.yaw_correction_min_seconds_between_writebacks);
+    c.yaw_correction_require_gate_would_apply = get_bool(kv, "yaw_correction.require_gate_would_apply", c.yaw_correction_require_gate_would_apply);
+    c.yaw_correction_require_gate_reason = get_string(kv, "yaw_correction.require_gate_reason", c.yaw_correction_require_gate_reason);
+    c.yaw_correction_require_scan_evidence_ok = get_bool(kv, "yaw_correction.require_scan_evidence_ok", c.yaw_correction_require_scan_evidence_ok);
+    c.yaw_correction_require_yaw_match_evidence_ok = get_bool(kv, "yaw_correction.require_yaw_match_evidence_ok", c.yaw_correction_require_yaw_match_evidence_ok);
+    c.yaw_correction_apply_log_enabled = get_bool(kv, "yaw_correction.apply_log_enabled", c.yaw_correction_apply_log_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -581,9 +593,10 @@ void validate_config(const Config &c) {
     probability("sparse_scan_yaw_match.max_second_peak_ratio", c.sparse_scan_yaw_match_max_second_peak_ratio);
     if (c.sparse_scan_yaw_match_max_samples_per_match <= 0) errors.push_back("sparse_scan_yaw_match.max_samples_per_match must be > 0");
 
-    if (!one_of(c.yaw_correction_mode, {"disabled", "dry_run"})) errors.push_back("yaw_correction.mode must be disabled or dry_run");
-    if (c.yaw_correction_mode == "writeback") errors.push_back("yaw_correction.mode=writeback unsupported in stage4B");
-    if (c.yaw_correction_writeback_enabled) errors.push_back("yaw_correction.writeback_enabled=true unsupported in stage4B");
+    if (!one_of(c.yaw_correction_mode, {"disabled", "dry_run", "writeback"})) errors.push_back("yaw_correction.mode must be disabled, dry_run, or writeback");
+    if (c.yaw_correction_mode == "writeback" && !c.yaw_correction_writeback_enabled) errors.push_back("yaw_correction.mode=writeback requires writeback_enabled=true");
+    if (c.yaw_correction_writeback_enabled && c.yaw_correction_writeback_acknowledgement != c.yaw_correction_required_writeback_acknowledgement) errors.push_back("yaw_correction.writeback_acknowledgement must match required_writeback_acknowledgement when writeback_enabled=true");
+    if (c.yaw_correction_mode == "writeback" && c.yaw_correction_writeback_acknowledgement != c.yaw_correction_required_writeback_acknowledgement) errors.push_back("yaw_correction.mode=writeback requires matching writeback acknowledgement");
     if (!one_of(c.yaw_correction_scan_completion_source, {"active_scan_only", "yaw_match_only", "either"})) errors.push_back("yaw_correction.scan_completion_source must be active_scan_only, yaw_match_only, or either");
     positive("yaw_correction.log_hz", c.yaw_correction_log_hz);
     non_negative("yaw_correction.max_linear_speed_mps", c.yaw_correction_max_linear_speed_mps);
@@ -606,6 +619,10 @@ void validate_config(const Config &c) {
     if (c.yaw_correction_min_match_valid_samples < 0) errors.push_back("yaw_correction.min_match_valid_samples must be >= 0");
     if (c.yaw_correction_min_match_valid_bins < 0) errors.push_back("yaw_correction.min_match_valid_bins must be >= 0");
     probability("yaw_correction.min_match_valid_bin_ratio", c.yaw_correction_min_match_valid_bin_ratio);
+    positive("yaw_correction.max_writeback_abs_deg", c.yaw_correction_max_writeback_abs_deg);
+    positive("yaw_correction.max_total_writeback_per_session_deg", c.yaw_correction_max_total_writeback_per_session_deg);
+    if (c.yaw_correction_max_writeback_count_per_session <= 0) errors.push_back("yaw_correction.max_writeback_count_per_session must be > 0");
+    non_negative("yaw_correction.min_seconds_between_writebacks", c.yaw_correction_min_seconds_between_writebacks);
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -900,7 +917,18 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  max_consistency_spread_deg: " << c.yaw_correction_max_consistency_spread_deg << "\n"
       << "  cooldown_s: " << c.yaw_correction_cooldown_s << "\n"
       << "  writeback_enabled: " << bool_yaml(c.yaw_correction_writeback_enabled) << "\n"
-      << "  acknowledgement: " << c.yaw_correction_acknowledgement << "\n";
+      << "  acknowledgement: " << c.yaw_correction_acknowledgement << "\n"
+      << "  writeback_acknowledgement: " << c.yaw_correction_writeback_acknowledgement << "\n"
+      << "  required_writeback_acknowledgement: " << c.yaw_correction_required_writeback_acknowledgement << "\n"
+      << "  max_writeback_abs_deg: " << c.yaw_correction_max_writeback_abs_deg << "\n"
+      << "  max_total_writeback_per_session_deg: " << c.yaw_correction_max_total_writeback_per_session_deg << "\n"
+      << "  max_writeback_count_per_session: " << c.yaw_correction_max_writeback_count_per_session << "\n"
+      << "  min_seconds_between_writebacks: " << c.yaw_correction_min_seconds_between_writebacks << "\n"
+      << "  require_gate_would_apply: " << bool_yaml(c.yaw_correction_require_gate_would_apply) << "\n"
+      << "  require_gate_reason: " << c.yaw_correction_require_gate_reason << "\n"
+      << "  require_scan_evidence_ok: " << bool_yaml(c.yaw_correction_require_scan_evidence_ok) << "\n"
+      << "  require_yaw_match_evidence_ok: " << bool_yaml(c.yaw_correction_require_yaw_match_evidence_ok) << "\n"
+      << "  apply_log_enabled: " << bool_yaml(c.yaw_correction_apply_log_enabled) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"
