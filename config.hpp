@@ -250,6 +250,32 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.active_scan_execution_emit_zero_command_on_stop = get_bool(kv, "active_scan_execution.emit_zero_command_on_stop", c.active_scan_execution_emit_zero_command_on_stop);
     c.active_scan_execution_command_log_only = get_bool(kv, "active_scan_execution.command_log_only", c.active_scan_execution_command_log_only);
     c.active_scan_execution_hardware_write_enabled = get_bool(kv, "active_scan_execution.hardware_write_enabled", c.active_scan_execution_hardware_write_enabled);
+    c.sparse_scan_enabled = get_bool(kv, "sparse_scan.enabled", c.sparse_scan_enabled);
+    c.sparse_scan_log_hz = get_double(kv, "sparse_scan.log_hz", c.sparse_scan_log_hz);
+    c.sparse_scan_collect_on_active_scan = get_bool(kv, "sparse_scan.collect_on_active_scan", c.sparse_scan_collect_on_active_scan);
+    c.sparse_scan_collect_on_command_verifying = get_bool(kv, "sparse_scan.collect_on_command_verifying", c.sparse_scan_collect_on_command_verifying);
+    c.sparse_scan_collect_on_natural_rotation = get_bool(kv, "sparse_scan.collect_on_natural_rotation", c.sparse_scan_collect_on_natural_rotation);
+    c.sparse_scan_require_active_scan_recommended = get_bool(kv, "sparse_scan.require_active_scan_recommended", c.sparse_scan_require_active_scan_recommended);
+    c.sparse_scan_require_mapping_allowed = get_bool(kv, "sparse_scan.require_mapping_allowed", c.sparse_scan_require_mapping_allowed);
+    c.sparse_scan_min_yaw_rate_dps = get_double(kv, "sparse_scan.min_yaw_rate_dps", c.sparse_scan_min_yaw_rate_dps);
+    c.sparse_scan_max_yaw_rate_dps = get_double(kv, "sparse_scan.max_yaw_rate_dps", c.sparse_scan_max_yaw_rate_dps);
+    c.sparse_scan_max_linear_speed_mps = get_double(kv, "sparse_scan.max_linear_speed_mps", c.sparse_scan_max_linear_speed_mps);
+    c.sparse_scan_min_range_m = get_double(kv, "sparse_scan.min_range_m", c.sparse_scan_min_range_m);
+    c.sparse_scan_max_range_m = get_double(kv, "sparse_scan.max_range_m", c.sparse_scan_max_range_m);
+    c.sparse_scan_min_confidence = get_int(kv, "sparse_scan.min_confidence", c.sparse_scan_min_confidence);
+    c.sparse_scan_bin_angle_deg = get_double(kv, "sparse_scan.bin_angle_deg", c.sparse_scan_bin_angle_deg);
+    c.sparse_scan_min_session_angle_deg = get_double(kv, "sparse_scan.min_session_angle_deg", c.sparse_scan_min_session_angle_deg);
+    c.sparse_scan_useful_session_angle_deg = get_double(kv, "sparse_scan.useful_session_angle_deg", c.sparse_scan_useful_session_angle_deg);
+    c.sparse_scan_complete_session_angle_deg = get_double(kv, "sparse_scan.complete_session_angle_deg", c.sparse_scan_complete_session_angle_deg);
+    c.sparse_scan_session_timeout_s = get_double(kv, "sparse_scan.session_timeout_s", c.sparse_scan_session_timeout_s);
+    c.sparse_scan_max_gap_s = get_double(kv, "sparse_scan.max_gap_s", c.sparse_scan_max_gap_s);
+    c.sparse_scan_cooldown_s = get_double(kv, "sparse_scan.cooldown_s", c.sparse_scan_cooldown_s);
+    c.sparse_scan_keep_invalid_samples = get_bool(kv, "sparse_scan.keep_invalid_samples", c.sparse_scan_keep_invalid_samples);
+    c.sparse_scan_compute_hit_points = get_bool(kv, "sparse_scan.compute_hit_points", c.sparse_scan_compute_hit_points);
+    c.sparse_scan_write_sample_log = get_bool(kv, "sparse_scan.write_sample_log", c.sparse_scan_write_sample_log);
+    c.sparse_scan_write_bin_log = get_bool(kv, "sparse_scan.write_bin_log", c.sparse_scan_write_bin_log);
+    c.sparse_scan_write_session_log = get_bool(kv, "sparse_scan.write_session_log", c.sparse_scan_write_session_log);
+    c.sparse_scan_max_samples_per_session = get_int(kv, "sparse_scan.max_samples_per_session", c.sparse_scan_max_samples_per_session);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -451,6 +477,27 @@ void validate_config(const Config &c) {
     if (c.active_scan_execution_complete_scan_angle_deg < c.active_scan_execution_min_useful_scan_angle_deg) errors.push_back("active_scan_execution.complete_scan_angle_deg must be >= min_useful_scan_angle_deg");
     if (c.active_scan_execution_target_scan_angle_deg < c.active_scan_execution_min_useful_scan_angle_deg) errors.push_back("active_scan_execution.target_scan_angle_deg must be >= min_useful_scan_angle_deg");
     if (c.active_scan_execution_max_observed_yaw_rate_dps < c.active_scan_execution_min_observed_yaw_rate_dps) errors.push_back("active_scan_execution.max_observed_yaw_rate_dps must be >= min_observed_yaw_rate_dps");
+
+    positive("sparse_scan.log_hz", c.sparse_scan_log_hz);
+    non_negative("sparse_scan.min_yaw_rate_dps", c.sparse_scan_min_yaw_rate_dps);
+    non_negative("sparse_scan.max_yaw_rate_dps", c.sparse_scan_max_yaw_rate_dps);
+    if (c.sparse_scan_max_yaw_rate_dps < c.sparse_scan_min_yaw_rate_dps) errors.push_back("sparse_scan.max_yaw_rate_dps must be >= min_yaw_rate_dps");
+    non_negative("sparse_scan.max_linear_speed_mps", c.sparse_scan_max_linear_speed_mps);
+    non_negative("sparse_scan.min_range_m", c.sparse_scan_min_range_m);
+    positive("sparse_scan.max_range_m", c.sparse_scan_max_range_m);
+    if (c.sparse_scan_max_range_m <= c.sparse_scan_min_range_m) errors.push_back("sparse_scan.max_range_m must be > min_range_m");
+    if (c.sparse_scan_min_confidence < 0) errors.push_back("sparse_scan.min_confidence must be >= 0");
+    positive("sparse_scan.bin_angle_deg", c.sparse_scan_bin_angle_deg);
+    if (c.sparse_scan_bin_angle_deg > 90.0) errors.push_back("sparse_scan.bin_angle_deg must be <= 90");
+    non_negative("sparse_scan.min_session_angle_deg", c.sparse_scan_min_session_angle_deg);
+    non_negative("sparse_scan.useful_session_angle_deg", c.sparse_scan_useful_session_angle_deg);
+    non_negative("sparse_scan.complete_session_angle_deg", c.sparse_scan_complete_session_angle_deg);
+    if (c.sparse_scan_complete_session_angle_deg < c.sparse_scan_useful_session_angle_deg) errors.push_back("sparse_scan.complete_session_angle_deg must be >= useful_session_angle_deg");
+    if (c.sparse_scan_useful_session_angle_deg < c.sparse_scan_min_session_angle_deg) errors.push_back("sparse_scan.useful_session_angle_deg must be >= min_session_angle_deg");
+    positive("sparse_scan.session_timeout_s", c.sparse_scan_session_timeout_s);
+    positive("sparse_scan.max_gap_s", c.sparse_scan_max_gap_s);
+    non_negative("sparse_scan.cooldown_s", c.sparse_scan_cooldown_s);
+    if (c.sparse_scan_max_samples_per_session <= 0) errors.push_back("sparse_scan.max_samples_per_session must be > 0");
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -658,6 +705,33 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  emit_zero_command_on_stop: " << bool_yaml(c.active_scan_execution_emit_zero_command_on_stop) << "\n"
       << "  command_log_only: " << bool_yaml(c.active_scan_execution_command_log_only) << "\n"
       << "  hardware_write_enabled: " << bool_yaml(c.active_scan_execution_hardware_write_enabled) << "\n";
+    o << "sparse_scan:\n"
+      << "  enabled: " << bool_yaml(c.sparse_scan_enabled) << "\n"
+      << "  log_hz: " << c.sparse_scan_log_hz << "\n"
+      << "  collect_on_active_scan: " << bool_yaml(c.sparse_scan_collect_on_active_scan) << "\n"
+      << "  collect_on_command_verifying: " << bool_yaml(c.sparse_scan_collect_on_command_verifying) << "\n"
+      << "  collect_on_natural_rotation: " << bool_yaml(c.sparse_scan_collect_on_natural_rotation) << "\n"
+      << "  require_active_scan_recommended: " << bool_yaml(c.sparse_scan_require_active_scan_recommended) << "\n"
+      << "  require_mapping_allowed: " << bool_yaml(c.sparse_scan_require_mapping_allowed) << "\n"
+      << "  min_yaw_rate_dps: " << c.sparse_scan_min_yaw_rate_dps << "\n"
+      << "  max_yaw_rate_dps: " << c.sparse_scan_max_yaw_rate_dps << "\n"
+      << "  max_linear_speed_mps: " << c.sparse_scan_max_linear_speed_mps << "\n"
+      << "  min_range_m: " << c.sparse_scan_min_range_m << "\n"
+      << "  max_range_m: " << c.sparse_scan_max_range_m << "\n"
+      << "  min_confidence: " << c.sparse_scan_min_confidence << "\n"
+      << "  bin_angle_deg: " << c.sparse_scan_bin_angle_deg << "\n"
+      << "  min_session_angle_deg: " << c.sparse_scan_min_session_angle_deg << "\n"
+      << "  useful_session_angle_deg: " << c.sparse_scan_useful_session_angle_deg << "\n"
+      << "  complete_session_angle_deg: " << c.sparse_scan_complete_session_angle_deg << "\n"
+      << "  session_timeout_s: " << c.sparse_scan_session_timeout_s << "\n"
+      << "  max_gap_s: " << c.sparse_scan_max_gap_s << "\n"
+      << "  cooldown_s: " << c.sparse_scan_cooldown_s << "\n"
+      << "  keep_invalid_samples: " << bool_yaml(c.sparse_scan_keep_invalid_samples) << "\n"
+      << "  compute_hit_points: " << bool_yaml(c.sparse_scan_compute_hit_points) << "\n"
+      << "  write_sample_log: " << bool_yaml(c.sparse_scan_write_sample_log) << "\n"
+      << "  write_bin_log: " << bool_yaml(c.sparse_scan_write_bin_log) << "\n"
+      << "  write_session_log: " << bool_yaml(c.sparse_scan_write_session_log) << "\n"
+      << "  max_samples_per_session: " << c.sparse_scan_max_samples_per_session << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

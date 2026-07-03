@@ -313,6 +313,32 @@ struct Config {
     bool active_scan_execution_emit_zero_command_on_stop = true;
     bool active_scan_execution_command_log_only = true;
     bool active_scan_execution_hardware_write_enabled = false;
+    bool sparse_scan_enabled = true;
+    double sparse_scan_log_hz = 5.0;
+    bool sparse_scan_collect_on_active_scan = true;
+    bool sparse_scan_collect_on_command_verifying = true;
+    bool sparse_scan_collect_on_natural_rotation = true;
+    bool sparse_scan_require_active_scan_recommended = false;
+    bool sparse_scan_require_mapping_allowed = false;
+    double sparse_scan_min_yaw_rate_dps = 3.0;
+    double sparse_scan_max_yaw_rate_dps = 90.0;
+    double sparse_scan_max_linear_speed_mps = 0.08;
+    double sparse_scan_min_range_m = 0.02;
+    double sparse_scan_max_range_m = 10.0;
+    int sparse_scan_min_confidence = 70;
+    double sparse_scan_bin_angle_deg = 5.0;
+    double sparse_scan_min_session_angle_deg = 45.0;
+    double sparse_scan_useful_session_angle_deg = 90.0;
+    double sparse_scan_complete_session_angle_deg = 300.0;
+    double sparse_scan_session_timeout_s = 20.0;
+    double sparse_scan_max_gap_s = 1.0;
+    double sparse_scan_cooldown_s = 3.0;
+    bool sparse_scan_keep_invalid_samples = true;
+    bool sparse_scan_compute_hit_points = true;
+    bool sparse_scan_write_sample_log = true;
+    bool sparse_scan_write_bin_log = true;
+    bool sparse_scan_write_session_log = true;
+    int sparse_scan_max_samples_per_session = 2000;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -507,6 +533,26 @@ struct ActiveScanCommandRunStats {
     double max_observed_yaw_delta_deg = 0.0;
 };
 
+struct SparseScanRunStats {
+    std::string state_last = "IDLE";
+    uint64_t sessions_started = 0;
+    uint64_t sessions_completed = 0;
+    uint64_t sessions_aborted = 0;
+    uint64_t useful_sessions = 0;
+    uint64_t complete_sessions = 0;
+    uint64_t total_samples = 0;
+    uint64_t valid_samples = 0;
+    uint64_t invalid_samples = 0;
+    uint64_t front_valid = 0;
+    uint64_t left_valid = 0;
+    uint64_t right_valid = 0;
+    double last_observed_yaw_delta_deg = 0.0;
+    double max_observed_yaw_delta_deg = 0.0;
+    double last_valid_bin_ratio = 0.0;
+    double valid_bin_ratio_sum = 0.0;
+    uint64_t valid_bin_ratio_count = 0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -547,6 +593,7 @@ struct RunMetrics {
     MappingSupervisorRunStats mapping_supervisor;
     ActiveScanRunStats active_scan;
     ActiveScanCommandRunStats active_scan_command;
+    SparseScanRunStats sparse_scan;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

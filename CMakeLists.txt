@@ -26,3 +26,6 @@ add_executable(test_active_scan_command_planner test_active_scan_command_planner
 target_link_libraries(test_active_scan_command_planner m dl)
 add_test(NAME test_active_scan_command_planner COMMAND test_active_scan_command_planner)
 
+add_executable(test_sparse_scan_collector test_sparse_scan_collector.cpp)
+target_link_libraries(test_sparse_scan_collector m dl)
+add_test(NAME test_sparse_scan_collector COMMAND test_sparse_scan_collector)

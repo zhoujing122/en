@@ -171,6 +171,34 @@ active_scan_execution:
   command_log_only: true
   hardware_write_enabled: false
 
+sparse_scan:
+  enabled: true
+  log_hz: 5.0
+  collect_on_active_scan: true
+  collect_on_command_verifying: true
+  collect_on_natural_rotation: true
+  require_active_scan_recommended: false
+  require_mapping_allowed: false
+  min_yaw_rate_dps: 3.0
+  max_yaw_rate_dps: 90.0
+  max_linear_speed_mps: 0.08
+  min_range_m: 0.02
+  max_range_m: 10.0
+  min_confidence: 70
+  bin_angle_deg: 5.0
+  min_session_angle_deg: 45.0
+  useful_session_angle_deg: 90.0
+  complete_session_angle_deg: 300.0
+  session_timeout_s: 20.0
+  max_gap_s: 1.0
+  cooldown_s: 3.0
+  keep_invalid_samples: true
+  compute_hit_points: true
+  write_sample_log: true
+  write_bin_log: true
+  write_session_log: true
+  max_samples_per_session: 2000
+
 tof_pose_correction:
   enabled: false
   min_candidate_reliability: 0.7
