@@ -276,6 +276,35 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_scan_write_bin_log = get_bool(kv, "sparse_scan.write_bin_log", c.sparse_scan_write_bin_log);
     c.sparse_scan_write_session_log = get_bool(kv, "sparse_scan.write_session_log", c.sparse_scan_write_session_log);
     c.sparse_scan_max_samples_per_session = get_int(kv, "sparse_scan.max_samples_per_session", c.sparse_scan_max_samples_per_session);
+    c.sparse_scan_yaw_match_enabled = get_bool(kv, "sparse_scan_yaw_match.enabled", c.sparse_scan_yaw_match_enabled);
+    c.sparse_scan_yaw_match_log_hz = get_double(kv, "sparse_scan_yaw_match.log_hz", c.sparse_scan_yaw_match_log_hz);
+    c.sparse_scan_yaw_match_run_on_completed_sparse_scan = get_bool(kv, "sparse_scan_yaw_match.run_on_completed_sparse_scan", c.sparse_scan_yaw_match_run_on_completed_sparse_scan);
+    c.sparse_scan_yaw_match_run_on_useful_sparse_scan = get_bool(kv, "sparse_scan_yaw_match.run_on_useful_sparse_scan", c.sparse_scan_yaw_match_run_on_useful_sparse_scan);
+    c.sparse_scan_yaw_match_require_complete_session = get_bool(kv, "sparse_scan_yaw_match.require_complete_session", c.sparse_scan_yaw_match_require_complete_session);
+    c.sparse_scan_yaw_match_max_yaw_search_deg = get_double(kv, "sparse_scan_yaw_match.max_yaw_search_deg", c.sparse_scan_yaw_match_max_yaw_search_deg);
+    c.sparse_scan_yaw_match_coarse_step_deg = get_double(kv, "sparse_scan_yaw_match.coarse_step_deg", c.sparse_scan_yaw_match_coarse_step_deg);
+    c.sparse_scan_yaw_match_refine_enabled = get_bool(kv, "sparse_scan_yaw_match.refine_enabled", c.sparse_scan_yaw_match_refine_enabled);
+    c.sparse_scan_yaw_match_refine_window_deg = get_double(kv, "sparse_scan_yaw_match.refine_window_deg", c.sparse_scan_yaw_match_refine_window_deg);
+    c.sparse_scan_yaw_match_refine_step_deg = get_double(kv, "sparse_scan_yaw_match.refine_step_deg", c.sparse_scan_yaw_match_refine_step_deg);
+    c.sparse_scan_yaw_match_min_valid_samples = get_int(kv, "sparse_scan_yaw_match.min_valid_samples", c.sparse_scan_yaw_match_min_valid_samples);
+    c.sparse_scan_yaw_match_min_valid_bins = get_int(kv, "sparse_scan_yaw_match.min_valid_bins", c.sparse_scan_yaw_match_min_valid_bins);
+    c.sparse_scan_yaw_match_min_observed_yaw_delta_deg = get_double(kv, "sparse_scan_yaw_match.min_observed_yaw_delta_deg", c.sparse_scan_yaw_match_min_observed_yaw_delta_deg);
+    c.sparse_scan_yaw_match_min_valid_bin_ratio = get_double(kv, "sparse_scan_yaw_match.min_valid_bin_ratio", c.sparse_scan_yaw_match_min_valid_bin_ratio);
+    c.sparse_scan_yaw_match_occupied_search_radius_m = get_double(kv, "sparse_scan_yaw_match.occupied_search_radius_m", c.sparse_scan_yaw_match_occupied_search_radius_m);
+    c.sparse_scan_yaw_match_occupied_hit_reward = get_double(kv, "sparse_scan_yaw_match.occupied_hit_reward", c.sparse_scan_yaw_match_occupied_hit_reward);
+    c.sparse_scan_yaw_match_free_hit_penalty = get_double(kv, "sparse_scan_yaw_match.free_hit_penalty", c.sparse_scan_yaw_match_free_hit_penalty);
+    c.sparse_scan_yaw_match_unknown_hit_penalty = get_double(kv, "sparse_scan_yaw_match.unknown_hit_penalty", c.sparse_scan_yaw_match_unknown_hit_penalty);
+    c.sparse_scan_yaw_match_distance_penalty_scale_m = get_double(kv, "sparse_scan_yaw_match.distance_penalty_scale_m", c.sparse_scan_yaw_match_distance_penalty_scale_m);
+    c.sparse_scan_yaw_match_min_best_score = get_double(kv, "sparse_scan_yaw_match.min_best_score", c.sparse_scan_yaw_match_min_best_score);
+    c.sparse_scan_yaw_match_min_score_margin = get_double(kv, "sparse_scan_yaw_match.min_score_margin", c.sparse_scan_yaw_match_min_score_margin);
+    c.sparse_scan_yaw_match_min_inlier_ratio = get_double(kv, "sparse_scan_yaw_match.min_inlier_ratio", c.sparse_scan_yaw_match_min_inlier_ratio);
+    c.sparse_scan_yaw_match_max_curve_flatness = get_double(kv, "sparse_scan_yaw_match.max_curve_flatness", c.sparse_scan_yaw_match_max_curve_flatness);
+    c.sparse_scan_yaw_match_multimodal_check_enabled = get_bool(kv, "sparse_scan_yaw_match.multimodal_check_enabled", c.sparse_scan_yaw_match_multimodal_check_enabled);
+    c.sparse_scan_yaw_match_multimodal_peak_separation_deg = get_double(kv, "sparse_scan_yaw_match.multimodal_peak_separation_deg", c.sparse_scan_yaw_match_multimodal_peak_separation_deg);
+    c.sparse_scan_yaw_match_max_second_peak_ratio = get_double(kv, "sparse_scan_yaw_match.max_second_peak_ratio", c.sparse_scan_yaw_match_max_second_peak_ratio);
+    c.sparse_scan_yaw_match_max_samples_per_match = get_int(kv, "sparse_scan_yaw_match.max_samples_per_match", c.sparse_scan_yaw_match_max_samples_per_match);
+    c.sparse_scan_yaw_match_write_curve_log = get_bool(kv, "sparse_scan_yaw_match.write_curve_log", c.sparse_scan_yaw_match_write_curve_log);
+    c.sparse_scan_yaw_match_write_summary_log = get_bool(kv, "sparse_scan_yaw_match.write_summary_log", c.sparse_scan_yaw_match_write_summary_log);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -498,6 +527,29 @@ void validate_config(const Config &c) {
     positive("sparse_scan.max_gap_s", c.sparse_scan_max_gap_s);
     non_negative("sparse_scan.cooldown_s", c.sparse_scan_cooldown_s);
     if (c.sparse_scan_max_samples_per_session <= 0) errors.push_back("sparse_scan.max_samples_per_session must be > 0");
+
+    positive("sparse_scan_yaw_match.log_hz", c.sparse_scan_yaw_match_log_hz);
+    positive("sparse_scan_yaw_match.max_yaw_search_deg", c.sparse_scan_yaw_match_max_yaw_search_deg);
+    positive("sparse_scan_yaw_match.coarse_step_deg", c.sparse_scan_yaw_match_coarse_step_deg);
+    if (c.sparse_scan_yaw_match_coarse_step_deg > c.sparse_scan_yaw_match_max_yaw_search_deg) errors.push_back("sparse_scan_yaw_match.coarse_step_deg must be <= max_yaw_search_deg");
+    non_negative("sparse_scan_yaw_match.refine_window_deg", c.sparse_scan_yaw_match_refine_window_deg);
+    positive("sparse_scan_yaw_match.refine_step_deg", c.sparse_scan_yaw_match_refine_step_deg);
+    if (c.sparse_scan_yaw_match_min_valid_samples < 0) errors.push_back("sparse_scan_yaw_match.min_valid_samples must be >= 0");
+    if (c.sparse_scan_yaw_match_min_valid_bins < 0) errors.push_back("sparse_scan_yaw_match.min_valid_bins must be >= 0");
+    non_negative("sparse_scan_yaw_match.min_observed_yaw_delta_deg", c.sparse_scan_yaw_match_min_observed_yaw_delta_deg);
+    probability("sparse_scan_yaw_match.min_valid_bin_ratio", c.sparse_scan_yaw_match_min_valid_bin_ratio);
+    non_negative("sparse_scan_yaw_match.occupied_search_radius_m", c.sparse_scan_yaw_match_occupied_search_radius_m);
+    if (!std::isfinite(c.sparse_scan_yaw_match_occupied_hit_reward)) errors.push_back("sparse_scan_yaw_match.occupied_hit_reward must be finite");
+    if (!std::isfinite(c.sparse_scan_yaw_match_free_hit_penalty)) errors.push_back("sparse_scan_yaw_match.free_hit_penalty must be finite");
+    if (!std::isfinite(c.sparse_scan_yaw_match_unknown_hit_penalty)) errors.push_back("sparse_scan_yaw_match.unknown_hit_penalty must be finite");
+    positive("sparse_scan_yaw_match.distance_penalty_scale_m", c.sparse_scan_yaw_match_distance_penalty_scale_m);
+    if (!std::isfinite(c.sparse_scan_yaw_match_min_best_score) || c.sparse_scan_yaw_match_min_best_score < -10.0 || c.sparse_scan_yaw_match_min_best_score > 10.0) errors.push_back("sparse_scan_yaw_match.min_best_score must be finite and in [-10, 10]");
+    non_negative("sparse_scan_yaw_match.min_score_margin", c.sparse_scan_yaw_match_min_score_margin);
+    probability("sparse_scan_yaw_match.min_inlier_ratio", c.sparse_scan_yaw_match_min_inlier_ratio);
+    probability("sparse_scan_yaw_match.max_curve_flatness", c.sparse_scan_yaw_match_max_curve_flatness);
+    non_negative("sparse_scan_yaw_match.multimodal_peak_separation_deg", c.sparse_scan_yaw_match_multimodal_peak_separation_deg);
+    probability("sparse_scan_yaw_match.max_second_peak_ratio", c.sparse_scan_yaw_match_max_second_peak_ratio);
+    if (c.sparse_scan_yaw_match_max_samples_per_match <= 0) errors.push_back("sparse_scan_yaw_match.max_samples_per_match must be > 0");
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -732,6 +784,36 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  write_bin_log: " << bool_yaml(c.sparse_scan_write_bin_log) << "\n"
       << "  write_session_log: " << bool_yaml(c.sparse_scan_write_session_log) << "\n"
       << "  max_samples_per_session: " << c.sparse_scan_max_samples_per_session << "\n";
+    o << "sparse_scan_yaw_match:\n"
+      << "  enabled: " << bool_yaml(c.sparse_scan_yaw_match_enabled) << "\n"
+      << "  log_hz: " << c.sparse_scan_yaw_match_log_hz << "\n"
+      << "  run_on_completed_sparse_scan: " << bool_yaml(c.sparse_scan_yaw_match_run_on_completed_sparse_scan) << "\n"
+      << "  run_on_useful_sparse_scan: " << bool_yaml(c.sparse_scan_yaw_match_run_on_useful_sparse_scan) << "\n"
+      << "  require_complete_session: " << bool_yaml(c.sparse_scan_yaw_match_require_complete_session) << "\n"
+      << "  max_yaw_search_deg: " << c.sparse_scan_yaw_match_max_yaw_search_deg << "\n"
+      << "  coarse_step_deg: " << c.sparse_scan_yaw_match_coarse_step_deg << "\n"
+      << "  refine_enabled: " << bool_yaml(c.sparse_scan_yaw_match_refine_enabled) << "\n"
+      << "  refine_window_deg: " << c.sparse_scan_yaw_match_refine_window_deg << "\n"
+      << "  refine_step_deg: " << c.sparse_scan_yaw_match_refine_step_deg << "\n"
+      << "  min_valid_samples: " << c.sparse_scan_yaw_match_min_valid_samples << "\n"
+      << "  min_valid_bins: " << c.sparse_scan_yaw_match_min_valid_bins << "\n"
+      << "  min_observed_yaw_delta_deg: " << c.sparse_scan_yaw_match_min_observed_yaw_delta_deg << "\n"
+      << "  min_valid_bin_ratio: " << c.sparse_scan_yaw_match_min_valid_bin_ratio << "\n"
+      << "  occupied_search_radius_m: " << c.sparse_scan_yaw_match_occupied_search_radius_m << "\n"
+      << "  occupied_hit_reward: " << c.sparse_scan_yaw_match_occupied_hit_reward << "\n"
+      << "  free_hit_penalty: " << c.sparse_scan_yaw_match_free_hit_penalty << "\n"
+      << "  unknown_hit_penalty: " << c.sparse_scan_yaw_match_unknown_hit_penalty << "\n"
+      << "  distance_penalty_scale_m: " << c.sparse_scan_yaw_match_distance_penalty_scale_m << "\n"
+      << "  min_best_score: " << c.sparse_scan_yaw_match_min_best_score << "\n"
+      << "  min_score_margin: " << c.sparse_scan_yaw_match_min_score_margin << "\n"
+      << "  min_inlier_ratio: " << c.sparse_scan_yaw_match_min_inlier_ratio << "\n"
+      << "  max_curve_flatness: " << c.sparse_scan_yaw_match_max_curve_flatness << "\n"
+      << "  multimodal_check_enabled: " << bool_yaml(c.sparse_scan_yaw_match_multimodal_check_enabled) << "\n"
+      << "  multimodal_peak_separation_deg: " << c.sparse_scan_yaw_match_multimodal_peak_separation_deg << "\n"
+      << "  max_second_peak_ratio: " << c.sparse_scan_yaw_match_max_second_peak_ratio << "\n"
+      << "  max_samples_per_match: " << c.sparse_scan_yaw_match_max_samples_per_match << "\n"
+      << "  write_curve_log: " << bool_yaml(c.sparse_scan_yaw_match_write_curve_log) << "\n"
+      << "  write_summary_log: " << bool_yaml(c.sparse_scan_yaw_match_write_summary_log) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

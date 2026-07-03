@@ -85,6 +85,18 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "sparse_scan_max_observed_yaw_delta_deg," << m.sparse_scan.max_observed_yaw_delta_deg << "\n";
     o << "sparse_scan_last_valid_bin_ratio," << m.sparse_scan.last_valid_bin_ratio << "\n";
     o << "sparse_scan_mean_valid_bin_ratio," << (m.sparse_scan.valid_bin_ratio_count ? m.sparse_scan.valid_bin_ratio_sum / m.sparse_scan.valid_bin_ratio_count : 0.0) << "\n";
+    o << "yaw_match_attempts," << m.sparse_scan_yaw_match.attempts << "\n";
+    o << "yaw_match_usable_count," << m.sparse_scan_yaw_match.usable_count << "\n";
+    o << "yaw_match_rejected_count," << m.sparse_scan_yaw_match.rejected_count << "\n";
+    o << "yaw_match_last_best_yaw_delta_deg," << m.sparse_scan_yaw_match.last_best_yaw_delta_deg << "\n";
+    o << "yaw_match_last_best_score," << m.sparse_scan_yaw_match.last_best_score << "\n";
+    o << "yaw_match_last_score_margin," << m.sparse_scan_yaw_match.last_score_margin << "\n";
+    o << "yaw_match_last_inlier_ratio," << m.sparse_scan_yaw_match.last_inlier_ratio << "\n";
+    o << "yaw_match_last_usable," << (m.sparse_scan_yaw_match.last_usable ? 1 : 0) << "\n";
+    o << "yaw_match_last_reason," << m.sparse_scan_yaw_match.last_reason << "\n";
+    o << "yaw_match_curve_flat_count," << m.sparse_scan_yaw_match.curve_flat_count << "\n";
+    o << "yaw_match_multimodal_count," << m.sparse_scan_yaw_match.multimodal_count << "\n";
+    o << "yaw_match_insufficient_data_count," << m.sparse_scan_yaw_match.insufficient_data_count << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

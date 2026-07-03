@@ -106,6 +106,13 @@ struct SparseScanSessionSummary {
     std::string supervisor_state;
 };
 
+struct SparseScanForMatching {
+    uint64_t scan_id = 0;
+    SparseScanSessionSummary summary;
+    std::vector<SparseScanSample> samples;
+    std::vector<SparseScanBin> bins;
+};
+
 class SparseScanCollector {
 public:
     explicit SparseScanCollector(const Config &cfg) : cfg_(cfg) {
@@ -227,6 +234,12 @@ public:
         return out;
     }
 
+    std::vector<SparseScanForMatching> drain_completed_sessions_for_matching() {
+        std::vector<SparseScanForMatching> out;
+        out.swap(pending_match_scans_);
+        return out;
+    }
+
     SparseScanRunStats run_stats(double) const {
         SparseScanRunStats out = stats_;
         out.state_last = sparse_scan_state_name(state_);
@@ -323,6 +336,7 @@ private:
         session_right_valid_ = 0;
         last_valid_sample_s_ = -1.0;
         max_samples_reached_ = false;
+        current_session_samples_.clear();
     }
 
     void start_session(const SparseScanInput &in) {
@@ -418,6 +432,7 @@ private:
             if (!valid && !cfg_.sparse_scan_keep_invalid_samples) continue;
             SparseScanSample s = make_sample(in, t, valid, reason);
             pending_samples_.push_back(s);
+            current_session_samples_.push_back(s);
             update_bin(s);
             session_total_samples_++;
             stats_.total_samples++;
@@ -480,6 +495,12 @@ private:
         summary.active_scan_command_state = in.active_scan_command.state;
         latest_summary_ = summary;
         pending_summaries_.push_back(summary);
+        SparseScanForMatching match_scan;
+        match_scan.scan_id = scan_id_;
+        match_scan.summary = summary;
+        match_scan.samples = current_session_samples_;
+        match_scan.bins = bins_;
+        pending_match_scans_.push_back(match_scan);
 
         if (completed) stats_.sessions_completed++;
         else stats_.sessions_aborted++;
@@ -519,9 +540,11 @@ private:
     SparseScanSessionSummary latest_summary_;
     SparseScanRunStats stats_;
     std::vector<SparseScanBin> bins_;
+    std::vector<SparseScanSample> current_session_samples_;
     std::vector<SparseScanSample> pending_samples_;
     std::vector<SparseScanBin> pending_bins_;
     std::vector<SparseScanSessionSummary> pending_summaries_;
+    std::vector<SparseScanForMatching> pending_match_scans_;
 };
 
 inline void write_sparse_scan_samples_header(std::ofstream &o) {

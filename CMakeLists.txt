@@ -29,3 +29,6 @@ add_test(NAME test_active_scan_command_planner COMMAND test_active_scan_command_
 add_executable(test_sparse_scan_collector test_sparse_scan_collector.cpp)
 target_link_libraries(test_sparse_scan_collector m dl)
 add_test(NAME test_sparse_scan_collector COMMAND test_sparse_scan_collector)
+add_executable(test_sparse_scan_yaw_matcher test_sparse_scan_yaw_matcher.cpp)
+target_link_libraries(test_sparse_scan_yaw_matcher m dl)
+add_test(NAME test_sparse_scan_yaw_matcher COMMAND test_sparse_scan_yaw_matcher)

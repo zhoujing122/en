@@ -339,6 +339,35 @@ struct Config {
     bool sparse_scan_write_bin_log = true;
     bool sparse_scan_write_session_log = true;
     int sparse_scan_max_samples_per_session = 2000;
+    bool sparse_scan_yaw_match_enabled = true;
+    double sparse_scan_yaw_match_log_hz = 2.0;
+    bool sparse_scan_yaw_match_run_on_completed_sparse_scan = true;
+    bool sparse_scan_yaw_match_run_on_useful_sparse_scan = true;
+    bool sparse_scan_yaw_match_require_complete_session = false;
+    double sparse_scan_yaw_match_max_yaw_search_deg = 10.0;
+    double sparse_scan_yaw_match_coarse_step_deg = 1.0;
+    bool sparse_scan_yaw_match_refine_enabled = true;
+    double sparse_scan_yaw_match_refine_window_deg = 2.0;
+    double sparse_scan_yaw_match_refine_step_deg = 0.25;
+    int sparse_scan_yaw_match_min_valid_samples = 15;
+    int sparse_scan_yaw_match_min_valid_bins = 8;
+    double sparse_scan_yaw_match_min_observed_yaw_delta_deg = 90.0;
+    double sparse_scan_yaw_match_min_valid_bin_ratio = 0.10;
+    double sparse_scan_yaw_match_occupied_search_radius_m = 0.12;
+    double sparse_scan_yaw_match_occupied_hit_reward = 1.0;
+    double sparse_scan_yaw_match_free_hit_penalty = 0.7;
+    double sparse_scan_yaw_match_unknown_hit_penalty = 0.2;
+    double sparse_scan_yaw_match_distance_penalty_scale_m = 0.20;
+    double sparse_scan_yaw_match_min_best_score = 0.20;
+    double sparse_scan_yaw_match_min_score_margin = 0.08;
+    double sparse_scan_yaw_match_min_inlier_ratio = 0.20;
+    double sparse_scan_yaw_match_max_curve_flatness = 0.80;
+    bool sparse_scan_yaw_match_multimodal_check_enabled = true;
+    double sparse_scan_yaw_match_multimodal_peak_separation_deg = 3.0;
+    double sparse_scan_yaw_match_max_second_peak_ratio = 0.85;
+    int sparse_scan_yaw_match_max_samples_per_match = 300;
+    bool sparse_scan_yaw_match_write_curve_log = true;
+    bool sparse_scan_yaw_match_write_summary_log = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -553,6 +582,21 @@ struct SparseScanRunStats {
     uint64_t valid_bin_ratio_count = 0;
 };
 
+struct SparseScanYawMatchRunStats {
+    uint64_t attempts = 0;
+    uint64_t usable_count = 0;
+    uint64_t rejected_count = 0;
+    double last_best_yaw_delta_deg = 0.0;
+    double last_best_score = 0.0;
+    double last_score_margin = 0.0;
+    double last_inlier_ratio = 0.0;
+    bool last_usable = false;
+    std::string last_reason = "none";
+    uint64_t curve_flat_count = 0;
+    uint64_t multimodal_count = 0;
+    uint64_t insufficient_data_count = 0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -594,6 +638,7 @@ struct RunMetrics {
     ActiveScanRunStats active_scan;
     ActiveScanCommandRunStats active_scan_command;
     SparseScanRunStats sparse_scan;
+    SparseScanYawMatchRunStats sparse_scan_yaw_match;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

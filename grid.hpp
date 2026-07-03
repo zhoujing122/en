@@ -3,6 +3,25 @@
 
 namespace robot_slamd {
 
+enum class GridQueryState {
+    UNKNOWN,
+    FREE,
+    OCCUPIED,
+    OUT_OF_MAP,
+};
+
+struct GridQueryResult {
+    GridQueryState state = GridQueryState::UNKNOWN;
+    bool known = false;
+    bool occupied = false;
+    bool free = false;
+};
+
+struct NearestOccupiedResult {
+    bool found = false;
+    double distance_m = 0.0;
+};
+
 struct Chunk {
     std::vector<float> cells;
     std::vector<uint8_t> touched;
@@ -90,6 +109,42 @@ public:
             if (is_occupied_cell(cell.first, cell.second, cfg)) return r;
         }
         return max_range_m;
+    }
+
+    GridQueryResult query_world(double x_m, double y_m, const Config &cfg) const {
+        auto cell = cell_for_world(x_m, y_m);
+        int cc = cfg.chunk_cells;
+        int cx = floordiv(cell.first, cc), cy = floordiv(cell.second, cc);
+        auto it = chunks_.find({cx, cy});
+        if (it == chunks_.end()) return {GridQueryState::OUT_OF_MAP, false, false, false};
+        int lx = mod(cell.first, cc), ly = mod(cell.second, cc), idx = ly * cc + lx;
+        if (!it->second.touched[idx]) return {GridQueryState::UNKNOWN, false, false, false};
+        double p = probability_cell(cell.first, cell.second);
+        if (p >= cfg.occupied_thresh) return {GridQueryState::OCCUPIED, true, true, false};
+        if (p <= cfg.free_thresh) return {GridQueryState::FREE, true, false, true};
+        return {GridQueryState::UNKNOWN, false, false, false};
+    }
+
+    NearestOccupiedResult nearest_occupied_distance(double x_m, double y_m, double radius_m, const Config &cfg) const {
+        NearestOccupiedResult out;
+        if (radius_m < 0.0) return out;
+        auto center = cell_for_world(x_m, y_m);
+        int r_cells = std::max(0, static_cast<int>(std::ceil(radius_m / std::max(1e-9, cfg.resolution_m))));
+        double best = radius_m + cfg.resolution_m;
+        for (int gy = center.second - r_cells; gy <= center.second + r_cells; ++gy) {
+            for (int gx = center.first - r_cells; gx <= center.first + r_cells; ++gx) {
+                if (!is_occupied_cell(gx, gy, cfg)) continue;
+                double cx = (static_cast<double>(gx) + 0.5) * cfg.resolution_m;
+                double cy = (static_cast<double>(gy) + 0.5) * cfg.resolution_m;
+                double d = std::hypot(cx - x_m, cy - y_m);
+                if (d <= radius_m && d < best) {
+                    best = d;
+                    out.found = true;
+                    out.distance_m = d;
+                }
+            }
+        }
+        return out;
     }
 
     bool save(const std::string &pgm, const std::string &yaml, const Config &cfg) const {

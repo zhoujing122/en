@@ -212,6 +212,37 @@ sparse_scan:
   write_session_log: true
   max_samples_per_session: 2000
 
+sparse_scan_yaw_match:
+  enabled: true
+  log_hz: 2.0
+  run_on_completed_sparse_scan: true
+  run_on_useful_sparse_scan: true
+  require_complete_session: false
+  max_yaw_search_deg: 10.0
+  coarse_step_deg: 1.0
+  refine_enabled: true
+  refine_window_deg: 2.0
+  refine_step_deg: 0.25
+  min_valid_samples: 15
+  min_valid_bins: 8
+  min_observed_yaw_delta_deg: 90.0
+  min_valid_bin_ratio: 0.10
+  occupied_search_radius_m: 0.12
+  occupied_hit_reward: 1.0
+  free_hit_penalty: 0.7
+  unknown_hit_penalty: 0.2
+  distance_penalty_scale_m: 0.20
+  min_best_score: 0.20
+  min_score_margin: 0.08
+  min_inlier_ratio: 0.20
+  max_curve_flatness: 0.80
+  multimodal_check_enabled: true
+  multimodal_peak_separation_deg: 3.0
+  max_second_peak_ratio: 0.85
+  max_samples_per_match: 300
+  write_curve_log: true
+  write_summary_log: true
+
 tof_pose_correction:
   enabled: true
   mode: yaw_candidate
