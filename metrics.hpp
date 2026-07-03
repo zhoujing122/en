@@ -97,6 +97,18 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "yaw_match_curve_flat_count," << m.sparse_scan_yaw_match.curve_flat_count << "\n";
     o << "yaw_match_multimodal_count," << m.sparse_scan_yaw_match.multimodal_count << "\n";
     o << "yaw_match_insufficient_data_count," << m.sparse_scan_yaw_match.insufficient_data_count << "\n";
+    o << "yaw_correction_state_last," << m.yaw_correction.state_last << "\n";
+    o << "yaw_correction_candidates_seen," << m.yaw_correction.candidates_seen << "\n";
+    o << "yaw_correction_would_apply_count," << m.yaw_correction.would_apply_count << "\n";
+    o << "yaw_correction_rejected_count," << m.yaw_correction.rejected_count << "\n";
+    o << "yaw_correction_last_candidate_deg," << m.yaw_correction.last_candidate_deg << "\n";
+    o << "yaw_correction_last_suggested_correction_deg," << m.yaw_correction.last_suggested_correction_deg << "\n";
+    o << "yaw_correction_last_reason," << m.yaw_correction.last_reason << "\n";
+    o << "yaw_correction_consistency_count_last," << m.yaw_correction.consistency_count_last << "\n";
+    o << "yaw_correction_consistency_spread_deg_last," << m.yaw_correction.consistency_spread_deg_last << "\n";
+    o << "yaw_correction_robot_moving_reject_count," << m.yaw_correction.robot_moving_reject_count << "\n";
+    o << "yaw_correction_low_quality_reject_count," << m.yaw_correction.low_quality_reject_count << "\n";
+    o << "yaw_correction_consistency_reject_count," << m.yaw_correction.consistency_reject_count << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

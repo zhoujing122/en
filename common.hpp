@@ -368,6 +368,29 @@ struct Config {
     int sparse_scan_yaw_match_max_samples_per_match = 300;
     bool sparse_scan_yaw_match_write_curve_log = true;
     bool sparse_scan_yaw_match_write_summary_log = true;
+    bool yaw_correction_enabled = true;
+    std::string yaw_correction_mode = "dry_run";
+    double yaw_correction_log_hz = 2.0;
+    bool yaw_correction_require_yaw_match_usable = true;
+    bool yaw_correction_require_mapping_state_ok = true;
+    bool yaw_correction_require_low_speed_or_static = true;
+    bool yaw_correction_require_active_scan_complete = true;
+    double yaw_correction_max_linear_speed_mps = 0.05;
+    double yaw_correction_max_abs_yaw_rate_dps = 5.0;
+    double yaw_correction_min_best_score = 0.20;
+    double yaw_correction_min_score_margin = 0.08;
+    double yaw_correction_min_inlier_ratio = 0.20;
+    double yaw_correction_max_curve_flatness = 0.80;
+    double yaw_correction_max_candidate_abs_deg = 5.0;
+    double yaw_correction_min_candidate_abs_deg = 0.3;
+    double yaw_correction_gain = 0.15;
+    double yaw_correction_max_step_deg = 1.0;
+    double yaw_correction_min_step_deg = 0.05;
+    int yaw_correction_consistency_window = 3;
+    double yaw_correction_max_consistency_spread_deg = 1.0;
+    double yaw_correction_cooldown_s = 5.0;
+    bool yaw_correction_writeback_enabled = false;
+    std::string yaw_correction_acknowledgement = "";
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -597,6 +620,21 @@ struct SparseScanYawMatchRunStats {
     uint64_t insufficient_data_count = 0;
 };
 
+struct YawCorrectionGateRunStats {
+    std::string state_last = "IDLE";
+    uint64_t candidates_seen = 0;
+    uint64_t would_apply_count = 0;
+    uint64_t rejected_count = 0;
+    double last_candidate_deg = 0.0;
+    double last_suggested_correction_deg = 0.0;
+    std::string last_reason = "idle";
+    int consistency_count_last = 0;
+    double consistency_spread_deg_last = 0.0;
+    uint64_t robot_moving_reject_count = 0;
+    uint64_t low_quality_reject_count = 0;
+    uint64_t consistency_reject_count = 0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -639,6 +677,7 @@ struct RunMetrics {
     ActiveScanCommandRunStats active_scan_command;
     SparseScanRunStats sparse_scan;
     SparseScanYawMatchRunStats sparse_scan_yaw_match;
+    YawCorrectionGateRunStats yaw_correction;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

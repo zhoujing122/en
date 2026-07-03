@@ -305,6 +305,29 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_scan_yaw_match_max_samples_per_match = get_int(kv, "sparse_scan_yaw_match.max_samples_per_match", c.sparse_scan_yaw_match_max_samples_per_match);
     c.sparse_scan_yaw_match_write_curve_log = get_bool(kv, "sparse_scan_yaw_match.write_curve_log", c.sparse_scan_yaw_match_write_curve_log);
     c.sparse_scan_yaw_match_write_summary_log = get_bool(kv, "sparse_scan_yaw_match.write_summary_log", c.sparse_scan_yaw_match_write_summary_log);
+    c.yaw_correction_enabled = get_bool(kv, "yaw_correction.enabled", c.yaw_correction_enabled);
+    c.yaw_correction_mode = get_string(kv, "yaw_correction.mode", c.yaw_correction_mode);
+    c.yaw_correction_log_hz = get_double(kv, "yaw_correction.log_hz", c.yaw_correction_log_hz);
+    c.yaw_correction_require_yaw_match_usable = get_bool(kv, "yaw_correction.require_yaw_match_usable", c.yaw_correction_require_yaw_match_usable);
+    c.yaw_correction_require_mapping_state_ok = get_bool(kv, "yaw_correction.require_mapping_state_ok", c.yaw_correction_require_mapping_state_ok);
+    c.yaw_correction_require_low_speed_or_static = get_bool(kv, "yaw_correction.require_low_speed_or_static", c.yaw_correction_require_low_speed_or_static);
+    c.yaw_correction_require_active_scan_complete = get_bool(kv, "yaw_correction.require_active_scan_complete", c.yaw_correction_require_active_scan_complete);
+    c.yaw_correction_max_linear_speed_mps = get_double(kv, "yaw_correction.max_linear_speed_mps", c.yaw_correction_max_linear_speed_mps);
+    c.yaw_correction_max_abs_yaw_rate_dps = get_double(kv, "yaw_correction.max_abs_yaw_rate_dps", c.yaw_correction_max_abs_yaw_rate_dps);
+    c.yaw_correction_min_best_score = get_double(kv, "yaw_correction.min_best_score", c.yaw_correction_min_best_score);
+    c.yaw_correction_min_score_margin = get_double(kv, "yaw_correction.min_score_margin", c.yaw_correction_min_score_margin);
+    c.yaw_correction_min_inlier_ratio = get_double(kv, "yaw_correction.min_inlier_ratio", c.yaw_correction_min_inlier_ratio);
+    c.yaw_correction_max_curve_flatness = get_double(kv, "yaw_correction.max_curve_flatness", c.yaw_correction_max_curve_flatness);
+    c.yaw_correction_max_candidate_abs_deg = get_double(kv, "yaw_correction.max_candidate_abs_deg", c.yaw_correction_max_candidate_abs_deg);
+    c.yaw_correction_min_candidate_abs_deg = get_double(kv, "yaw_correction.min_candidate_abs_deg", c.yaw_correction_min_candidate_abs_deg);
+    c.yaw_correction_gain = get_double(kv, "yaw_correction.correction_gain", c.yaw_correction_gain);
+    c.yaw_correction_max_step_deg = get_double(kv, "yaw_correction.max_step_deg", c.yaw_correction_max_step_deg);
+    c.yaw_correction_min_step_deg = get_double(kv, "yaw_correction.min_step_deg", c.yaw_correction_min_step_deg);
+    c.yaw_correction_consistency_window = get_int(kv, "yaw_correction.consistency_window", c.yaw_correction_consistency_window);
+    c.yaw_correction_max_consistency_spread_deg = get_double(kv, "yaw_correction.max_consistency_spread_deg", c.yaw_correction_max_consistency_spread_deg);
+    c.yaw_correction_cooldown_s = get_double(kv, "yaw_correction.cooldown_s", c.yaw_correction_cooldown_s);
+    c.yaw_correction_writeback_enabled = get_bool(kv, "yaw_correction.writeback_enabled", c.yaw_correction_writeback_enabled);
+    c.yaw_correction_acknowledgement = get_string(kv, "yaw_correction.acknowledgement", c.yaw_correction_acknowledgement);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -550,6 +573,27 @@ void validate_config(const Config &c) {
     non_negative("sparse_scan_yaw_match.multimodal_peak_separation_deg", c.sparse_scan_yaw_match_multimodal_peak_separation_deg);
     probability("sparse_scan_yaw_match.max_second_peak_ratio", c.sparse_scan_yaw_match_max_second_peak_ratio);
     if (c.sparse_scan_yaw_match_max_samples_per_match <= 0) errors.push_back("sparse_scan_yaw_match.max_samples_per_match must be > 0");
+
+    if (!one_of(c.yaw_correction_mode, {"disabled", "dry_run"})) errors.push_back("yaw_correction.mode must be disabled or dry_run");
+    if (c.yaw_correction_mode == "writeback") errors.push_back("yaw_correction.mode=writeback unsupported in stage4B");
+    if (c.yaw_correction_writeback_enabled) errors.push_back("yaw_correction.writeback_enabled=true unsupported in stage4B");
+    positive("yaw_correction.log_hz", c.yaw_correction_log_hz);
+    non_negative("yaw_correction.max_linear_speed_mps", c.yaw_correction_max_linear_speed_mps);
+    non_negative("yaw_correction.max_abs_yaw_rate_dps", c.yaw_correction_max_abs_yaw_rate_dps);
+    if (!std::isfinite(c.yaw_correction_min_best_score) || c.yaw_correction_min_best_score < -10.0 || c.yaw_correction_min_best_score > 10.0) errors.push_back("yaw_correction.min_best_score must be finite and in [-10, 10]");
+    non_negative("yaw_correction.min_score_margin", c.yaw_correction_min_score_margin);
+    probability("yaw_correction.min_inlier_ratio", c.yaw_correction_min_inlier_ratio);
+    probability("yaw_correction.max_curve_flatness", c.yaw_correction_max_curve_flatness);
+    positive("yaw_correction.max_candidate_abs_deg", c.yaw_correction_max_candidate_abs_deg);
+    non_negative("yaw_correction.min_candidate_abs_deg", c.yaw_correction_min_candidate_abs_deg);
+    if (c.yaw_correction_min_candidate_abs_deg > c.yaw_correction_max_candidate_abs_deg) errors.push_back("yaw_correction.min_candidate_abs_deg must be <= max_candidate_abs_deg");
+    if (!std::isfinite(c.yaw_correction_gain) || c.yaw_correction_gain <= 0.0 || c.yaw_correction_gain > 1.0) errors.push_back("yaw_correction.correction_gain must be > 0 and <= 1");
+    positive("yaw_correction.max_step_deg", c.yaw_correction_max_step_deg);
+    non_negative("yaw_correction.min_step_deg", c.yaw_correction_min_step_deg);
+    if (c.yaw_correction_min_step_deg > c.yaw_correction_max_step_deg) errors.push_back("yaw_correction.min_step_deg must be <= max_step_deg");
+    if (c.yaw_correction_consistency_window < 1) errors.push_back("yaw_correction.consistency_window must be >= 1");
+    non_negative("yaw_correction.max_consistency_spread_deg", c.yaw_correction_max_consistency_spread_deg);
+    non_negative("yaw_correction.cooldown_s", c.yaw_correction_cooldown_s);
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -814,6 +858,30 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  max_samples_per_match: " << c.sparse_scan_yaw_match_max_samples_per_match << "\n"
       << "  write_curve_log: " << bool_yaml(c.sparse_scan_yaw_match_write_curve_log) << "\n"
       << "  write_summary_log: " << bool_yaml(c.sparse_scan_yaw_match_write_summary_log) << "\n";
+    o << "yaw_correction:\n"
+      << "  enabled: " << bool_yaml(c.yaw_correction_enabled) << "\n"
+      << "  mode: " << c.yaw_correction_mode << "\n"
+      << "  log_hz: " << c.yaw_correction_log_hz << "\n"
+      << "  require_yaw_match_usable: " << bool_yaml(c.yaw_correction_require_yaw_match_usable) << "\n"
+      << "  require_mapping_state_ok: " << bool_yaml(c.yaw_correction_require_mapping_state_ok) << "\n"
+      << "  require_low_speed_or_static: " << bool_yaml(c.yaw_correction_require_low_speed_or_static) << "\n"
+      << "  require_active_scan_complete: " << bool_yaml(c.yaw_correction_require_active_scan_complete) << "\n"
+      << "  max_linear_speed_mps: " << c.yaw_correction_max_linear_speed_mps << "\n"
+      << "  max_abs_yaw_rate_dps: " << c.yaw_correction_max_abs_yaw_rate_dps << "\n"
+      << "  min_best_score: " << c.yaw_correction_min_best_score << "\n"
+      << "  min_score_margin: " << c.yaw_correction_min_score_margin << "\n"
+      << "  min_inlier_ratio: " << c.yaw_correction_min_inlier_ratio << "\n"
+      << "  max_curve_flatness: " << c.yaw_correction_max_curve_flatness << "\n"
+      << "  max_candidate_abs_deg: " << c.yaw_correction_max_candidate_abs_deg << "\n"
+      << "  min_candidate_abs_deg: " << c.yaw_correction_min_candidate_abs_deg << "\n"
+      << "  correction_gain: " << c.yaw_correction_gain << "\n"
+      << "  max_step_deg: " << c.yaw_correction_max_step_deg << "\n"
+      << "  min_step_deg: " << c.yaw_correction_min_step_deg << "\n"
+      << "  consistency_window: " << c.yaw_correction_consistency_window << "\n"
+      << "  max_consistency_spread_deg: " << c.yaw_correction_max_consistency_spread_deg << "\n"
+      << "  cooldown_s: " << c.yaw_correction_cooldown_s << "\n"
+      << "  writeback_enabled: " << bool_yaml(c.yaw_correction_writeback_enabled) << "\n"
+      << "  acknowledgement: " << c.yaw_correction_acknowledgement << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

@@ -230,6 +230,31 @@ sparse_scan_yaw_match:
   write_curve_log: true
   write_summary_log: true
 
+yaw_correction:
+  enabled: true
+  mode: dry_run
+  log_hz: 2.0
+  require_yaw_match_usable: true
+  require_mapping_state_ok: true
+  require_low_speed_or_static: true
+  require_active_scan_complete: true
+  max_linear_speed_mps: 0.05
+  max_abs_yaw_rate_dps: 5.0
+  min_best_score: 0.20
+  min_score_margin: 0.08
+  min_inlier_ratio: 0.20
+  max_curve_flatness: 0.80
+  max_candidate_abs_deg: 5.0
+  min_candidate_abs_deg: 0.3
+  correction_gain: 0.15
+  max_step_deg: 1.0
+  min_step_deg: 0.05
+  consistency_window: 3
+  max_consistency_spread_deg: 1.0
+  cooldown_s: 5.0
+  writeback_enabled: false
+  acknowledgement: ""
+
 tof_pose_correction:
   enabled: false
   min_candidate_reliability: 0.7
