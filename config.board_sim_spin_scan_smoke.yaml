@@ -278,6 +278,32 @@ yaw_correction_post_apply:
   max_post_apply_candidate_abs_deg: 10.0
   log_enabled: true
 
+recovery:
+  enabled: true
+  mode: observe_only
+  log_hz: 2.0
+  startup_recovery_enabled: true
+  lost_recovery_enabled: true
+  degraded_recovery_enabled: true
+  startup_grace_s: 3.0
+  lost_confirm_s: 2.0
+  degraded_confirm_s: 5.0
+  require_map_quality_not_invalid: true
+  require_min_known_cells: 50
+  require_min_occupied_cells: 5
+  require_tof_recent: true
+  max_tof_age_s: 1.0
+  require_localizer_initialized_for_local_recovery: true
+  allow_uninitialized_startup_recovery_observe_only: true
+  request_recovery_scan: true
+  recovery_scan_cooldown_s: 10.0
+  require_yaw_correction_stable: true
+  max_recent_yaw_apply_count: 3
+  min_post_apply_validated_count: 0
+  block_if_post_apply_failed_recent: true
+  write_candidate_log: true
+  write_event_log: true
+
 tof_pose_correction:
   enabled: false
   mode: off

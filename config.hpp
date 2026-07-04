@@ -357,6 +357,30 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.yaw_correction_post_apply_require_newer_match_timestamp = get_bool(kv, "yaw_correction_post_apply.require_newer_match_timestamp", c.yaw_correction_post_apply_require_newer_match_timestamp);
     c.yaw_correction_post_apply_max_post_apply_candidate_abs_deg = get_double(kv, "yaw_correction_post_apply.max_post_apply_candidate_abs_deg", c.yaw_correction_post_apply_max_post_apply_candidate_abs_deg);
     c.yaw_correction_post_apply_log_enabled = get_bool(kv, "yaw_correction_post_apply.log_enabled", c.yaw_correction_post_apply_log_enabled);
+    c.recovery_enabled = get_bool(kv, "recovery.enabled", c.recovery_enabled);
+    c.recovery_mode = get_string(kv, "recovery.mode", c.recovery_mode);
+    c.recovery_log_hz = get_double(kv, "recovery.log_hz", c.recovery_log_hz);
+    c.recovery_startup_recovery_enabled = get_bool(kv, "recovery.startup_recovery_enabled", c.recovery_startup_recovery_enabled);
+    c.recovery_lost_recovery_enabled = get_bool(kv, "recovery.lost_recovery_enabled", c.recovery_lost_recovery_enabled);
+    c.recovery_degraded_recovery_enabled = get_bool(kv, "recovery.degraded_recovery_enabled", c.recovery_degraded_recovery_enabled);
+    c.recovery_startup_grace_s = get_double(kv, "recovery.startup_grace_s", c.recovery_startup_grace_s);
+    c.recovery_lost_confirm_s = get_double(kv, "recovery.lost_confirm_s", c.recovery_lost_confirm_s);
+    c.recovery_degraded_confirm_s = get_double(kv, "recovery.degraded_confirm_s", c.recovery_degraded_confirm_s);
+    c.recovery_require_map_quality_not_invalid = get_bool(kv, "recovery.require_map_quality_not_invalid", c.recovery_require_map_quality_not_invalid);
+    c.recovery_require_min_known_cells = get_int(kv, "recovery.require_min_known_cells", c.recovery_require_min_known_cells);
+    c.recovery_require_min_occupied_cells = get_int(kv, "recovery.require_min_occupied_cells", c.recovery_require_min_occupied_cells);
+    c.recovery_require_tof_recent = get_bool(kv, "recovery.require_tof_recent", c.recovery_require_tof_recent);
+    c.recovery_max_tof_age_s = get_double(kv, "recovery.max_tof_age_s", c.recovery_max_tof_age_s);
+    c.recovery_require_localizer_initialized_for_local_recovery = get_bool(kv, "recovery.require_localizer_initialized_for_local_recovery", c.recovery_require_localizer_initialized_for_local_recovery);
+    c.recovery_allow_uninitialized_startup_recovery_observe_only = get_bool(kv, "recovery.allow_uninitialized_startup_recovery_observe_only", c.recovery_allow_uninitialized_startup_recovery_observe_only);
+    c.recovery_request_recovery_scan = get_bool(kv, "recovery.request_recovery_scan", c.recovery_request_recovery_scan);
+    c.recovery_recovery_scan_cooldown_s = get_double(kv, "recovery.recovery_scan_cooldown_s", c.recovery_recovery_scan_cooldown_s);
+    c.recovery_require_yaw_correction_stable = get_bool(kv, "recovery.require_yaw_correction_stable", c.recovery_require_yaw_correction_stable);
+    c.recovery_max_recent_yaw_apply_count = get_int(kv, "recovery.max_recent_yaw_apply_count", c.recovery_max_recent_yaw_apply_count);
+    c.recovery_min_post_apply_validated_count = get_int(kv, "recovery.min_post_apply_validated_count", c.recovery_min_post_apply_validated_count);
+    c.recovery_block_if_post_apply_failed_recent = get_bool(kv, "recovery.block_if_post_apply_failed_recent", c.recovery_block_if_post_apply_failed_recent);
+    c.recovery_write_candidate_log = get_bool(kv, "recovery.write_candidate_log", c.recovery_write_candidate_log);
+    c.recovery_write_event_log = get_bool(kv, "recovery.write_event_log", c.recovery_write_event_log);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -639,6 +663,17 @@ void validate_config(const Config &c) {
     non_negative("yaw_correction_post_apply.min_absolute_improvement_deg", c.yaw_correction_post_apply_min_absolute_improvement_deg);
     non_negative("yaw_correction_post_apply.max_allowed_worse_deg", c.yaw_correction_post_apply_max_allowed_worse_deg);
     positive("yaw_correction_post_apply.max_post_apply_candidate_abs_deg", c.yaw_correction_post_apply_max_post_apply_candidate_abs_deg);
+    if (!one_of(c.recovery_mode, {"observe_only", "disabled"})) errors.push_back("recovery.mode must be observe_only or disabled");
+    positive("recovery.log_hz", c.recovery_log_hz);
+    non_negative("recovery.startup_grace_s", c.recovery_startup_grace_s);
+    non_negative("recovery.lost_confirm_s", c.recovery_lost_confirm_s);
+    non_negative("recovery.degraded_confirm_s", c.recovery_degraded_confirm_s);
+    if (c.recovery_require_min_known_cells < 0) errors.push_back("recovery.require_min_known_cells must be >= 0");
+    if (c.recovery_require_min_occupied_cells < 0) errors.push_back("recovery.require_min_occupied_cells must be >= 0");
+    non_negative("recovery.max_tof_age_s", c.recovery_max_tof_age_s);
+    non_negative("recovery.recovery_scan_cooldown_s", c.recovery_recovery_scan_cooldown_s);
+    if (c.recovery_max_recent_yaw_apply_count < 0) errors.push_back("recovery.max_recent_yaw_apply_count must be >= 0");
+    if (c.recovery_min_post_apply_validated_count < 0) errors.push_back("recovery.min_post_apply_validated_count must be >= 0");
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -956,6 +991,31 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_newer_match_timestamp: " << bool_yaml(c.yaw_correction_post_apply_require_newer_match_timestamp) << "\n"
       << "  max_post_apply_candidate_abs_deg: " << c.yaw_correction_post_apply_max_post_apply_candidate_abs_deg << "\n"
       << "  log_enabled: " << bool_yaml(c.yaw_correction_post_apply_log_enabled) << "\n";
+    o << "recovery:\n"
+      << "  enabled: " << bool_yaml(c.recovery_enabled) << "\n"
+      << "  mode: " << c.recovery_mode << "\n"
+      << "  log_hz: " << c.recovery_log_hz << "\n"
+      << "  startup_recovery_enabled: " << bool_yaml(c.recovery_startup_recovery_enabled) << "\n"
+      << "  lost_recovery_enabled: " << bool_yaml(c.recovery_lost_recovery_enabled) << "\n"
+      << "  degraded_recovery_enabled: " << bool_yaml(c.recovery_degraded_recovery_enabled) << "\n"
+      << "  startup_grace_s: " << c.recovery_startup_grace_s << "\n"
+      << "  lost_confirm_s: " << c.recovery_lost_confirm_s << "\n"
+      << "  degraded_confirm_s: " << c.recovery_degraded_confirm_s << "\n"
+      << "  require_map_quality_not_invalid: " << bool_yaml(c.recovery_require_map_quality_not_invalid) << "\n"
+      << "  require_min_known_cells: " << c.recovery_require_min_known_cells << "\n"
+      << "  require_min_occupied_cells: " << c.recovery_require_min_occupied_cells << "\n"
+      << "  require_tof_recent: " << bool_yaml(c.recovery_require_tof_recent) << "\n"
+      << "  max_tof_age_s: " << c.recovery_max_tof_age_s << "\n"
+      << "  require_localizer_initialized_for_local_recovery: " << bool_yaml(c.recovery_require_localizer_initialized_for_local_recovery) << "\n"
+      << "  allow_uninitialized_startup_recovery_observe_only: " << bool_yaml(c.recovery_allow_uninitialized_startup_recovery_observe_only) << "\n"
+      << "  request_recovery_scan: " << bool_yaml(c.recovery_request_recovery_scan) << "\n"
+      << "  recovery_scan_cooldown_s: " << c.recovery_recovery_scan_cooldown_s << "\n"
+      << "  require_yaw_correction_stable: " << bool_yaml(c.recovery_require_yaw_correction_stable) << "\n"
+      << "  max_recent_yaw_apply_count: " << c.recovery_max_recent_yaw_apply_count << "\n"
+      << "  min_post_apply_validated_count: " << c.recovery_min_post_apply_validated_count << "\n"
+      << "  block_if_post_apply_failed_recent: " << bool_yaml(c.recovery_block_if_post_apply_failed_recent) << "\n"
+      << "  write_candidate_log: " << bool_yaml(c.recovery_write_candidate_log) << "\n"
+      << "  write_event_log: " << bool_yaml(c.recovery_write_event_log) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

@@ -11,6 +11,7 @@
 #include "sensors.hpp"
 #include "sparse_scan_collector.hpp"
 #include "sparse_scan_yaw_matcher.hpp"
+#include "startup_lost_recovery_manager.hpp"
 #include "spin_scan_localization.hpp"
 #include "tof.hpp"
 #include "tof_pose_correction.hpp"
@@ -68,6 +69,7 @@ int real_main(int argc, char **argv) {
     std::ofstream yaw_correction_gate_log;
     std::ofstream yaw_correction_apply_log;
     std::ofstream yaw_correction_post_apply_log;
+    std::ofstream recovery_manager_log;
     std::ofstream encoderlog;
     std::ofstream corrlog;
     std::ofstream yawlog;
@@ -90,6 +92,7 @@ int real_main(int argc, char **argv) {
     if (cfg.yaw_correction_enabled && cfg.yaw_correction_mode != "disabled") yaw_correction_gate_log.open(run_dir + "/yaw_correction_gate.csv");
     if (cfg.yaw_correction_enabled && cfg.yaw_correction_mode == "writeback" && cfg.yaw_correction_writeback_enabled && cfg.yaw_correction_apply_log_enabled) yaw_correction_apply_log.open(run_dir + "/yaw_correction_apply.csv");
     if (cfg.yaw_correction_post_apply_enabled && cfg.yaw_correction_post_apply_log_enabled) yaw_correction_post_apply_log.open(run_dir + "/yaw_correction_post_apply.csv");
+    if (cfg.recovery_enabled && cfg.recovery_mode != "disabled") recovery_manager_log.open(run_dir + "/recovery_manager.csv");
     if (cfg.encoder_source == "cjc_bl4820_uart") encoderlog.open(run_dir + "/encoder_log.csv");
     if (cfg.tof_pose_correction_enabled) corrlog.open(run_dir + "/tof_correction_log.csv");
     if (cfg.tof_pose_correction_enabled && cfg.tof_pose_correction_mode == "yaw_candidate") yawlog.open(run_dir + "/candidate_yaw.csv");
@@ -118,6 +121,7 @@ int real_main(int argc, char **argv) {
     if (yaw_correction_gate_log) write_yaw_correction_gate_header(yaw_correction_gate_log);
     if (yaw_correction_apply_log) write_yaw_correction_apply_header(yaw_correction_apply_log);
     if (yaw_correction_post_apply_log) write_yaw_correction_post_apply_header(yaw_correction_post_apply_log);
+    if (recovery_manager_log) write_recovery_manager_header(recovery_manager_log);
     if (encoderlog) encoderlog << "timestamp_us,left_pos_raw,right_pos_raw,left_delta_ticks,right_delta_ticks,left_total_ticks,right_total_ticks,left_rpm,right_rpm,left_current_raw,right_current_raw,left_status,right_status,decision,reason\n";
     if (cfg.tof_pose_correction_enabled) {
         corrlog << "timestamp_us,mode,accepted,reason,localizer_x,localizer_y,localizer_yaw,odom_x,odom_y,odom_yaw,debug_offset_x_m,debug_offset_y_m,debug_offset_yaw_rad,odom_residual,improvement,best_x,best_y,best_yaw,best_dx,best_dy,best_dyaw,best_residual,second_best_residual,used_tof,candidate_count,odom_front_expected_m,odom_left_expected_m,odom_right_expected_m,best_front_expected_m,best_left_expected_m,best_right_expected_m\n";
@@ -152,11 +156,13 @@ int real_main(int argc, char **argv) {
     YawCorrectionGate yaw_correction_gate(cfg);
     YawCorrectionApply yaw_correction_apply(cfg);
     YawCorrectionPostApplyValidator yaw_correction_post_apply(cfg);
+    RecoveryManager recovery_manager(cfg);
     MapQualitySnapshot latest_map_quality_snapshot;
     MappingSupervisorSnapshot latest_supervisor_snapshot;
     ActiveScanSnapshot latest_active_scan_snapshot;
     ActiveScanCommandSnapshot latest_active_scan_command_snapshot;
     SparseScanYawMatchSummary latest_yaw_match_summary;
+    RecoveryManagerSnapshot latest_recovery_snapshot;
     bool map_alloc_fail_pending = false;
     RunMetrics metrics;
     TofHealth tof_health;
@@ -191,6 +197,7 @@ int real_main(int argc, char **argv) {
     bool have_last_encoder_sample_time = false;
     uint64_t last_encoder_sample_time = 0;
     std::vector<TofSample> latest_tof;
+    double latest_tof_sample_s = -1.0;
     double gyro_bias = 0.0;
     int gyro_count = 0;
     double gyro_max_abs = 0.0;
@@ -220,7 +227,7 @@ int real_main(int argc, char **argv) {
     };
 
     auto update_supervisor_from_quality = [&](double now_s, const MapQualitySnapshot &qs, bool force_log) {
-        if (!cfg.mapping_supervisor_enabled && !cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled) return;
+        if (!cfg.mapping_supervisor_enabled && !cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled && !cfg.recovery_enabled) return;
         SupervisorSensorInput sin = make_supervisor_sensor_input();
         bool changed = supervisor.update(now_s, qs, sin);
         latest_supervisor_snapshot = supervisor.snapshot();
@@ -231,7 +238,7 @@ int real_main(int argc, char **argv) {
     };
 
     auto update_active_scan_from_snapshots = [&](double now_s, const MapQualitySnapshot &qs, const MappingSupervisorSnapshot &ss, bool force_log) {
-        if (!cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled) return;
+        if (!cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled && !cfg.recovery_enabled) return;
         const auto &p = loc.pose();
         ActiveScanInput in;
         in.timestamp_s = now_s;
@@ -370,6 +377,35 @@ int real_main(int argc, char **argv) {
         }
     };
 
+
+    auto update_recovery_manager_from_snapshots = [&](double now_s, bool force_log) {
+        if (!cfg.recovery_enabled || cfg.recovery_mode == "disabled") return;
+        RecoveryManagerInput rin;
+        rin.timestamp_s = now_s;
+        rin.localizer_initialized = loc.initialized();
+        rin.current_pose = loc.pose();
+        rin.linear_speed_mps = loc.v();
+        rin.yaw_rate_radps = loc.w();
+        rin.map_quality = latest_map_quality_snapshot;
+        rin.supervisor = latest_supervisor_snapshot;
+        rin.active_scan = latest_active_scan_snapshot;
+        rin.active_scan_command = latest_active_scan_command_snapshot;
+        rin.latest_yaw_match = latest_yaw_match_summary;
+        rin.latest_yaw_gate = yaw_correction_gate.snapshot();
+        rin.latest_yaw_apply = yaw_correction_apply.latest_snapshot();
+        rin.latest_post_apply = yaw_correction_post_apply.snapshot();
+        rin.latest_tof_age_s = latest_tof_sample_s >= 0.0 ? now_s - latest_tof_sample_s : std::numeric_limits<double>::infinity();
+        rin.tof_recent = latest_tof_sample_s >= 0.0 && rin.latest_tof_age_s <= cfg.recovery_max_tof_age_s;
+        rin.map_known_cells = latest_map_quality_snapshot.known_cells;
+        rin.map_occupied_cells = latest_map_quality_snapshot.occupied_cells;
+        bool changed = recovery_manager.update(rin);
+        latest_recovery_snapshot = recovery_manager.snapshot();
+        if (recovery_manager_log && (force_log || changed || recovery_manager.should_log(now_s))) {
+            write_recovery_manager_row(recovery_manager_log, latest_recovery_snapshot);
+            recovery_manager.mark_logged(now_s, latest_recovery_snapshot);
+        }
+    };
+
     auto update_yaw_match_from_completed_scans = [&](double now_s, const std::vector<SparseScanForMatching> &completed_scans) {
         if (!cfg.sparse_scan_yaw_match_enabled) return;
         if (!completed_scans.empty()) {
@@ -475,6 +511,7 @@ int real_main(int argc, char **argv) {
         if ((now - last_tof) >= static_cast<uint64_t>(1000000.0 / cfg.tof_read_hz)) {
             last_tof = now;
             latest_tof = sensors.read_tof(now, loc.pose());
+            if (!latest_tof.empty()) latest_tof_sample_s = sim_t;
             for (const auto &ev : sensors.consume_tof_events()) {
                 toflog << ev.t_us << "," << ev.id << ",-1,-1,0,0,0,0,0,0,0," << ev.decision << "\n";
             }
@@ -489,7 +526,7 @@ int real_main(int argc, char **argv) {
                 seen_tof[t.id] = true;
                 TofFilterResult res = filter.process(t);
                 double map_quality_now_s = (now - start) / 1000000.0;
-                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled) map_quality.record_tof_result(map_quality_now_s, t, res);
+                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) map_quality.record_tof_result(map_quality_now_s, t, res);
                 spin_tof.push_back({t.t_us, t.id, res.range_m, res.filtered_confidence, t.range_status, res.map_update, res.hit, res.decision});
                 tof_health.record_sample(t.id, res);
                 metrics.tof_samples++;
@@ -539,7 +576,7 @@ int real_main(int argc, char **argv) {
                         metrics.map_alloc_failures++;
                     }
                 }
-                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled) {
+                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
                     map_quality.record_map_update(map_quality_now_s, res.map_update, map_updated, res.hit, free_only);
                 }
             }
@@ -718,7 +755,7 @@ int real_main(int argc, char **argv) {
                         << cres.best_front_expected_m << "," << cres.best_left_expected_m << "," << cres.best_right_expected_m << "\n";
             }
         }
-        if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled) {
+        if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
             double quality_now_s = (now - start) / 1000000.0;
             bool log_quality = cfg.map_quality_enabled && map_quality.should_log(quality_now_s);
             bool supervise_due = cfg.mapping_supervisor_enabled && supervisor.should_log(quality_now_s);
@@ -726,7 +763,8 @@ int real_main(int argc, char **argv) {
             bool command_due = cfg.active_scan_execution_enabled && active_scan_command.should_log(quality_now_s);
             bool sparse_due = cfg.sparse_scan_enabled && sparse_scan.should_log(quality_now_s);
             bool yaw_correction_due = cfg.yaw_correction_enabled && yaw_correction_gate.should_log(quality_now_s);
-            if (log_quality || supervise_due || active_scan_due || command_due || sparse_due || yaw_correction_due) {
+            bool recovery_due = cfg.recovery_enabled && recovery_manager.should_log(quality_now_s);
+            if (log_quality || supervise_due || active_scan_due || command_due || sparse_due || yaw_correction_due || recovery_due) {
                 GridStats gst = grid.stats(cfg);
                 gst.map_alloc_failures = metrics.map_alloc_failures;
                 map_quality.update_grid_stats(gst);
@@ -740,6 +778,7 @@ int real_main(int argc, char **argv) {
                 update_active_scan_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, false);
                 update_active_scan_command_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, latest_active_scan_snapshot, false);
                 if (yaw_correction_due) update_yaw_correction_gate_from_summary(quality_now_s, latest_yaw_match_summary, false);
+                if (recovery_due) update_recovery_manager_from_snapshots(quality_now_s, false);
             }
         }
         if ((now - last_log) >= static_cast<uint64_t>(1000000.0 / cfg.log_hz)) {
@@ -754,7 +793,7 @@ int real_main(int argc, char **argv) {
         usleep(1000);
     }
     if (cfg.save_on_exit) grid.save(run_dir + "/map.pgm", run_dir + "/map.yaml", cfg);
-    if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled) {
+    if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
         double quality_now_s = (now_us_steady() - start) / 1000000.0;
         GridStats gst = grid.stats(cfg);
         gst.map_alloc_failures = metrics.map_alloc_failures;
@@ -766,11 +805,11 @@ int real_main(int argc, char **argv) {
             map_quality.mark_logged(quality_now_s, qs);
             metrics.map_quality = map_quality.run_stats();
         }
-        if (cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled) {
+        if (cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
             update_supervisor_from_quality(quality_now_s, qs, true);
             if (cfg.mapping_supervisor_enabled) metrics.mapping_supervisor = supervisor.run_stats(quality_now_s);
         }
-        if (cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled) {
+        if (cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
             const bool force_final_log = true;
             update_active_scan_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, force_final_log);
             if (cfg.active_scan_enabled) metrics.active_scan = active_scan.run_stats(quality_now_s);
@@ -807,6 +846,10 @@ int real_main(int argc, char **argv) {
             metrics.yaw_correction = yaw_correction_gate.run_stats(quality_now_s);
             metrics.yaw_correction_apply = yaw_correction_apply.run_stats();
             metrics.yaw_correction_post_apply = yaw_correction_post_apply.run_stats();
+        }
+        if (cfg.recovery_enabled) {
+            update_recovery_manager_from_snapshots(quality_now_s, true);
+            metrics.recovery = recovery_manager.run_stats(quality_now_s);
         }
     }
     write_run_metrics(run_dir + "/metrics.csv", metrics, loc, grid, tof_health, cfg, sensors.encoder_stats());

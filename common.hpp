@@ -419,6 +419,30 @@ struct Config {
     bool yaw_correction_post_apply_require_newer_match_timestamp = true;
     double yaw_correction_post_apply_max_post_apply_candidate_abs_deg = 10.0;
     bool yaw_correction_post_apply_log_enabled = true;
+    bool recovery_enabled = true;
+    std::string recovery_mode = "observe_only";
+    double recovery_log_hz = 2.0;
+    bool recovery_startup_recovery_enabled = true;
+    bool recovery_lost_recovery_enabled = true;
+    bool recovery_degraded_recovery_enabled = true;
+    double recovery_startup_grace_s = 3.0;
+    double recovery_lost_confirm_s = 2.0;
+    double recovery_degraded_confirm_s = 5.0;
+    bool recovery_require_map_quality_not_invalid = true;
+    int recovery_require_min_known_cells = 50;
+    int recovery_require_min_occupied_cells = 5;
+    bool recovery_require_tof_recent = true;
+    double recovery_max_tof_age_s = 1.0;
+    bool recovery_require_localizer_initialized_for_local_recovery = true;
+    bool recovery_allow_uninitialized_startup_recovery_observe_only = true;
+    bool recovery_request_recovery_scan = true;
+    double recovery_recovery_scan_cooldown_s = 10.0;
+    bool recovery_require_yaw_correction_stable = true;
+    int recovery_max_recent_yaw_apply_count = 3;
+    int recovery_min_post_apply_validated_count = 0;
+    bool recovery_block_if_post_apply_failed_recent = true;
+    bool recovery_write_candidate_log = true;
+    bool recovery_write_event_log = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -709,6 +733,29 @@ struct YawCorrectionPostApplyRunStats {
     double last_new_match_timestamp_s = 0.0;
 };
 
+
+struct RecoveryManagerRunStats {
+    std::string state_last = "IDLE";
+    uint64_t state_changes = 0;
+    uint64_t startup_observe_count = 0;
+    uint64_t degraded_observe_count = 0;
+    uint64_t lost_observe_count = 0;
+    uint64_t scan_recommended_count = 0;
+    uint64_t candidate_seen_count = 0;
+    uint64_t candidate_ready_count = 0;
+    uint64_t rejected_count = 0;
+    uint64_t map_evidence_reject_count = 0;
+    uint64_t tof_evidence_reject_count = 0;
+    uint64_t localizer_evidence_reject_count = 0;
+    uint64_t yaw_match_evidence_reject_count = 0;
+    uint64_t yaw_correction_unstable_reject_count = 0;
+    std::string last_reason = "idle";
+    std::string last_type = "none";
+    std::string last_missing_evidence = "none";
+    uint64_t last_match_scan_id = 0;
+    double last_yaw_candidate_deg = 0.0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -754,6 +801,7 @@ struct RunMetrics {
     YawCorrectionGateRunStats yaw_correction;
     YawCorrectionApplyRunStats yaw_correction_apply;
     YawCorrectionPostApplyRunStats yaw_correction_post_apply;
+    RecoveryManagerRunStats recovery;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {
