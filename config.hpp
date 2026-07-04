@@ -416,6 +416,10 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.motion_execution_hardware_write_enabled = get_bool(kv, "motion_execution.hardware_write_enabled", c.motion_execution_hardware_write_enabled);
     c.motion_execution_writeback_acknowledgement = get_string(kv, "motion_execution.writeback_acknowledgement", c.motion_execution_writeback_acknowledgement);
     c.motion_execution_required_writeback_acknowledgement = get_string(kv, "motion_execution.required_writeback_acknowledgement", c.motion_execution_required_writeback_acknowledgement);
+    c.motion_execution_write_mode_acknowledgement = get_string(kv, "motion_execution.write_mode_acknowledgement", c.motion_execution_write_mode_acknowledgement);
+    c.motion_execution_required_write_mode_acknowledgement = get_string(kv, "motion_execution.required_write_mode_acknowledgement", c.motion_execution_required_write_mode_acknowledgement);
+    c.motion_execution_max_allowed_write_yaw_rate_dps = get_double(kv, "motion_execution.max_allowed_write_yaw_rate_dps", c.motion_execution_max_allowed_write_yaw_rate_dps);
+    c.motion_execution_max_allowed_write_duration_s = get_double(kv, "motion_execution.max_allowed_write_duration_s", c.motion_execution_max_allowed_write_duration_s);
     c.motion_execution_apply_log_enabled = get_bool(kv, "motion_execution.apply_log_enabled", c.motion_execution_apply_log_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
@@ -731,6 +735,8 @@ void validate_config(const Config &c) {
     non_negative("motion_execution.stall_speed_rpm", c.motion_execution_stall_speed_rpm);
     non_negative("motion_execution.stall_current_a", c.motion_execution_stall_current_a);
     if (c.motion_execution_stall_confirm_count < 0) errors.push_back("motion_execution.stall_confirm_count must be >= 0");
+    positive("motion_execution.max_allowed_write_yaw_rate_dps", c.motion_execution_max_allowed_write_yaw_rate_dps);
+    positive("motion_execution.max_allowed_write_duration_s", c.motion_execution_max_allowed_write_duration_s);
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1109,6 +1115,10 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  hardware_write_enabled: " << bool_yaml(c.motion_execution_hardware_write_enabled) << "\n"
       << "  writeback_acknowledgement: " << c.motion_execution_writeback_acknowledgement << "\n"
       << "  required_writeback_acknowledgement: " << c.motion_execution_required_writeback_acknowledgement << "\n"
+      << "  write_mode_acknowledgement: " << c.motion_execution_write_mode_acknowledgement << "\n"
+      << "  required_write_mode_acknowledgement: " << c.motion_execution_required_write_mode_acknowledgement << "\n"
+      << "  max_allowed_write_yaw_rate_dps: " << c.motion_execution_max_allowed_write_yaw_rate_dps << "\n"
+      << "  max_allowed_write_duration_s: " << c.motion_execution_max_allowed_write_duration_s << "\n"
       << "  apply_log_enabled: " << bool_yaml(c.motion_execution_apply_log_enabled) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"

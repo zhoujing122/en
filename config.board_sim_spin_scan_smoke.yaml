@@ -340,6 +340,10 @@ motion_execution:
   hardware_write_enabled: false
   writeback_acknowledgement: ""
   required_writeback_acknowledgement: I_UNDERSTAND_MOTOR_WRITE_RISK
+  write_mode_acknowledgement: ""
+  required_write_mode_acknowledgement: I_UNDERSTAND_LOW_SPEED_MOTOR_WRITE_RISK
+  max_allowed_write_yaw_rate_dps: 10.0
+  max_allowed_write_duration_s: 3.0
   apply_log_enabled: true
 
 tof_pose_correction:

@@ -97,6 +97,15 @@ struct MotionSafetyExecutorSnapshot {
     std::string active_scan_command_reason = "idle";
     std::string supervisor_state = "INIT";
     std::string recovery_state = "IDLE";
+    uint64_t command_session_id = 0;
+    double command_session_duration_s = 0.0;
+    bool command_duration_ok = true;
+    double command_age_s = -1.0;
+    double deadman_age_s = -1.0;
+    bool write_authorization_present = false;
+    bool write_authorization_valid = false;
+    bool feedback_finite_ok = true;
+    bool wheel_direction_ok = true;
 };
 
 class BL4820MotionSafetyExecutor {
@@ -111,30 +120,36 @@ public:
     }
 
     bool update(const MotionSafetyExecutorInput &in) {
-        if (last_update_s_ >= 0.0 && in.timestamp_s > last_update_s_) {
-            // Reserved for future duration metrics; do not control hardware here.
-        }
         last_update_s_ = in.timestamp_s;
 
         MotionSafetyExecutorSnapshot s = base_snapshot(in);
         if (!enabled()) return set_snapshot(s, MotionSafetyExecutorState::DISABLED, "disabled");
         if (cfg_.motion_execution_mode != "dry_run") return set_snapshot(s, MotionSafetyExecutorState::FAULT, "fault");
 
+        const bool active_present = active_command_present(in.active_scan_command);
         const bool seen = command_seen(in);
         s.command_seen = seen;
-        if (seen) last_command_seen_s_ = in.timestamp_s;
         s.command_fresh = command_fresh(in);
         s.deadman_ok = deadman_ok(in);
+        s.deadman_age_s = deadman_age(in);
         compute_wheel_targets(s, in.active_scan_command.desired_yaw_rate_radps);
-        bool wheel_limited = limit_wheel_targets(s);
+        const bool wheel_limited = limit_wheel_targets(s);
+        s.wheel_direction_ok = wheel_direction_ok(s);
 
         if (!seen) {
-            if (last_would_command_ && !s.deadman_ok) return zero(s, "deadman_timeout");
+            if (zero_after_command_required_ || last_would_command_ || command_session_active_) {
+                return zero(s, "command_lost_zero");
+            }
+            zero_after_command_emitted_ = false;
             last_would_command_ = false;
             return set_snapshot(s, MotionSafetyExecutorState::IDLE, "idle");
         }
+
+        if (zero_after_command_required_) {
+            return zero(s, "command_lost_zero");
+        }
         if (in.active_scan_command.zero_command) return zero(s, "zero_from_planner");
-        if (command_stop_state(in.active_scan_command.state)) return zero(s, "would_zero");
+        if (command_stop_state(in.active_scan_command.state)) return zero(s, "command_completed_zero");
         if (!s.command_fresh) return zero(s, "command_stale");
         if (!s.deadman_ok) return zero(s, "deadman_timeout");
 
@@ -145,22 +160,32 @@ public:
         else if (!s.tof_ok) reason = "tof_stale";
         else if (!s.obstacle_ok) { reason = obstacle_reason(in); zero_required = true; }
         else if (!s.encoder_ok) reason = "encoder_stale";
+        else if (!s.feedback_finite_ok) reason = "feedback_not_finite";
         else if (!s.status_ok) { reason = "motor_status_error"; zero_required = true; }
         else if (!s.current_ok) { reason = "motor_current_high"; zero_required = true; }
         else if (stall_detected(in)) { reason = "stall_detected"; zero_required = true; }
         else if (!allowed_command_state(in.active_scan_command.state)) reason = "command_state_not_allowed";
-        else if (cfg_.motion_execution_require_active_scan_command && !active_command_present(in.active_scan_command)) reason = "command_not_active";
-        else if (!std::isfinite(in.active_scan_command.desired_yaw_rate_radps)) reason = "fault";
+        else if (cfg_.motion_execution_require_active_scan_command && !active_present) reason = "command_not_active";
+        else if (!std::isfinite(in.active_scan_command.desired_yaw_rate_radps) || !std::isfinite(in.active_scan_command.desired_yaw_rate_dps)) reason = "fault";
         else if (std::fabs(in.active_scan_command.desired_yaw_rate_dps) > cfg_.motion_execution_max_abs_yaw_rate_dps) reason = "yaw_rate_too_high";
         else if (!std::isfinite(in.active_scan_command.desired_linear_speed_mps) || std::fabs(in.active_scan_command.desired_linear_speed_mps) > cfg_.motion_execution_max_linear_speed_mps) reason = "linear_speed_not_zero";
+        else if (!s.wheel_direction_ok) reason = "wheel_direction_invalid";
 
         if (!reason.empty()) {
+            if (last_would_command_ || command_session_active_) return zero(s, reason == "fault" ? "fault_zero" : (zero_required ? reason : "command_blocked_zero"));
             if (zero_required) return zero(s, reason);
             return blocked(s, reason);
         }
 
+        begin_or_continue_session(s, in.timestamp_s);
+        if (!s.command_duration_ok) return zero(s, "command_duration_exceeded");
+
+        if (active_present && s.command_fresh) last_command_seen_s_ = in.timestamp_s;
+        s.deadman_age_s = deadman_age(in);
         s.would_command = true;
         last_would_command_ = true;
+        zero_after_command_required_ = false;
+        zero_after_command_emitted_ = false;
         return set_snapshot(s, MotionSafetyExecutorState::WOULD_COMMAND, wheel_limited ? "wheel_speed_limited" : "would_command");
     }
 
@@ -191,8 +216,11 @@ private:
         return c.command_active || c.would_emit_command;
     }
 
-    static bool allowed_command_state(const std::string &state) {
-        return state == "COMMANDING_ROTATION" || state == "VERIFYING_ROTATION" || state == "PRECHECK";
+    bool allowed_command_state(const std::string &state) const {
+        if (cfg_.motion_execution_require_command_planner_verifying_or_commanding) {
+            return state == "COMMANDING_ROTATION" || state == "VERIFYING_ROTATION";
+        }
+        return state == "PRECHECK" || state == "COMMANDING_ROTATION" || state == "VERIFYING_ROTATION";
     }
 
     static bool command_stop_state(const std::string &state) {
@@ -206,14 +234,25 @@ private:
         return cfg_.motion_execution_allow_recovery_scan_request_as_reason && in.recovery.recovery_scan_recommended;
     }
 
+    double command_age(const MotionSafetyExecutorInput &in) const {
+        if (!std::isfinite(in.active_scan_command.timestamp_s) || !std::isfinite(in.timestamp_s)) return -1.0;
+        return in.timestamp_s - in.active_scan_command.timestamp_s;
+    }
+
     bool command_fresh(const MotionSafetyExecutorInput &in) const {
-        if (!std::isfinite(in.active_scan_command.timestamp_s)) return false;
-        return in.timestamp_s - in.active_scan_command.timestamp_s <= cfg_.motion_execution_command_stale_timeout_s;
+        const double age = command_age(in);
+        return age >= 0.0 && age <= cfg_.motion_execution_command_stale_timeout_s;
+    }
+
+    double deadman_age(const MotionSafetyExecutorInput &in) const {
+        if (!command_session_active_ || last_command_seen_s_ < 0.0 || !std::isfinite(in.timestamp_s)) return -1.0;
+        return in.timestamp_s - last_command_seen_s_;
     }
 
     bool deadman_ok(const MotionSafetyExecutorInput &in) const {
-        if (last_command_seen_s_ < 0.0) return true;
-        return in.timestamp_s - last_command_seen_s_ <= cfg_.motion_execution_deadman_timeout_s;
+        if (!command_session_active_) return true;
+        const double age = deadman_age(in);
+        return age >= 0.0 && age <= cfg_.motion_execution_deadman_timeout_s;
     }
 
     MotionSafetyExecutorSnapshot base_snapshot(const MotionSafetyExecutorInput &in) const {
@@ -229,8 +268,16 @@ private:
         s.tof_ok = !cfg_.motion_execution_require_tof_recent || (in.tof_recent && std::isfinite(in.latest_tof_age_s) && in.latest_tof_age_s <= cfg_.motion_execution_max_tof_age_s);
         s.obstacle_ok = obstacle_ok(in);
         s.encoder_ok = !cfg_.motion_execution_require_encoder_feedback_recent || (in.encoder_feedback_recent && std::isfinite(in.latest_encoder_age_s) && in.latest_encoder_age_s <= cfg_.motion_execution_max_encoder_age_s);
-        s.current_ok = !cfg_.motion_execution_current_safety_enabled || (std::isfinite(in.left_current_a) && std::isfinite(in.right_current_a) && in.left_current_a <= cfg_.motion_execution_max_motor_current_a && in.right_current_a <= cfg_.motion_execution_max_motor_current_a);
+        s.feedback_finite_ok = feedback_finite_ok(in);
+        s.current_ok = !cfg_.motion_execution_current_safety_enabled || (s.feedback_finite_ok && std::fabs(in.left_current_a) <= cfg_.motion_execution_max_motor_current_a && std::fabs(in.right_current_a) <= cfg_.motion_execution_max_motor_current_a);
         s.status_ok = in.left_status == 0 && in.right_status == 0;
+        s.command_age_s = command_age(in);
+        s.deadman_age_s = deadman_age(in);
+        s.write_authorization_present = !cfg_.motion_execution_write_mode_acknowledgement.empty();
+        s.write_authorization_valid = cfg_.motion_execution_write_mode_acknowledgement == cfg_.motion_execution_required_write_mode_acknowledgement;
+        s.command_session_id = command_session_id_;
+        s.command_session_duration_s = command_session_active_ && command_session_start_s_ >= 0.0 ? std::max(0.0, in.timestamp_s - command_session_start_s_) : 0.0;
+        s.command_duration_ok = true;
         s.front_distance_m = in.front_distance_m;
         s.left_distance_m = in.left_distance_m;
         s.right_distance_m = in.right_distance_m;
@@ -263,6 +310,11 @@ private:
         return "blocked";
     }
 
+    static bool feedback_finite_ok(const MotionSafetyExecutorInput &in) {
+        return std::isfinite(in.left_speed_rpm) && std::isfinite(in.right_speed_rpm) &&
+               std::isfinite(in.left_current_a) && std::isfinite(in.right_current_a);
+    }
+
     bool stall_detected(const MotionSafetyExecutorInput &in) {
         if (!cfg_.motion_execution_stall_detection_enabled) {
             stall_count_ = 0;
@@ -270,8 +322,8 @@ private:
         }
         const bool slow = std::fabs(in.left_speed_rpm) <= cfg_.motion_execution_stall_speed_rpm ||
                           std::fabs(in.right_speed_rpm) <= cfg_.motion_execution_stall_speed_rpm;
-        const bool loaded = in.left_current_a >= cfg_.motion_execution_stall_current_a ||
-                            in.right_current_a >= cfg_.motion_execution_stall_current_a;
+        const bool loaded = std::fabs(in.left_current_a) >= cfg_.motion_execution_stall_current_a ||
+                            std::fabs(in.right_current_a) >= cfg_.motion_execution_stall_current_a;
         if (slow && loaded) stall_count_++;
         else stall_count_ = 0;
         return cfg_.motion_execution_stall_confirm_count > 0 && stall_count_ >= cfg_.motion_execution_stall_confirm_count;
@@ -311,6 +363,24 @@ private:
         return limited;
     }
 
+    static bool wheel_direction_ok(const MotionSafetyExecutorSnapshot &s) {
+        if (std::fabs(s.desired_yaw_rate_radps) < 1e-12) return true;
+        if (std::fabs(s.target_left_rpm) < 1e-12 || std::fabs(s.target_right_rpm) < 1e-12) return true;
+        if (s.desired_yaw_rate_radps > 0.0) return s.target_left_rpm < 0.0 && s.target_right_rpm > 0.0;
+        return s.target_left_rpm > 0.0 && s.target_right_rpm < 0.0;
+    }
+
+    void begin_or_continue_session(MotionSafetyExecutorSnapshot &s, double now_s) {
+        if (!command_session_active_) {
+            command_session_active_ = true;
+            command_session_start_s_ = now_s;
+            command_session_id_++;
+        }
+        s.command_session_id = command_session_id_;
+        s.command_session_duration_s = std::max(0.0, now_s - command_session_start_s_);
+        s.command_duration_ok = s.command_session_duration_s <= cfg_.motion_execution_max_command_duration_s;
+    }
+
     bool set_snapshot(MotionSafetyExecutorSnapshot &s, MotionSafetyExecutorState next, const std::string &reason) {
         previous_state_ = state_;
         const bool changed = next != state_;
@@ -331,6 +401,7 @@ private:
 
     bool blocked(MotionSafetyExecutorSnapshot &s, const std::string &reason) {
         s.blocked = true;
+        if (last_would_command_ || command_session_active_) zero_after_command_required_ = true;
         last_would_command_ = false;
         return set_snapshot(s, MotionSafetyExecutorState::BLOCKED, reason.empty() ? "blocked" : reason);
     }
@@ -341,7 +412,14 @@ private:
         s.target_right_wheel_mps = 0.0;
         s.target_left_rpm = 0.0;
         s.target_right_rpm = 0.0;
+        s.command_session_id = command_session_id_;
+        s.command_session_duration_s = command_session_active_ && command_session_start_s_ >= 0.0 ? std::max(0.0, s.timestamp_s - command_session_start_s_) : s.command_session_duration_s;
+        if (reason == "command_duration_exceeded") s.command_duration_ok = false;
+        command_session_active_ = false;
+        command_session_start_s_ = -1.0;
         last_would_command_ = false;
+        zero_after_command_required_ = false;
+        zero_after_command_emitted_ = true;
         return set_snapshot(s, MotionSafetyExecutorState::WOULD_ZERO, reason.empty() ? "would_zero" : reason);
     }
 
@@ -354,6 +432,11 @@ private:
         stats_.last_front_distance_m = s.front_distance_m;
         stats_.last_left_distance_m = s.left_distance_m;
         stats_.last_right_distance_m = s.right_distance_m;
+        stats_.last_command_session_id = s.command_session_id;
+        stats_.last_command_session_duration_s = s.command_session_duration_s;
+        stats_.last_command_age_s = s.command_age_s;
+        stats_.last_deadman_age_s = s.deadman_age_s;
+        stats_.write_authorization_valid_last = s.write_authorization_valid;
         if (s.command_seen) stats_.command_seen_count++;
         if (s.would_command) stats_.would_command_count++;
         if (s.would_zero) stats_.would_zero_count++;
@@ -366,6 +449,11 @@ private:
         if (s.reason == "motor_status_error") stats_.status_error_block_count++;
         if (s.reason == "stall_detected") stats_.stall_block_count++;
         if (s.reason == "supervisor_lost") stats_.supervisor_lost_block_count++;
+        if (s.reason == "command_duration_exceeded") stats_.command_duration_exceeded_count++;
+        if (s.reason == "command_stale") stats_.command_stale_count++;
+        if (s.reason == "deadman_timeout" || s.reason == "deadman_zero") stats_.deadman_timeout_count++;
+        if (s.reason == "feedback_not_finite") stats_.feedback_not_finite_block_count++;
+        if (s.reason == "wheel_direction_invalid") stats_.wheel_direction_invalid_count++;
     }
 
     const Config &cfg_;
@@ -376,13 +464,18 @@ private:
     double last_update_s_ = -1.0;
     double last_log_s_ = -1.0;
     double last_command_seen_s_ = -1.0;
+    double command_session_start_s_ = -1.0;
+    uint64_t command_session_id_ = 0;
+    bool command_session_active_ = false;
     bool last_would_command_ = false;
+    bool zero_after_command_required_ = false;
+    bool zero_after_command_emitted_ = false;
     bool state_changed_since_log_ = false;
     int stall_count_ = 0;
 };
 
 inline void write_motion_safety_executor_header(std::ostream &o) {
-    o << "timestamp_s,state,previous_state,reason,command_seen,would_command,would_zero,blocked,fault,desired_linear_speed_mps,desired_yaw_rate_radps,desired_yaw_rate_dps,target_left_wheel_mps,target_right_wheel_mps,target_left_rpm,target_right_rpm,localizer_ok,supervisor_ok,tof_ok,obstacle_ok,encoder_ok,current_ok,status_ok,command_fresh,deadman_ok,front_distance_m,left_distance_m,right_distance_m,left_current_a,right_current_a,left_speed_rpm,right_speed_rpm,left_status,right_status,command_source,active_scan_command_state,active_scan_command_reason,supervisor_state,recovery_state\n";
+    o << "timestamp_s,state,previous_state,reason,command_seen,would_command,would_zero,blocked,fault,desired_linear_speed_mps,desired_yaw_rate_radps,desired_yaw_rate_dps,target_left_wheel_mps,target_right_wheel_mps,target_left_rpm,target_right_rpm,localizer_ok,supervisor_ok,tof_ok,obstacle_ok,encoder_ok,current_ok,status_ok,command_fresh,deadman_ok,front_distance_m,left_distance_m,right_distance_m,left_current_a,right_current_a,left_speed_rpm,right_speed_rpm,left_status,right_status,command_source,active_scan_command_state,active_scan_command_reason,supervisor_state,recovery_state,command_session_id,command_session_duration_s,command_duration_ok,command_age_s,deadman_age_s,write_authorization_present,write_authorization_valid,feedback_finite_ok,wheel_direction_ok\n";
 }
 
 inline void write_motion_safety_executor_row(std::ostream &o, const MotionSafetyExecutorSnapshot &s) {
@@ -398,7 +491,11 @@ inline void write_motion_safety_executor_row(std::ostream &o, const MotionSafety
       << s.front_distance_m << ',' << s.left_distance_m << ',' << s.right_distance_m << ',' << s.left_current_a << ','
       << s.right_current_a << ',' << s.left_speed_rpm << ',' << s.right_speed_rpm << ',' << s.left_status << ','
       << s.right_status << ',' << s.command_source << ',' << s.active_scan_command_state << ','
-      << s.active_scan_command_reason << ',' << s.supervisor_state << ',' << s.recovery_state << "\n";
+      << s.active_scan_command_reason << ',' << s.supervisor_state << ',' << s.recovery_state << ','
+      << s.command_session_id << ',' << s.command_session_duration_s << ',' << (s.command_duration_ok ? 1 : 0) << ','
+      << s.command_age_s << ',' << s.deadman_age_s << ',' << (s.write_authorization_present ? 1 : 0) << ','
+      << (s.write_authorization_valid ? 1 : 0) << ',' << (s.feedback_finite_ok ? 1 : 0) << ','
+      << (s.wheel_direction_ok ? 1 : 0) << "\n";
 }
 
 } // namespace robot_slamd

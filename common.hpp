@@ -478,6 +478,10 @@ struct Config {
     bool motion_execution_hardware_write_enabled = false;
     std::string motion_execution_writeback_acknowledgement = "";
     std::string motion_execution_required_writeback_acknowledgement = "I_UNDERSTAND_MOTOR_WRITE_RISK";
+    std::string motion_execution_write_mode_acknowledgement = "";
+    std::string motion_execution_required_write_mode_acknowledgement = "I_UNDERSTAND_LOW_SPEED_MOTOR_WRITE_RISK";
+    double motion_execution_max_allowed_write_yaw_rate_dps = 10.0;
+    double motion_execution_max_allowed_write_duration_s = 3.0;
     bool motion_execution_apply_log_enabled = true;
 };
 
@@ -815,6 +819,16 @@ struct MotionSafetyExecutorRunStats {
     double last_front_distance_m = 0.0;
     double last_left_distance_m = 0.0;
     double last_right_distance_m = 0.0;
+    uint64_t command_duration_exceeded_count = 0;
+    uint64_t last_command_session_id = 0;
+    double last_command_session_duration_s = 0.0;
+    uint64_t command_stale_count = 0;
+    uint64_t deadman_timeout_count = 0;
+    double last_command_age_s = -1.0;
+    double last_deadman_age_s = -1.0;
+    bool write_authorization_valid_last = false;
+    uint64_t feedback_not_finite_block_count = 0;
+    uint64_t wheel_direction_invalid_count = 0;
 };
 
 struct RunMetrics {

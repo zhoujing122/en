@@ -189,6 +189,16 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "motion_last_front_distance_m," << m.motion.last_front_distance_m << "\n";
     o << "motion_last_left_distance_m," << m.motion.last_left_distance_m << "\n";
     o << "motion_last_right_distance_m," << m.motion.last_right_distance_m << "\n";
+    o << "motion_command_duration_exceeded_count," << m.motion.command_duration_exceeded_count << "\n";
+    o << "motion_last_command_session_id," << m.motion.last_command_session_id << "\n";
+    o << "motion_last_command_session_duration_s," << m.motion.last_command_session_duration_s << "\n";
+    o << "motion_command_stale_count," << m.motion.command_stale_count << "\n";
+    o << "motion_deadman_timeout_count," << m.motion.deadman_timeout_count << "\n";
+    o << "motion_last_command_age_s," << m.motion.last_command_age_s << "\n";
+    o << "motion_last_deadman_age_s," << m.motion.last_deadman_age_s << "\n";
+    o << "motion_write_authorization_valid_last," << (m.motion.write_authorization_valid_last ? 1 : 0) << "\n";
+    o << "motion_feedback_not_finite_block_count," << m.motion.feedback_not_finite_block_count << "\n";
+    o << "motion_wheel_direction_invalid_count," << m.motion.wheel_direction_invalid_count << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";
