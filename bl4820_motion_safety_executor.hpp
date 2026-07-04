@@ -106,6 +106,8 @@ struct MotionSafetyExecutorSnapshot {
     bool write_authorization_valid = false;
     bool feedback_finite_ok = true;
     bool wheel_direction_ok = true;
+    bool command_duration_latched = false;
+    uint64_t command_duration_latch_session_id = 0;
 };
 
 class BL4820MotionSafetyExecutor {
@@ -132,17 +134,41 @@ public:
         s.command_fresh = command_fresh(in);
         s.deadman_ok = deadman_ok(in);
         s.deadman_age_s = deadman_age(in);
+        s.command_duration_latched = command_duration_exceeded_latched_;
+        s.command_duration_latch_session_id = duration_latch_session_id_;
         compute_wheel_targets(s, in.active_scan_command.desired_yaw_rate_radps);
         const bool wheel_limited = limit_wheel_targets(s);
         s.wheel_direction_ok = wheel_direction_ok(s);
 
         if (!seen) {
+            clear_duration_latch();
+            s.command_duration_latched = false;
+            s.command_duration_latch_session_id = 0;
             if (zero_after_command_required_ || last_would_command_ || command_session_active_) {
                 return zero(s, "command_lost_zero");
             }
             zero_after_command_emitted_ = false;
             last_would_command_ = false;
             return set_snapshot(s, MotionSafetyExecutorState::IDLE, "idle");
+        }
+
+        if (command_duration_exceeded_latched_) {
+            if (in.active_scan_command.zero_command) {
+                clear_duration_latch();
+                s.command_duration_latched = false;
+                s.command_duration_latch_session_id = 0;
+                return zero(s, "zero_from_planner");
+            }
+            if (command_stop_state(in.active_scan_command.state)) {
+                clear_duration_latch();
+                s.command_duration_latched = false;
+                s.command_duration_latch_session_id = 0;
+                return zero(s, "command_completed_zero");
+            }
+            if (active_present) return zero(s, "command_duration_latched");
+            clear_duration_latch();
+            s.command_duration_latched = false;
+            s.command_duration_latch_session_id = 0;
         }
 
         if (zero_after_command_required_) {
@@ -275,6 +301,8 @@ private:
         s.deadman_age_s = deadman_age(in);
         s.write_authorization_present = !cfg_.motion_execution_write_mode_acknowledgement.empty();
         s.write_authorization_valid = cfg_.motion_execution_write_mode_acknowledgement == cfg_.motion_execution_required_write_mode_acknowledgement;
+        s.command_duration_latched = command_duration_exceeded_latched_;
+        s.command_duration_latch_session_id = duration_latch_session_id_;
         s.command_session_id = command_session_id_;
         s.command_session_duration_s = command_session_active_ && command_session_start_s_ >= 0.0 ? std::max(0.0, in.timestamp_s - command_session_start_s_) : 0.0;
         s.command_duration_ok = true;
@@ -381,6 +409,12 @@ private:
         s.command_duration_ok = s.command_session_duration_s <= cfg_.motion_execution_max_command_duration_s;
     }
 
+    void clear_duration_latch() {
+        command_duration_exceeded_latched_ = false;
+        duration_latch_command_timestamp_s_ = -1.0;
+        duration_latch_session_id_ = 0;
+    }
+
     bool set_snapshot(MotionSafetyExecutorSnapshot &s, MotionSafetyExecutorState next, const std::string &reason) {
         previous_state_ = state_;
         const bool changed = next != state_;
@@ -414,7 +448,17 @@ private:
         s.target_right_rpm = 0.0;
         s.command_session_id = command_session_id_;
         s.command_session_duration_s = command_session_active_ && command_session_start_s_ >= 0.0 ? std::max(0.0, s.timestamp_s - command_session_start_s_) : s.command_session_duration_s;
-        if (reason == "command_duration_exceeded") s.command_duration_ok = false;
+        if (reason == "command_duration_exceeded") {
+            s.command_duration_ok = false;
+            command_duration_exceeded_latched_ = true;
+            duration_latch_command_timestamp_s_ = s.command_age_s >= 0.0 ? s.timestamp_s - s.command_age_s : -1.0;
+            duration_latch_session_id_ = command_session_id_;
+            s.command_duration_latched = true;
+            s.command_duration_latch_session_id = duration_latch_session_id_;
+        } else {
+            s.command_duration_latched = command_duration_exceeded_latched_;
+            s.command_duration_latch_session_id = duration_latch_session_id_;
+        }
         command_session_active_ = false;
         command_session_start_s_ = -1.0;
         last_would_command_ = false;
@@ -450,6 +494,8 @@ private:
         if (s.reason == "stall_detected") stats_.stall_block_count++;
         if (s.reason == "supervisor_lost") stats_.supervisor_lost_block_count++;
         if (s.reason == "command_duration_exceeded") stats_.command_duration_exceeded_count++;
+        if (s.reason == "command_duration_latched") stats_.command_duration_latched_count++;
+        stats_.command_duration_latch_active_last = s.command_duration_latched;
         if (s.reason == "command_stale") stats_.command_stale_count++;
         if (s.reason == "deadman_timeout" || s.reason == "deadman_zero") stats_.deadman_timeout_count++;
         if (s.reason == "feedback_not_finite") stats_.feedback_not_finite_block_count++;
@@ -471,11 +517,14 @@ private:
     bool zero_after_command_required_ = false;
     bool zero_after_command_emitted_ = false;
     bool state_changed_since_log_ = false;
+    bool command_duration_exceeded_latched_ = false;
+    double duration_latch_command_timestamp_s_ = -1.0;
+    uint64_t duration_latch_session_id_ = 0;
     int stall_count_ = 0;
 };
 
 inline void write_motion_safety_executor_header(std::ostream &o) {
-    o << "timestamp_s,state,previous_state,reason,command_seen,would_command,would_zero,blocked,fault,desired_linear_speed_mps,desired_yaw_rate_radps,desired_yaw_rate_dps,target_left_wheel_mps,target_right_wheel_mps,target_left_rpm,target_right_rpm,localizer_ok,supervisor_ok,tof_ok,obstacle_ok,encoder_ok,current_ok,status_ok,command_fresh,deadman_ok,front_distance_m,left_distance_m,right_distance_m,left_current_a,right_current_a,left_speed_rpm,right_speed_rpm,left_status,right_status,command_source,active_scan_command_state,active_scan_command_reason,supervisor_state,recovery_state,command_session_id,command_session_duration_s,command_duration_ok,command_age_s,deadman_age_s,write_authorization_present,write_authorization_valid,feedback_finite_ok,wheel_direction_ok\n";
+    o << "timestamp_s,state,previous_state,reason,command_seen,would_command,would_zero,blocked,fault,desired_linear_speed_mps,desired_yaw_rate_radps,desired_yaw_rate_dps,target_left_wheel_mps,target_right_wheel_mps,target_left_rpm,target_right_rpm,localizer_ok,supervisor_ok,tof_ok,obstacle_ok,encoder_ok,current_ok,status_ok,command_fresh,deadman_ok,front_distance_m,left_distance_m,right_distance_m,left_current_a,right_current_a,left_speed_rpm,right_speed_rpm,left_status,right_status,command_source,active_scan_command_state,active_scan_command_reason,supervisor_state,recovery_state,command_session_id,command_session_duration_s,command_duration_ok,command_age_s,deadman_age_s,write_authorization_present,write_authorization_valid,feedback_finite_ok,wheel_direction_ok,command_duration_latched,command_duration_latch_session_id\n";
 }
 
 inline void write_motion_safety_executor_row(std::ostream &o, const MotionSafetyExecutorSnapshot &s) {
@@ -495,7 +544,8 @@ inline void write_motion_safety_executor_row(std::ostream &o, const MotionSafety
       << s.command_session_id << ',' << s.command_session_duration_s << ',' << (s.command_duration_ok ? 1 : 0) << ','
       << s.command_age_s << ',' << s.deadman_age_s << ',' << (s.write_authorization_present ? 1 : 0) << ','
       << (s.write_authorization_valid ? 1 : 0) << ',' << (s.feedback_finite_ok ? 1 : 0) << ','
-      << (s.wheel_direction_ok ? 1 : 0) << "\n";
+      << (s.wheel_direction_ok ? 1 : 0) << ',' << (s.command_duration_latched ? 1 : 0) << ','
+      << s.command_duration_latch_session_id << "\n";
 }
 
 } // namespace robot_slamd

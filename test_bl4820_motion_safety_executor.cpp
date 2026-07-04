@@ -271,7 +271,20 @@ int main() {
     expect(duration.snapshot().state == "WOULD_ZERO" && duration.snapshot().reason == "command_duration_exceeded", "duration over max should force zero");
     expect(!duration.snapshot().command_duration_ok, "duration exceeded snapshot should mark duration not ok");
     uint64_t first_session = duration.snapshot().command_session_id;
+    auto still_active = valid_input(1.8);
+    still_active.active_scan_command.timestamp_s = 1.7;
+    duration.update(still_active);
+    expect(duration.snapshot().state == "WOULD_ZERO" && duration.snapshot().reason == "command_duration_latched", "latched duration should prevent same active command from restarting");
+    expect(duration.snapshot().command_duration_latched, "snapshot should mark duration latch active");
+    expect(duration.snapshot().command_duration_latch_session_id == first_session, "latch should keep exceeded session id");
+    expect_near(duration.snapshot().target_left_rpm, 0.0, 1e-12, "latched duration zero left rpm");
+    expect_near(duration.snapshot().target_right_rpm, 0.0, 1e-12, "latched duration zero right rpm");
+    auto disappeared = valid_input(1.9);
+    disappeared.active_scan_command = ActiveScanCommandSnapshot{};
+    duration.update(disappeared);
+    expect(!duration.snapshot().command_duration_latched, "command disappearance should clear duration latch");
     duration.update(valid_input(2.0));
+    expect(duration.snapshot().state == "WOULD_COMMAND", "new command after latch clear may start again");
     expect(duration.snapshot().command_session_id == first_session + 1, "new command after timeout should get new session id");
 
     BL4820MotionSafetyExecutor lost_command(cfg);
@@ -433,6 +446,7 @@ int main() {
     write_motion_safety_executor_header(header);
     expect(header.str().find("timestamp_s,state,previous_state,reason,command_seen,would_command,would_zero") == 0, "motion CSV header should start with stable fields");
     expect(header.str().find("command_session_id,command_session_duration_s,command_duration_ok,command_age_s,deadman_age_s,write_authorization_present,write_authorization_valid,feedback_finite_ok,wheel_direction_ok") != std::string::npos, "motion CSV header should append M1+ fields");
+    expect(header.str().find("command_duration_latched,command_duration_latch_session_id") != std::string::npos, "motion CSV header should append duration latch fields");
 
     auto stats = would.run_stats(3.0);
     expect(stats.would_command_count >= 2, "metrics should count would_command");
@@ -442,6 +456,7 @@ int main() {
     expect(stats.last_command_session_id == 1, "metrics should keep command session id");
     expect_near(stats.last_command_session_duration_s, 0.2, 1e-9, "metrics should keep command session duration");
     expect(duration.run_stats(3.0).command_duration_exceeded_count >= 1, "metrics should count duration exceeded");
+    expect(duration.run_stats(3.0).command_duration_latched_count >= 1, "metrics should count duration latch rejects");
     expect(feedback_nan.run_stats(1.0).feedback_not_finite_block_count >= 1, "metrics should count feedback finite reject");
     expect(bad_direction.run_stats(1.0).wheel_direction_invalid_count >= 1, "metrics should count wheel direction invalid");
     expect(ack.run_stats(1.0).write_authorization_valid_last, "metrics should keep write authorization validity");

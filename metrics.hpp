@@ -199,6 +199,8 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "motion_write_authorization_valid_last," << (m.motion.write_authorization_valid_last ? 1 : 0) << "\n";
     o << "motion_feedback_not_finite_block_count," << m.motion.feedback_not_finite_block_count << "\n";
     o << "motion_wheel_direction_invalid_count," << m.motion.wheel_direction_invalid_count << "\n";
+    o << "motion_command_duration_latched_count," << m.motion.command_duration_latched_count << "\n";
+    o << "motion_command_duration_latch_active_last," << (m.motion.command_duration_latch_active_last ? 1 : 0) << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

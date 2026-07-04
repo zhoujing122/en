@@ -829,6 +829,8 @@ struct MotionSafetyExecutorRunStats {
     bool write_authorization_valid_last = false;
     uint64_t feedback_not_finite_block_count = 0;
     uint64_t wheel_direction_invalid_count = 0;
+    uint64_t command_duration_latched_count = 0;
+    bool command_duration_latch_active_last = false;
 };
 
 struct RunMetrics {
