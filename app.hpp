@@ -1,6 +1,7 @@
 #pragma once
 #include "active_scan_command_planner.hpp"
 #include "active_scan_manager.hpp"
+#include "bl4820_motion_safety_executor.hpp"
 #include "common.hpp"
 #include "config.hpp"
 #include "grid.hpp"
@@ -70,6 +71,7 @@ int real_main(int argc, char **argv) {
     std::ofstream yaw_correction_apply_log;
     std::ofstream yaw_correction_post_apply_log;
     std::ofstream recovery_manager_log;
+    std::ofstream motion_safety_log;
     std::ofstream encoderlog;
     std::ofstream corrlog;
     std::ofstream yawlog;
@@ -93,6 +95,7 @@ int real_main(int argc, char **argv) {
     if (cfg.yaw_correction_enabled && cfg.yaw_correction_mode == "writeback" && cfg.yaw_correction_writeback_enabled && cfg.yaw_correction_apply_log_enabled) yaw_correction_apply_log.open(run_dir + "/yaw_correction_apply.csv");
     if (cfg.yaw_correction_post_apply_enabled && cfg.yaw_correction_post_apply_log_enabled) yaw_correction_post_apply_log.open(run_dir + "/yaw_correction_post_apply.csv");
     if (cfg.recovery_enabled && cfg.recovery_mode != "disabled") recovery_manager_log.open(run_dir + "/recovery_manager.csv");
+    if (cfg.motion_execution_enabled && cfg.motion_execution_mode != "disabled" && cfg.motion_execution_apply_log_enabled) motion_safety_log.open(run_dir + "/motion_safety_executor.csv");
     if (cfg.encoder_source == "cjc_bl4820_uart") encoderlog.open(run_dir + "/encoder_log.csv");
     if (cfg.tof_pose_correction_enabled) corrlog.open(run_dir + "/tof_correction_log.csv");
     if (cfg.tof_pose_correction_enabled && cfg.tof_pose_correction_mode == "yaw_candidate") yawlog.open(run_dir + "/candidate_yaw.csv");
@@ -122,6 +125,7 @@ int real_main(int argc, char **argv) {
     if (yaw_correction_apply_log) write_yaw_correction_apply_header(yaw_correction_apply_log);
     if (yaw_correction_post_apply_log) write_yaw_correction_post_apply_header(yaw_correction_post_apply_log);
     if (recovery_manager_log) write_recovery_manager_header(recovery_manager_log);
+    if (motion_safety_log) write_motion_safety_executor_header(motion_safety_log);
     if (encoderlog) encoderlog << "timestamp_us,left_pos_raw,right_pos_raw,left_delta_ticks,right_delta_ticks,left_total_ticks,right_total_ticks,left_rpm,right_rpm,left_current_raw,right_current_raw,left_status,right_status,decision,reason\n";
     if (cfg.tof_pose_correction_enabled) {
         corrlog << "timestamp_us,mode,accepted,reason,localizer_x,localizer_y,localizer_yaw,odom_x,odom_y,odom_yaw,debug_offset_x_m,debug_offset_y_m,debug_offset_yaw_rad,odom_residual,improvement,best_x,best_y,best_yaw,best_dx,best_dy,best_dyaw,best_residual,second_best_residual,used_tof,candidate_count,odom_front_expected_m,odom_left_expected_m,odom_right_expected_m,best_front_expected_m,best_left_expected_m,best_right_expected_m\n";
@@ -157,12 +161,14 @@ int real_main(int argc, char **argv) {
     YawCorrectionApply yaw_correction_apply(cfg);
     YawCorrectionPostApplyValidator yaw_correction_post_apply(cfg);
     RecoveryManager recovery_manager(cfg);
+    BL4820MotionSafetyExecutor motion_safety_executor(cfg);
     MapQualitySnapshot latest_map_quality_snapshot;
     MappingSupervisorSnapshot latest_supervisor_snapshot;
     ActiveScanSnapshot latest_active_scan_snapshot;
     ActiveScanCommandSnapshot latest_active_scan_command_snapshot;
     SparseScanYawMatchSummary latest_yaw_match_summary;
     RecoveryManagerSnapshot latest_recovery_snapshot;
+    MotionSafetyExecutorSnapshot latest_motion_safety_snapshot;
     bool map_alloc_fail_pending = false;
     RunMetrics metrics;
     TofHealth tof_health;
@@ -198,6 +204,10 @@ int real_main(int argc, char **argv) {
     uint64_t last_encoder_sample_time = 0;
     std::vector<TofSample> latest_tof;
     double latest_tof_sample_s = -1.0;
+    double latest_encoder_feedback_s = -1.0;
+    double latest_front_distance_m = std::numeric_limits<double>::infinity();
+    double latest_left_distance_m = std::numeric_limits<double>::infinity();
+    double latest_right_distance_m = std::numeric_limits<double>::infinity();
     double gyro_bias = 0.0;
     int gyro_count = 0;
     double gyro_max_abs = 0.0;
@@ -227,7 +237,7 @@ int real_main(int argc, char **argv) {
     };
 
     auto update_supervisor_from_quality = [&](double now_s, const MapQualitySnapshot &qs, bool force_log) {
-        if (!cfg.mapping_supervisor_enabled && !cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled && !cfg.recovery_enabled) return;
+        if (!cfg.mapping_supervisor_enabled && !cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled && !cfg.recovery_enabled && !cfg.motion_execution_enabled) return;
         SupervisorSensorInput sin = make_supervisor_sensor_input();
         bool changed = supervisor.update(now_s, qs, sin);
         latest_supervisor_snapshot = supervisor.snapshot();
@@ -238,7 +248,7 @@ int real_main(int argc, char **argv) {
     };
 
     auto update_active_scan_from_snapshots = [&](double now_s, const MapQualitySnapshot &qs, const MappingSupervisorSnapshot &ss, bool force_log) {
-        if (!cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled && !cfg.recovery_enabled) return;
+        if (!cfg.active_scan_enabled && !cfg.active_scan_execution_enabled && !cfg.sparse_scan_enabled && !cfg.sparse_scan_yaw_match_enabled && !cfg.yaw_correction_enabled && !cfg.recovery_enabled && !cfg.motion_execution_enabled) return;
         const auto &p = loc.pose();
         ActiveScanInput in;
         in.timestamp_s = now_s;
@@ -406,6 +416,49 @@ int real_main(int argc, char **argv) {
         }
     };
 
+
+    auto update_motion_safety_from_snapshots = [&](double now_s, bool force_log) {
+        if (!cfg.motion_execution_enabled || cfg.motion_execution_mode == "disabled") return;
+        MotionSafetyExecutorInput min;
+        min.timestamp_s = now_s;
+        min.active_scan_command = latest_active_scan_command_snapshot;
+        min.active_scan = latest_active_scan_snapshot;
+        min.supervisor = latest_supervisor_snapshot;
+        min.recovery = latest_recovery_snapshot;
+        min.localizer_initialized = loc.initialized();
+        min.current_pose = loc.pose();
+        min.linear_speed_mps = loc.v();
+        min.yaw_rate_radps = loc.w();
+        min.latest_tof_age_s = latest_tof_sample_s >= 0.0 ? now_s - latest_tof_sample_s : std::numeric_limits<double>::infinity();
+        min.tof_recent = latest_tof_sample_s >= 0.0 && min.latest_tof_age_s <= cfg.motion_execution_max_tof_age_s;
+        min.front_distance_m = latest_front_distance_m;
+        min.left_distance_m = latest_left_distance_m;
+        min.right_distance_m = latest_right_distance_m;
+        min.latest_encoder_age_s = latest_encoder_feedback_s >= 0.0 ? now_s - latest_encoder_feedback_s : std::numeric_limits<double>::infinity();
+        min.encoder_feedback_recent = latest_encoder_feedback_s >= 0.0 && min.latest_encoder_age_s <= cfg.motion_execution_max_encoder_age_s;
+        const auto &est = sensors.encoder_stats();
+        min.left_speed_rpm = est.left_rpm;
+        min.right_speed_rpm = est.right_rpm;
+        if (cfg.encoder_source == "cjc_bl4820_uart") {
+            const auto &elog = sensors.last_encoder_log();
+            min.left_current_a = static_cast<double>(elog.left_current_raw) / 1000.0;
+            min.right_current_a = static_cast<double>(elog.right_current_raw) / 1000.0;
+            min.left_status = static_cast<int>(elog.left_status);
+            min.right_status = static_cast<int>(elog.right_status);
+        } else {
+            min.left_current_a = 0.0;
+            min.right_current_a = 0.0;
+            min.left_status = 0;
+            min.right_status = 0;
+        }
+        bool changed = motion_safety_executor.update(min);
+        latest_motion_safety_snapshot = motion_safety_executor.snapshot();
+        if (motion_safety_log && (force_log || changed || motion_safety_executor.should_log(now_s))) {
+            write_motion_safety_executor_row(motion_safety_log, latest_motion_safety_snapshot);
+            motion_safety_executor.mark_logged(now_s, latest_motion_safety_snapshot);
+        }
+    };
+
     auto update_yaw_match_from_completed_scans = [&](double now_s, const std::vector<SparseScanForMatching> &completed_scans) {
         if (!cfg.sparse_scan_yaw_match_enabled) return;
         if (!completed_scans.empty()) {
@@ -483,6 +536,7 @@ int real_main(int argc, char **argv) {
             }
             ImuSample imu = sensors.read_imu(now, sim_t);
             loc.update(enc, imu, dt);
+            latest_encoder_feedback_s = sim_t;
             metrics.localization_updates++;
             std::vector<std::string> sensor_warnings = sensors.consume_warnings();
             for (const auto &sw : sensor_warnings) {
@@ -525,8 +579,12 @@ int real_main(int argc, char **argv) {
             for (const auto &t : latest_tof) {
                 seen_tof[t.id] = true;
                 TofFilterResult res = filter.process(t);
+                double obstacle_range_m = (res.map_update && std::isfinite(res.range_m)) ? res.range_m : std::numeric_limits<double>::infinity();
+                if (t.id == "front") latest_front_distance_m = obstacle_range_m;
+                else if (t.id == "left") latest_left_distance_m = obstacle_range_m;
+                else if (t.id == "right") latest_right_distance_m = obstacle_range_m;
                 double map_quality_now_s = (now - start) / 1000000.0;
-                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) map_quality.record_tof_result(map_quality_now_s, t, res);
+                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled || cfg.motion_execution_enabled) map_quality.record_tof_result(map_quality_now_s, t, res);
                 spin_tof.push_back({t.t_us, t.id, res.range_m, res.filtered_confidence, t.range_status, res.map_update, res.hit, res.decision});
                 tof_health.record_sample(t.id, res);
                 metrics.tof_samples++;
@@ -576,7 +634,7 @@ int real_main(int argc, char **argv) {
                         metrics.map_alloc_failures++;
                     }
                 }
-                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
+                if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled || cfg.motion_execution_enabled) {
                     map_quality.record_map_update(map_quality_now_s, res.map_update, map_updated, res.hit, free_only);
                 }
             }
@@ -755,7 +813,7 @@ int real_main(int argc, char **argv) {
                         << cres.best_front_expected_m << "," << cres.best_left_expected_m << "," << cres.best_right_expected_m << "\n";
             }
         }
-        if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
+        if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled || cfg.motion_execution_enabled) {
             double quality_now_s = (now - start) / 1000000.0;
             bool log_quality = cfg.map_quality_enabled && map_quality.should_log(quality_now_s);
             bool supervise_due = cfg.mapping_supervisor_enabled && supervisor.should_log(quality_now_s);
@@ -764,7 +822,8 @@ int real_main(int argc, char **argv) {
             bool sparse_due = cfg.sparse_scan_enabled && sparse_scan.should_log(quality_now_s);
             bool yaw_correction_due = cfg.yaw_correction_enabled && yaw_correction_gate.should_log(quality_now_s);
             bool recovery_due = cfg.recovery_enabled && recovery_manager.should_log(quality_now_s);
-            if (log_quality || supervise_due || active_scan_due || command_due || sparse_due || yaw_correction_due || recovery_due) {
+            bool motion_due = cfg.motion_execution_enabled && motion_safety_executor.should_log(quality_now_s);
+            if (log_quality || supervise_due || active_scan_due || command_due || sparse_due || yaw_correction_due || recovery_due || motion_due) {
                 GridStats gst = grid.stats(cfg);
                 gst.map_alloc_failures = metrics.map_alloc_failures;
                 map_quality.update_grid_stats(gst);
@@ -779,6 +838,7 @@ int real_main(int argc, char **argv) {
                 update_active_scan_command_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, latest_active_scan_snapshot, false);
                 if (yaw_correction_due) update_yaw_correction_gate_from_summary(quality_now_s, latest_yaw_match_summary, false);
                 if (recovery_due) update_recovery_manager_from_snapshots(quality_now_s, false);
+                if (motion_due) update_motion_safety_from_snapshots(quality_now_s, false);
             }
         }
         if ((now - last_log) >= static_cast<uint64_t>(1000000.0 / cfg.log_hz)) {
@@ -793,7 +853,7 @@ int real_main(int argc, char **argv) {
         usleep(1000);
     }
     if (cfg.save_on_exit) grid.save(run_dir + "/map.pgm", run_dir + "/map.yaml", cfg);
-    if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
+    if (cfg.map_quality_enabled || cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled || cfg.motion_execution_enabled) {
         double quality_now_s = (now_us_steady() - start) / 1000000.0;
         GridStats gst = grid.stats(cfg);
         gst.map_alloc_failures = metrics.map_alloc_failures;
@@ -805,11 +865,11 @@ int real_main(int argc, char **argv) {
             map_quality.mark_logged(quality_now_s, qs);
             metrics.map_quality = map_quality.run_stats();
         }
-        if (cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
+        if (cfg.mapping_supervisor_enabled || cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled || cfg.motion_execution_enabled) {
             update_supervisor_from_quality(quality_now_s, qs, true);
             if (cfg.mapping_supervisor_enabled) metrics.mapping_supervisor = supervisor.run_stats(quality_now_s);
         }
-        if (cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled) {
+        if (cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled || cfg.recovery_enabled || cfg.motion_execution_enabled) {
             const bool force_final_log = true;
             update_active_scan_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, force_final_log);
             if (cfg.active_scan_enabled) metrics.active_scan = active_scan.run_stats(quality_now_s);
@@ -850,6 +910,10 @@ int real_main(int argc, char **argv) {
         if (cfg.recovery_enabled) {
             update_recovery_manager_from_snapshots(quality_now_s, true);
             metrics.recovery = recovery_manager.run_stats(quality_now_s);
+        }
+        if (cfg.motion_execution_enabled) {
+            update_motion_safety_from_snapshots(quality_now_s, true);
+            metrics.motion = motion_safety_executor.run_stats(quality_now_s);
         }
     }
     write_run_metrics(run_dir + "/metrics.csv", metrics, loc, grid, tof_health, cfg, sensors.encoder_stats());

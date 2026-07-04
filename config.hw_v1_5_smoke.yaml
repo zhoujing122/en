@@ -311,6 +311,44 @@ recovery:
   write_candidate_log: true
   write_event_log: true
 
+motion_execution:
+  enabled: true
+  mode: dry_run
+  log_hz: 5.0
+  command_source: active_scan_command
+  allow_recovery_scan_request_as_reason: true
+  require_active_scan_command: true
+  require_command_planner_verifying_or_commanding: true
+  wheel_base_m: 0.160
+  wheel_radius_m: 0.032
+  max_linear_speed_mps: 0.0
+  max_abs_yaw_rate_dps: 20.0
+  max_wheel_speed_rpm: 60.0
+  min_wheel_speed_rpm: 3.0
+  max_command_duration_s: 5.0
+  deadman_timeout_s: 0.3
+  command_stale_timeout_s: 0.5
+  require_localizer_initialized: true
+  require_supervisor_not_lost: true
+  require_tof_recent: true
+  max_tof_age_s: 0.5
+  obstacle_stop_enabled: true
+  min_front_distance_m: 0.25
+  min_side_distance_m: 0.15
+  require_encoder_feedback_recent: true
+  max_encoder_age_s: 0.5
+  current_safety_enabled: true
+  max_motor_current_a: 3.0
+  stall_detection_enabled: true
+  stall_speed_rpm: 2.0
+  stall_current_a: 2.0
+  stall_confirm_count: 3
+  dry_run_write_motor_commands: false
+  hardware_write_enabled: false
+  writeback_acknowledgement: ""
+  required_writeback_acknowledgement: I_UNDERSTAND_MOTOR_WRITE_RISK
+  apply_log_enabled: true
+
 tof_pose_correction:
   enabled: false
   min_candidate_reliability: 0.7

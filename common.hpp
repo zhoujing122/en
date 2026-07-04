@@ -443,6 +443,42 @@ struct Config {
     bool recovery_block_if_post_apply_failed_recent = true;
     bool recovery_write_candidate_log = true;
     bool recovery_write_event_log = true;
+    bool motion_execution_enabled = true;
+    std::string motion_execution_mode = "dry_run";
+    double motion_execution_log_hz = 5.0;
+    std::string motion_execution_command_source = "active_scan_command";
+    bool motion_execution_allow_recovery_scan_request_as_reason = true;
+    bool motion_execution_require_active_scan_command = true;
+    bool motion_execution_require_command_planner_verifying_or_commanding = true;
+    double motion_execution_wheel_base_m = 0.160;
+    double motion_execution_wheel_radius_m = 0.032;
+    double motion_execution_max_linear_speed_mps = 0.0;
+    double motion_execution_max_abs_yaw_rate_dps = 20.0;
+    double motion_execution_max_wheel_speed_rpm = 60.0;
+    double motion_execution_min_wheel_speed_rpm = 3.0;
+    double motion_execution_max_command_duration_s = 5.0;
+    double motion_execution_deadman_timeout_s = 0.3;
+    double motion_execution_command_stale_timeout_s = 0.5;
+    bool motion_execution_require_localizer_initialized = true;
+    bool motion_execution_require_supervisor_not_lost = true;
+    bool motion_execution_require_tof_recent = true;
+    double motion_execution_max_tof_age_s = 0.5;
+    bool motion_execution_obstacle_stop_enabled = true;
+    double motion_execution_min_front_distance_m = 0.25;
+    double motion_execution_min_side_distance_m = 0.15;
+    bool motion_execution_require_encoder_feedback_recent = true;
+    double motion_execution_max_encoder_age_s = 0.5;
+    bool motion_execution_current_safety_enabled = true;
+    double motion_execution_max_motor_current_a = 3.0;
+    bool motion_execution_stall_detection_enabled = true;
+    double motion_execution_stall_speed_rpm = 2.0;
+    double motion_execution_stall_current_a = 2.0;
+    int motion_execution_stall_confirm_count = 3;
+    bool motion_execution_dry_run_write_motor_commands = false;
+    bool motion_execution_hardware_write_enabled = false;
+    std::string motion_execution_writeback_acknowledgement = "";
+    std::string motion_execution_required_writeback_acknowledgement = "I_UNDERSTAND_MOTOR_WRITE_RISK";
+    bool motion_execution_apply_log_enabled = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -756,6 +792,31 @@ struct RecoveryManagerRunStats {
     double last_yaw_candidate_deg = 0.0;
 };
 
+
+struct MotionSafetyExecutorRunStats {
+    std::string state_last = "IDLE";
+    uint64_t state_changes = 0;
+    uint64_t command_seen_count = 0;
+    uint64_t would_command_count = 0;
+    uint64_t would_zero_count = 0;
+    uint64_t blocked_count = 0;
+    uint64_t fault_count = 0;
+    uint64_t obstacle_stop_count = 0;
+    uint64_t tof_stale_block_count = 0;
+    uint64_t encoder_stale_block_count = 0;
+    uint64_t current_high_block_count = 0;
+    uint64_t status_error_block_count = 0;
+    uint64_t stall_block_count = 0;
+    uint64_t supervisor_lost_block_count = 0;
+    std::string last_reason = "idle";
+    double last_target_left_rpm = 0.0;
+    double last_target_right_rpm = 0.0;
+    double last_desired_yaw_rate_dps = 0.0;
+    double last_front_distance_m = 0.0;
+    double last_left_distance_m = 0.0;
+    double last_right_distance_m = 0.0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -802,6 +863,7 @@ struct RunMetrics {
     YawCorrectionApplyRunStats yaw_correction_apply;
     YawCorrectionPostApplyRunStats yaw_correction_post_apply;
     RecoveryManagerRunStats recovery;
+    MotionSafetyExecutorRunStats motion;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

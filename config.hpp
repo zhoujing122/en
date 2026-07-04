@@ -381,6 +381,42 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.recovery_block_if_post_apply_failed_recent = get_bool(kv, "recovery.block_if_post_apply_failed_recent", c.recovery_block_if_post_apply_failed_recent);
     c.recovery_write_candidate_log = get_bool(kv, "recovery.write_candidate_log", c.recovery_write_candidate_log);
     c.recovery_write_event_log = get_bool(kv, "recovery.write_event_log", c.recovery_write_event_log);
+    c.motion_execution_enabled = get_bool(kv, "motion_execution.enabled", c.motion_execution_enabled);
+    c.motion_execution_mode = get_string(kv, "motion_execution.mode", c.motion_execution_mode);
+    c.motion_execution_log_hz = get_double(kv, "motion_execution.log_hz", c.motion_execution_log_hz);
+    c.motion_execution_command_source = get_string(kv, "motion_execution.command_source", c.motion_execution_command_source);
+    c.motion_execution_allow_recovery_scan_request_as_reason = get_bool(kv, "motion_execution.allow_recovery_scan_request_as_reason", c.motion_execution_allow_recovery_scan_request_as_reason);
+    c.motion_execution_require_active_scan_command = get_bool(kv, "motion_execution.require_active_scan_command", c.motion_execution_require_active_scan_command);
+    c.motion_execution_require_command_planner_verifying_or_commanding = get_bool(kv, "motion_execution.require_command_planner_verifying_or_commanding", c.motion_execution_require_command_planner_verifying_or_commanding);
+    c.motion_execution_wheel_base_m = get_double(kv, "motion_execution.wheel_base_m", c.motion_execution_wheel_base_m);
+    c.motion_execution_wheel_radius_m = get_double(kv, "motion_execution.wheel_radius_m", c.motion_execution_wheel_radius_m);
+    c.motion_execution_max_linear_speed_mps = get_double(kv, "motion_execution.max_linear_speed_mps", c.motion_execution_max_linear_speed_mps);
+    c.motion_execution_max_abs_yaw_rate_dps = get_double(kv, "motion_execution.max_abs_yaw_rate_dps", c.motion_execution_max_abs_yaw_rate_dps);
+    c.motion_execution_max_wheel_speed_rpm = get_double(kv, "motion_execution.max_wheel_speed_rpm", c.motion_execution_max_wheel_speed_rpm);
+    c.motion_execution_min_wheel_speed_rpm = get_double(kv, "motion_execution.min_wheel_speed_rpm", c.motion_execution_min_wheel_speed_rpm);
+    c.motion_execution_max_command_duration_s = get_double(kv, "motion_execution.max_command_duration_s", c.motion_execution_max_command_duration_s);
+    c.motion_execution_deadman_timeout_s = get_double(kv, "motion_execution.deadman_timeout_s", c.motion_execution_deadman_timeout_s);
+    c.motion_execution_command_stale_timeout_s = get_double(kv, "motion_execution.command_stale_timeout_s", c.motion_execution_command_stale_timeout_s);
+    c.motion_execution_require_localizer_initialized = get_bool(kv, "motion_execution.require_localizer_initialized", c.motion_execution_require_localizer_initialized);
+    c.motion_execution_require_supervisor_not_lost = get_bool(kv, "motion_execution.require_supervisor_not_lost", c.motion_execution_require_supervisor_not_lost);
+    c.motion_execution_require_tof_recent = get_bool(kv, "motion_execution.require_tof_recent", c.motion_execution_require_tof_recent);
+    c.motion_execution_max_tof_age_s = get_double(kv, "motion_execution.max_tof_age_s", c.motion_execution_max_tof_age_s);
+    c.motion_execution_obstacle_stop_enabled = get_bool(kv, "motion_execution.obstacle_stop_enabled", c.motion_execution_obstacle_stop_enabled);
+    c.motion_execution_min_front_distance_m = get_double(kv, "motion_execution.min_front_distance_m", c.motion_execution_min_front_distance_m);
+    c.motion_execution_min_side_distance_m = get_double(kv, "motion_execution.min_side_distance_m", c.motion_execution_min_side_distance_m);
+    c.motion_execution_require_encoder_feedback_recent = get_bool(kv, "motion_execution.require_encoder_feedback_recent", c.motion_execution_require_encoder_feedback_recent);
+    c.motion_execution_max_encoder_age_s = get_double(kv, "motion_execution.max_encoder_age_s", c.motion_execution_max_encoder_age_s);
+    c.motion_execution_current_safety_enabled = get_bool(kv, "motion_execution.current_safety_enabled", c.motion_execution_current_safety_enabled);
+    c.motion_execution_max_motor_current_a = get_double(kv, "motion_execution.max_motor_current_a", c.motion_execution_max_motor_current_a);
+    c.motion_execution_stall_detection_enabled = get_bool(kv, "motion_execution.stall_detection_enabled", c.motion_execution_stall_detection_enabled);
+    c.motion_execution_stall_speed_rpm = get_double(kv, "motion_execution.stall_speed_rpm", c.motion_execution_stall_speed_rpm);
+    c.motion_execution_stall_current_a = get_double(kv, "motion_execution.stall_current_a", c.motion_execution_stall_current_a);
+    c.motion_execution_stall_confirm_count = get_int(kv, "motion_execution.stall_confirm_count", c.motion_execution_stall_confirm_count);
+    c.motion_execution_dry_run_write_motor_commands = get_bool(kv, "motion_execution.dry_run_write_motor_commands", c.motion_execution_dry_run_write_motor_commands);
+    c.motion_execution_hardware_write_enabled = get_bool(kv, "motion_execution.hardware_write_enabled", c.motion_execution_hardware_write_enabled);
+    c.motion_execution_writeback_acknowledgement = get_string(kv, "motion_execution.writeback_acknowledgement", c.motion_execution_writeback_acknowledgement);
+    c.motion_execution_required_writeback_acknowledgement = get_string(kv, "motion_execution.required_writeback_acknowledgement", c.motion_execution_required_writeback_acknowledgement);
+    c.motion_execution_apply_log_enabled = get_bool(kv, "motion_execution.apply_log_enabled", c.motion_execution_apply_log_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -674,6 +710,27 @@ void validate_config(const Config &c) {
     non_negative("recovery.recovery_scan_cooldown_s", c.recovery_recovery_scan_cooldown_s);
     if (c.recovery_max_recent_yaw_apply_count < 0) errors.push_back("recovery.max_recent_yaw_apply_count must be >= 0");
     if (c.recovery_min_post_apply_validated_count < 0) errors.push_back("recovery.min_post_apply_validated_count must be >= 0");
+    if (!one_of(c.motion_execution_mode, {"disabled", "dry_run"})) errors.push_back("motion_execution.mode must be disabled or dry_run; motor write unsupported in M1");
+    if (c.motion_execution_hardware_write_enabled) errors.push_back("motion_execution.hardware_write_enabled=true unsupported in M1 dry-run");
+    if (c.motion_execution_dry_run_write_motor_commands) errors.push_back("motion_execution.dry_run_write_motor_commands=true unsupported in M1 dry-run");
+    positive("motion_execution.log_hz", c.motion_execution_log_hz);
+    positive("motion_execution.wheel_base_m", c.motion_execution_wheel_base_m);
+    positive("motion_execution.wheel_radius_m", c.motion_execution_wheel_radius_m);
+    non_negative("motion_execution.max_abs_yaw_rate_dps", c.motion_execution_max_abs_yaw_rate_dps);
+    non_negative("motion_execution.max_wheel_speed_rpm", c.motion_execution_max_wheel_speed_rpm);
+    non_negative("motion_execution.min_wheel_speed_rpm", c.motion_execution_min_wheel_speed_rpm);
+    if (c.motion_execution_min_wheel_speed_rpm > c.motion_execution_max_wheel_speed_rpm) errors.push_back("motion_execution.min_wheel_speed_rpm must be <= max_wheel_speed_rpm");
+    positive("motion_execution.max_command_duration_s", c.motion_execution_max_command_duration_s);
+    positive("motion_execution.deadman_timeout_s", c.motion_execution_deadman_timeout_s);
+    positive("motion_execution.command_stale_timeout_s", c.motion_execution_command_stale_timeout_s);
+    non_negative("motion_execution.max_tof_age_s", c.motion_execution_max_tof_age_s);
+    non_negative("motion_execution.min_front_distance_m", c.motion_execution_min_front_distance_m);
+    non_negative("motion_execution.min_side_distance_m", c.motion_execution_min_side_distance_m);
+    non_negative("motion_execution.max_encoder_age_s", c.motion_execution_max_encoder_age_s);
+    non_negative("motion_execution.max_motor_current_a", c.motion_execution_max_motor_current_a);
+    non_negative("motion_execution.stall_speed_rpm", c.motion_execution_stall_speed_rpm);
+    non_negative("motion_execution.stall_current_a", c.motion_execution_stall_current_a);
+    if (c.motion_execution_stall_confirm_count < 0) errors.push_back("motion_execution.stall_confirm_count must be >= 0");
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1016,6 +1073,43 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  block_if_post_apply_failed_recent: " << bool_yaml(c.recovery_block_if_post_apply_failed_recent) << "\n"
       << "  write_candidate_log: " << bool_yaml(c.recovery_write_candidate_log) << "\n"
       << "  write_event_log: " << bool_yaml(c.recovery_write_event_log) << "\n";
+    o << "motion_execution:\n"
+      << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
+      << "  mode: " << c.motion_execution_mode << "\n"
+      << "  log_hz: " << c.motion_execution_log_hz << "\n"
+      << "  command_source: " << c.motion_execution_command_source << "\n"
+      << "  allow_recovery_scan_request_as_reason: " << bool_yaml(c.motion_execution_allow_recovery_scan_request_as_reason) << "\n"
+      << "  require_active_scan_command: " << bool_yaml(c.motion_execution_require_active_scan_command) << "\n"
+      << "  require_command_planner_verifying_or_commanding: " << bool_yaml(c.motion_execution_require_command_planner_verifying_or_commanding) << "\n"
+      << "  wheel_base_m: " << c.motion_execution_wheel_base_m << "\n"
+      << "  wheel_radius_m: " << c.motion_execution_wheel_radius_m << "\n"
+      << "  max_linear_speed_mps: " << c.motion_execution_max_linear_speed_mps << "\n"
+      << "  max_abs_yaw_rate_dps: " << c.motion_execution_max_abs_yaw_rate_dps << "\n"
+      << "  max_wheel_speed_rpm: " << c.motion_execution_max_wheel_speed_rpm << "\n"
+      << "  min_wheel_speed_rpm: " << c.motion_execution_min_wheel_speed_rpm << "\n"
+      << "  max_command_duration_s: " << c.motion_execution_max_command_duration_s << "\n"
+      << "  deadman_timeout_s: " << c.motion_execution_deadman_timeout_s << "\n"
+      << "  command_stale_timeout_s: " << c.motion_execution_command_stale_timeout_s << "\n"
+      << "  require_localizer_initialized: " << bool_yaml(c.motion_execution_require_localizer_initialized) << "\n"
+      << "  require_supervisor_not_lost: " << bool_yaml(c.motion_execution_require_supervisor_not_lost) << "\n"
+      << "  require_tof_recent: " << bool_yaml(c.motion_execution_require_tof_recent) << "\n"
+      << "  max_tof_age_s: " << c.motion_execution_max_tof_age_s << "\n"
+      << "  obstacle_stop_enabled: " << bool_yaml(c.motion_execution_obstacle_stop_enabled) << "\n"
+      << "  min_front_distance_m: " << c.motion_execution_min_front_distance_m << "\n"
+      << "  min_side_distance_m: " << c.motion_execution_min_side_distance_m << "\n"
+      << "  require_encoder_feedback_recent: " << bool_yaml(c.motion_execution_require_encoder_feedback_recent) << "\n"
+      << "  max_encoder_age_s: " << c.motion_execution_max_encoder_age_s << "\n"
+      << "  current_safety_enabled: " << bool_yaml(c.motion_execution_current_safety_enabled) << "\n"
+      << "  max_motor_current_a: " << c.motion_execution_max_motor_current_a << "\n"
+      << "  stall_detection_enabled: " << bool_yaml(c.motion_execution_stall_detection_enabled) << "\n"
+      << "  stall_speed_rpm: " << c.motion_execution_stall_speed_rpm << "\n"
+      << "  stall_current_a: " << c.motion_execution_stall_current_a << "\n"
+      << "  stall_confirm_count: " << c.motion_execution_stall_confirm_count << "\n"
+      << "  dry_run_write_motor_commands: " << bool_yaml(c.motion_execution_dry_run_write_motor_commands) << "\n"
+      << "  hardware_write_enabled: " << bool_yaml(c.motion_execution_hardware_write_enabled) << "\n"
+      << "  writeback_acknowledgement: " << c.motion_execution_writeback_acknowledgement << "\n"
+      << "  required_writeback_acknowledgement: " << c.motion_execution_required_writeback_acknowledgement << "\n"
+      << "  apply_log_enabled: " << bool_yaml(c.motion_execution_apply_log_enabled) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"
