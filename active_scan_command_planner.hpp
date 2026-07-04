@@ -45,7 +45,7 @@ struct ActiveScanCommandInput {
     double yaw_rad = 0.0;
     double linear_speed_mps = 0.0;
     double yaw_rate_radps = 0.0;
-    bool localization_valid = true;
+    bool localization_valid = false;
 };
 
 struct ActiveScanCommandSnapshot {
@@ -75,7 +75,7 @@ struct ActiveScanCommandSnapshot {
     std::string supervisor_state = "INIT";
     std::string active_scan_state = "IDLE";
     double linear_speed_mps = 0.0;
-    bool localization_valid = true;
+    bool localization_valid = false;
 };
 
 class ActiveScanCommandPlanner {

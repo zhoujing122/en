@@ -55,6 +55,9 @@ struct YawCorrectionPostApplySnapshot {
     bool failed = false;
     bool timeout = false;
     std::string supervisor_state = "INIT";
+    double expected_min_improvement_deg = 0.0;
+    double applied_match_timestamp_s = 0.0;
+    double new_match_timestamp_s = 0.0;
 };
 
 class YawCorrectionPostApplyValidator {
@@ -92,7 +95,6 @@ public:
         if (in.timestamp_s - waiting_since_s_ > cfg_.yaw_correction_post_apply_timeout_s) {
             state_ = YawCorrectionPostApplyState::TIMEOUT;
             latest_ = make_snapshot(in, "timeout");
-            latest_.timeout = true;
             stats_.timeout_count++;
             update_stats(latest_);
             return true;
@@ -106,32 +108,40 @@ public:
             latest_ = make_snapshot(in, "waiting_for_new_scan_id");
             return false;
         }
-        double new_abs = std::fabs(m.best_yaw_delta_deg);
-        double improvement = old_candidate_abs_deg_ - new_abs;
-        if (m.curve_flat || m.multimodal) {
+        if (cfg_.yaw_correction_post_apply_require_newer_match_timestamp && m.timestamp_s <= applied_match_timestamp_s_) {
+            latest_ = make_snapshot(in, "waiting_for_newer_match_timestamp");
+            return false;
+        }
+
+        const double new_abs = std::fabs(m.best_yaw_delta_deg);
+        const double improvement = old_candidate_abs_deg_ - new_abs;
+        if (m.curve_flat) {
             state_ = YawCorrectionPostApplyState::FAILED;
-            latest_ = make_snapshot(in, m.curve_flat ? "post_match_curve_flat" : "post_match_multimodal");
-            latest_.failed = true;
+            latest_ = make_snapshot(in, "post_match_curve_flat");
+            stats_.failed_count++;
+        } else if (m.multimodal) {
+            state_ = YawCorrectionPostApplyState::FAILED;
+            latest_ = make_snapshot(in, "post_match_multimodal");
             stats_.failed_count++;
         } else if (!m.usable) {
             state_ = YawCorrectionPostApplyState::SUSPECT;
             latest_ = make_snapshot(in, "post_match_not_usable");
-            latest_.suspect = true;
             stats_.suspect_count++;
-        } else if (improvement >= cfg_.yaw_correction_post_apply_min_improvement_deg) {
+        } else if (new_abs > cfg_.yaw_correction_post_apply_max_post_apply_candidate_abs_deg) {
+            state_ = YawCorrectionPostApplyState::FAILED;
+            latest_ = make_snapshot(in, "post_candidate_too_large");
+            stats_.failed_count++;
+        } else if (improvement >= expected_min_improvement_deg()) {
             state_ = YawCorrectionPostApplyState::VALIDATED;
             latest_ = make_snapshot(in, "validated");
-            latest_.validated = true;
             stats_.validated_count++;
         } else if (-improvement > cfg_.yaw_correction_post_apply_max_allowed_worse_deg) {
             state_ = YawCorrectionPostApplyState::SUSPECT;
             latest_ = make_snapshot(in, "candidate_worse");
-            latest_.suspect = true;
             stats_.suspect_count++;
         } else {
             state_ = YawCorrectionPostApplyState::SUSPECT;
             latest_ = make_snapshot(in, "insufficient_improvement");
-            latest_.suspect = true;
             stats_.suspect_count++;
         }
         latest_.old_candidate_deg = old_candidate_abs_deg_;
@@ -147,6 +157,11 @@ public:
 
 private:
     bool enabled() const { return cfg_.yaw_correction_post_apply_enabled; }
+
+    double expected_min_improvement_deg() const {
+        return std::max(cfg_.yaw_correction_post_apply_min_absolute_improvement_deg,
+                        std::fabs(applied_delta_deg_) * cfg_.yaw_correction_post_apply_min_improvement_fraction_of_applied_delta);
+    }
 
     YawCorrectionPostApplySnapshot make_snapshot(const YawCorrectionPostApplyInput &in, const std::string &reason) const {
         YawCorrectionPostApplySnapshot s;
@@ -164,6 +179,9 @@ private:
         s.suspect = state_ == YawCorrectionPostApplyState::SUSPECT;
         s.failed = state_ == YawCorrectionPostApplyState::FAILED;
         s.timeout = state_ == YawCorrectionPostApplyState::TIMEOUT;
+        s.expected_min_improvement_deg = expected_min_improvement_deg();
+        s.applied_match_timestamp_s = applied_match_timestamp_s_ != 0.0 ? applied_match_timestamp_s_ : in.applied_match_timestamp_s;
+        s.new_match_timestamp_s = in.latest_yaw_match.timestamp_s;
         return s;
     }
 
@@ -171,6 +189,8 @@ private:
         stats_.last_state = s.state;
         stats_.last_reason = s.reason;
         stats_.last_improvement_deg = s.improvement_deg;
+        stats_.last_expected_min_improvement_deg = s.expected_min_improvement_deg;
+        stats_.last_new_match_timestamp_s = s.new_match_timestamp_s;
     }
 
     const Config &cfg_;
@@ -185,7 +205,7 @@ private:
 };
 
 inline void write_yaw_correction_post_apply_header(std::ostream &o) {
-    o << "timestamp_s,state,reason,applied_scan_id,applied_delta_deg,old_candidate_deg,new_scan_id,new_candidate_deg,improvement_deg,validated,suspect,failed,timeout,supervisor_state\n";
+    o << "timestamp_s,state,reason,applied_scan_id,applied_delta_deg,old_candidate_deg,new_scan_id,new_candidate_deg,improvement_deg,validated,suspect,failed,timeout,supervisor_state,expected_min_improvement_deg,applied_match_timestamp_s,new_match_timestamp_s\n";
 }
 
 inline void write_yaw_correction_post_apply_row(std::ostream &o, const YawCorrectionPostApplySnapshot &s) {
@@ -194,7 +214,9 @@ inline void write_yaw_correction_post_apply_row(std::ostream &o, const YawCorrec
       << s.applied_scan_id << ',' << s.applied_delta_deg << ',' << s.old_candidate_deg << ','
       << s.new_scan_id << ',' << s.new_candidate_deg << ',' << s.improvement_deg << ','
       << (s.validated ? 1 : 0) << ',' << (s.suspect ? 1 : 0) << ','
-      << (s.failed ? 1 : 0) << ',' << (s.timeout ? 1 : 0) << ',' << s.supervisor_state << "\n";
+      << (s.failed ? 1 : 0) << ',' << (s.timeout ? 1 : 0) << ',' << s.supervisor_state << ','
+      << s.expected_min_improvement_deg << ',' << s.applied_match_timestamp_s << ','
+      << s.new_match_timestamp_s << "\n";
 }
 
 } // namespace robot_slamd

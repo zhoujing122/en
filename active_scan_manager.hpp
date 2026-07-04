@@ -62,7 +62,7 @@ struct ActiveScanInput {
     double yaw_rad = 0.0;
     double linear_speed_mps = 0.0;
     double yaw_rate_radps = 0.0;
-    bool localization_valid = true;
+    bool localization_valid = false;
 };
 
 struct ActiveScanSnapshot {

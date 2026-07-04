@@ -41,7 +41,7 @@ struct YawCorrectionGateInput {
     double current_yaw_rad = 0.0;
     double linear_speed_mps = 0.0;
     double yaw_rate_radps = 0.0;
-    bool localization_valid = true;
+    bool localization_valid = false;
 };
 
 struct YawCorrectionGateSnapshot {
@@ -206,8 +206,17 @@ public:
         latest_.state = yaw_correction_gate_state_name(state_);
         latest_.previous_state = yaw_correction_gate_state_name(previous_state_);
         latest_.reason = "apply_feedback_cooldown";
+        latest_.candidate_seen = false;
         latest_.would_apply = false;
         latest_.rejected = false;
+        latest_.candidate_yaw_delta_deg = 0.0;
+        latest_.suggested_correction_deg = 0.0;
+        latest_.suggested_new_yaw_rad = 0.0;
+        latest_.best_score = 0.0;
+        latest_.score_margin = 0.0;
+        latest_.inlier_ratio = 0.0;
+        latest_.curve_flatness = 0.0;
+        latest_.multimodal = false;
         latest_.consistency_count = 0;
         latest_.consistency_spread_deg = 0.0;
         latest_.match_scan_id = scan_id;

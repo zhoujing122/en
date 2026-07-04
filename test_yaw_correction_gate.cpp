@@ -328,6 +328,12 @@ int main() {
     auto feedback_apply = update_once(feedback, input(72, 3.0, 2.05));
     expect(feedback_apply.would_apply, "feedback setup should would_apply");
     feedback.notify_yaw_correction_applied(3.1, feedback_apply.match_scan_id, feedback_apply.match_timestamp_s, feedback_apply.suggested_correction_deg);
+    auto feedback_snap = feedback.snapshot();
+    expect(feedback_snap.state == "COOLDOWN" && feedback_snap.reason == "apply_feedback_cooldown", "apply feedback should put gate into cooldown");
+    expect(!feedback_snap.candidate_seen && !feedback_snap.would_apply && !feedback_snap.rejected, "apply feedback should clear candidate booleans");
+    expect(feedback_snap.candidate_yaw_delta_deg == 0.0 && feedback_snap.suggested_correction_deg == 0.0, "apply feedback should clear candidate correction fields");
+    expect(feedback_snap.best_score == 0.0 && feedback_snap.score_margin == 0.0 && feedback_snap.inlier_ratio == 0.0, "apply feedback should clear score fields");
+    expect(feedback_snap.consistency_count == 0 && feedback_snap.consistency_spread_deg == 0.0, "apply feedback should clear consistency fields");
     auto feedback_stats = feedback.run_stats(3.2);
     expect(feedback_stats.apply_feedback_count == 1 && feedback_stats.window_reset_count == 1, "apply feedback should reset gate window and update stats");
     auto after_feedback = update_once(feedback, input(73, 10.0, 2.05));

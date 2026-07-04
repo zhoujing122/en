@@ -299,7 +299,7 @@ struct Config {
     double active_scan_execution_log_hz = 5.0;
     bool active_scan_execution_require_active_scan_would_start = true;
     bool active_scan_execution_require_scan_recommended = true;
-    bool active_scan_execution_require_localization_valid = true;
+    bool active_scan_execution_require_localization_valid = bool{1};
     double active_scan_execution_target_scan_angle_deg = 360.0;
     double active_scan_execution_complete_scan_angle_deg = 300.0;
     double active_scan_execution_min_useful_scan_angle_deg = 90.0;
@@ -412,8 +412,12 @@ struct Config {
     bool yaw_correction_post_apply_enabled = true;
     double yaw_correction_post_apply_timeout_s = 20.0;
     double yaw_correction_post_apply_min_improvement_deg = 0.2;
+    double yaw_correction_post_apply_min_improvement_fraction_of_applied_delta = 0.3;
+    double yaw_correction_post_apply_min_absolute_improvement_deg = 0.05;
     double yaw_correction_post_apply_max_allowed_worse_deg = 0.5;
     bool yaw_correction_post_apply_require_new_scan_id = true;
+    bool yaw_correction_post_apply_require_newer_match_timestamp = true;
+    double yaw_correction_post_apply_max_post_apply_candidate_abs_deg = 10.0;
     bool yaw_correction_post_apply_log_enabled = true;
 };
 
@@ -690,6 +694,7 @@ struct YawCorrectionApplyRunStats {
     uint64_t duplicate_candidate_reject_count = 0;
     uint64_t last_match_scan_id = 0;
     double last_match_timestamp_s = 0.0;
+    std::string localization_invalid_reason_last = "unknown";
 };
 
 struct YawCorrectionPostApplyRunStats {
@@ -700,6 +705,8 @@ struct YawCorrectionPostApplyRunStats {
     std::string last_state = "IDLE";
     std::string last_reason = "idle";
     double last_improvement_deg = 0.0;
+    double last_expected_min_improvement_deg = 0.0;
+    double last_new_match_timestamp_s = 0.0;
 };
 
 struct RunMetrics {

@@ -62,16 +62,35 @@ struct YawCorrectionApplySnapshot {
     bool duplicate_candidate_rejected = false;
 };
 
+struct YawWritebackLocalizationValidity {
+    bool valid = false;
+    std::string reason = "unknown";
+};
+
+inline YawWritebackLocalizationValidity compute_localization_validity_for_yaw_writeback(
+    const Localizer &loc,
+    const MappingSupervisorSnapshot &supervisor,
+    const MapQualitySnapshot &map_quality,
+    const YawCorrectionGateSnapshot &gate) {
+    if (!loc.initialized()) return {false, "localizer_not_initialized"};
+    if (supervisor.state == "LOST") return {false, "supervisor_lost"};
+    if (supervisor.state == "DEGRADED") return {false, "supervisor_degraded"};
+    if (map_quality.quality_level.empty()) return {false, "map_quality_unknown"};
+    if (map_quality.quality_level == "BAD") return {false, "map_quality_bad"};
+    if (map_quality.quality_level == "INVALID") return {false, "map_quality_invalid"};
+    if (!gate.scan_evidence_ok) return {false, "scan_evidence_not_ok"};
+    if (!gate.yaw_match_evidence_ok) return {false, "yaw_match_evidence_not_ok"};
+    const auto &p = loc.pose();
+    if (!std::isfinite(p.x) || !std::isfinite(p.y) || !std::isfinite(p.yaw)) return {false, "pose_not_finite"};
+    if (!std::isfinite(loc.v()) || !std::isfinite(loc.w())) return {false, "velocity_not_finite"};
+    return {true, "ok"};
+}
+
 inline bool compute_localization_valid_for_yaw_writeback(const Localizer &loc,
                                                          const MappingSupervisorSnapshot &supervisor,
                                                          const MapQualitySnapshot &map_quality,
                                                          const YawCorrectionGateSnapshot &gate) {
-    if (!loc.initialized()) return false;
-    if (supervisor.state == "LOST" || supervisor.state == "DEGRADED") return false;
-    if (map_quality.quality_level == "BAD" || map_quality.quality_level == "INVALID") return false;
-    if (!gate.scan_evidence_ok || !gate.yaw_match_evidence_ok) return false;
-    const auto &p = loc.pose();
-    return std::isfinite(p.yaw) && std::isfinite(loc.v()) && std::isfinite(loc.w());
+    return compute_localization_validity_for_yaw_writeback(loc, supervisor, map_quality, gate).valid;
 }
 
 class YawCorrectionApply {
@@ -85,7 +104,8 @@ public:
                                       double linear_speed_mps,
                                       double yaw_rate_radps,
                                       const MappingSupervisorSnapshot &supervisor,
-                                      bool localization_valid = true) {
+                                      bool localization_valid,
+                                      const std::string &localization_invalid_reason) {
         YawCorrectionApplySnapshot s = make_snapshot(timestamp_s, gate, current_yaw_rad,
                                                      linear_speed_mps, yaw_rate_radps, supervisor);
         s.old_yaw_correction_offset_rad = localizer.yaw_correction_offset_rad();
@@ -195,6 +215,7 @@ public:
             return latest_;
         }
         if (!localization_valid) {
+            stats_.localization_invalid_reason_last = localization_invalid_reason;
             reject(s, "localization_invalid", RejectBucket::Safety);
             latest_ = s;
             return latest_;

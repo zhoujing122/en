@@ -277,8 +277,12 @@ yaw_correction_post_apply:
   enabled: true
   timeout_s: 20.0
   min_improvement_deg: 0.2
+  min_improvement_fraction_of_applied_delta: 0.3
+  min_absolute_improvement_deg: 0.05
   max_allowed_worse_deg: 0.5
   require_new_scan_id: true
+  require_newer_match_timestamp: true
+  max_post_apply_candidate_abs_deg: 10.0
   log_enabled: true
 
 tof_pose_correction:

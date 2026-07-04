@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "yaw_correction_post_apply_validator.hpp"
 
+#include <cmath>
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -11,6 +12,13 @@ int failures = 0;
 void expect(bool condition, const char *message) {
     if (!condition) {
         std::cerr << "FAIL: " << message << "\n";
+        failures++;
+    }
+}
+
+void expect_near(double a, double b, double eps, const char *message) {
+    if (std::fabs(a - b) > eps) {
+        std::cerr << "FAIL: " << message << " got=" << a << " expected=" << b << "\n";
         failures++;
     }
 }
@@ -29,8 +37,12 @@ robot_slamd::Config cfg() {
     c.yaw_correction_post_apply_enabled = true;
     c.yaw_correction_post_apply_timeout_s = 20.0;
     c.yaw_correction_post_apply_min_improvement_deg = 0.2;
+    c.yaw_correction_post_apply_min_improvement_fraction_of_applied_delta = 0.3;
+    c.yaw_correction_post_apply_min_absolute_improvement_deg = 0.05;
     c.yaw_correction_post_apply_max_allowed_worse_deg = 0.5;
     c.yaw_correction_post_apply_require_new_scan_id = true;
+    c.yaw_correction_post_apply_require_newer_match_timestamp = true;
+    c.yaw_correction_post_apply_max_post_apply_candidate_abs_deg = 10.0;
     c.yaw_correction_post_apply_log_enabled = true;
     return c;
 }
@@ -51,7 +63,7 @@ robot_slamd::SparseScanYawMatchSummary yaw_match(uint64_t scan_id, double t, dou
     return s;
 }
 
-robot_slamd::YawCorrectionGateSnapshot gate(double candidate_deg = 2.0) {
+robot_slamd::YawCorrectionGateSnapshot gate(double candidate_deg = 5.0) {
     robot_slamd::YawCorrectionGateSnapshot g;
     g.candidate_seen = true;
     g.would_apply = true;
@@ -73,12 +85,17 @@ robot_slamd::YawCorrectionPostApplyInput input(double t) {
     return in;
 }
 
-robot_slamd::YawCorrectionPostApplySnapshot start_wait(robot_slamd::YawCorrectionPostApplyValidator &v) {
+robot_slamd::YawCorrectionPostApplySnapshot start_wait(robot_slamd::YawCorrectionPostApplyValidator &v,
+                                                       double old_candidate_deg = 5.0,
+                                                       double applied_delta_deg = 1.0,
+                                                       uint64_t applied_scan_id = 10,
+                                                       double applied_match_timestamp_s = 1.0) {
     auto in = input(1.0);
     in.apply_happened = true;
-    in.applied_scan_id = 10;
-    in.applied_match_timestamp_s = 1.0;
-    in.applied_delta_deg = 0.3;
+    in.applied_scan_id = applied_scan_id;
+    in.applied_match_timestamp_s = applied_match_timestamp_s;
+    in.applied_delta_deg = applied_delta_deg;
+    in.latest_gate = gate(old_candidate_deg);
     v.update(in);
     return v.snapshot();
 }
@@ -89,8 +106,11 @@ int main() {
     Config c = cfg();
     try { validate_config(c); } catch (const std::exception &e) { std::cerr << "FAIL: valid post apply config threw: " << e.what() << "\n"; failures++; }
     expect_throw([&] { Config bad = c; bad.yaw_correction_post_apply_timeout_s = 0.0; validate_config(bad); }, "timeout <= 0 should be fatal");
-    expect_throw([&] { Config bad = c; bad.yaw_correction_post_apply_min_improvement_deg = -0.1; validate_config(bad); }, "negative min improvement should be fatal");
+    expect_throw([&] { Config bad = c; bad.yaw_correction_post_apply_min_improvement_deg = -0.1; validate_config(bad); }, "negative legacy min improvement should be fatal");
+    expect_throw([&] { Config bad = c; bad.yaw_correction_post_apply_min_improvement_fraction_of_applied_delta = -0.1; validate_config(bad); }, "negative applied delta fraction should be fatal");
+    expect_throw([&] { Config bad = c; bad.yaw_correction_post_apply_min_absolute_improvement_deg = -0.1; validate_config(bad); }, "negative absolute improvement should be fatal");
     expect_throw([&] { Config bad = c; bad.yaw_correction_post_apply_max_allowed_worse_deg = -0.1; validate_config(bad); }, "negative max worse should be fatal");
+    expect_throw([&] { Config bad = c; bad.yaw_correction_post_apply_max_post_apply_candidate_abs_deg = 0.0; validate_config(bad); }, "non-positive max candidate should be fatal");
 
     {
         Config disabled = c;
@@ -103,48 +123,99 @@ int main() {
         YawCorrectionPostApplyValidator v(c);
         auto s = start_wait(v);
         expect(s.state == "WAITING_FOR_NEXT_MATCH" && s.reason == "waiting_for_next_match", "apply should enter waiting");
+        expect_near(s.expected_min_improvement_deg, 0.3, 1e-12, "expected improvement should be derived from applied delta");
         auto same = input(2.0);
-        same.latest_yaw_match = yaw_match(10, 2.0, 0.5);
+        same.latest_yaw_match = yaw_match(10, 2.0, 4.0);
         v.update(same);
         expect(v.snapshot().reason == "waiting_for_new_scan_id", "same scan id should be ignored while waiting");
+        expect(v.run_stats().validated_count == 0 && v.run_stats().suspect_count == 0 && v.run_stats().failed_count == 0, "waiting same scan should not increment terminal counters");
     }
     {
         YawCorrectionPostApplyValidator v(c);
         start_wait(v);
+        auto same_ts = input(2.0);
+        same_ts.latest_yaw_match = yaw_match(11, 1.0, 4.0);
+        v.update(same_ts);
+        expect(v.snapshot().state == "WAITING_FOR_NEXT_MATCH" && v.snapshot().reason == "waiting_for_newer_match_timestamp", "same timestamp should keep waiting");
+        auto older_ts = input(2.5);
+        older_ts.latest_yaw_match = yaw_match(12, 0.5, 4.0);
+        v.update(older_ts);
+        expect(v.snapshot().state == "WAITING_FOR_NEXT_MATCH" && v.snapshot().reason == "waiting_for_newer_match_timestamp", "older timestamp should keep waiting");
+    }
+    {
+        YawCorrectionPostApplyValidator v(c);
+        start_wait(v, 5.0, 1.0);
         auto next = input(2.0);
-        next.latest_yaw_match = yaw_match(11, 2.0, 1.5);
+        next.latest_yaw_match = yaw_match(11, 2.0, 4.8);
         v.update(next);
         auto s = v.snapshot();
-        expect(s.state == "VALIDATED" && s.validated && s.improvement_deg >= 0.2, "smaller next candidate should validate");
+        expect(s.state == "SUSPECT" && s.reason == "insufficient_improvement", "0.2 deg improvement should be insufficient for 1 deg applied delta");
+        expect_near(s.expected_min_improvement_deg, 0.3, 1e-12, "expected min improvement should be 30 percent of applied delta");
+    }
+    {
+        YawCorrectionPostApplyValidator v(c);
+        start_wait(v, 5.0, 1.0);
+        auto next = input(2.0);
+        next.latest_yaw_match = yaw_match(12, 2.0, 4.6);
+        v.update(next);
+        auto s = v.snapshot();
+        expect(s.state == "VALIDATED" && s.validated && s.reason == "validated", "0.4 deg improvement should validate for 1 deg applied delta");
         expect(v.run_stats().validated_count == 1, "validated metric should increment");
     }
     {
         YawCorrectionPostApplyValidator v(c);
-        start_wait(v);
+        start_wait(v, 5.0, 0.2);
         auto next = input(2.0);
-        next.latest_yaw_match = yaw_match(12, 2.0, 2.4);
+        next.latest_yaw_match = yaw_match(13, 2.0, 4.95);
         v.update(next);
         auto s = v.snapshot();
-        expect(s.state == "SUSPECT" && s.suspect && s.reason == "insufficient_improvement", "not enough improvement should be suspect");
+        expect(s.state == "SUSPECT" && s.reason == "insufficient_improvement", "small applied delta should still require fraction/min improvement");
+        expect_near(s.expected_min_improvement_deg, 0.06, 1e-12, "expected min improvement should use max(abs min, fraction of applied delta)");
+    }
+    {
+        YawCorrectionPostApplyValidator v(c);
+        start_wait(v, 5.0, 1.0);
+        auto next = input(2.0);
+        next.latest_yaw_match = yaw_match(14, 2.0, 5.7);
+        v.update(next);
+        auto s = v.snapshot();
+        expect(s.state == "SUSPECT" && s.reason == "candidate_worse", "worse candidate beyond threshold should be suspect");
+    }
+    {
+        YawCorrectionPostApplyValidator v(c);
+        start_wait(v, 5.0, 1.0);
+        auto next = input(2.0);
+        next.latest_yaw_match = yaw_match(15, 2.0, 12.0);
+        v.update(next);
+        auto s = v.snapshot();
+        expect(s.state == "FAILED" && s.reason == "post_candidate_too_large", "post candidate above max should fail");
     }
     {
         YawCorrectionPostApplyValidator v(c);
         start_wait(v);
         auto next = input(2.0);
-        next.latest_yaw_match = yaw_match(13, 2.0, 3.0);
+        next.latest_yaw_match = yaw_match(16, 2.0, 4.0);
+        next.latest_yaw_match.usable = false;
         v.update(next);
-        auto s = v.snapshot();
-        expect(s.state == "SUSPECT" && s.reason == "candidate_worse", "worse candidate should be suspect");
+        expect(v.snapshot().state == "SUSPECT" && v.snapshot().reason == "post_match_not_usable", "not usable post match should be suspect");
     }
     {
         YawCorrectionPostApplyValidator v(c);
         start_wait(v);
         auto next = input(2.0);
-        next.latest_yaw_match = yaw_match(14, 2.0, 1.0);
+        next.latest_yaw_match = yaw_match(17, 2.0, 4.0);
+        next.latest_yaw_match.curve_flat = true;
+        v.update(next);
+        expect(v.snapshot().state == "FAILED" && v.snapshot().reason == "post_match_curve_flat", "flat post match should not validate");
+    }
+    {
+        YawCorrectionPostApplyValidator v(c);
+        start_wait(v);
+        auto next = input(2.0);
+        next.latest_yaw_match = yaw_match(18, 2.0, 4.0);
         next.latest_yaw_match.multimodal = true;
         v.update(next);
-        auto s = v.snapshot();
-        expect(s.state == "FAILED" && s.failed && s.reason == "post_match_multimodal", "multimodal post match should fail/suspect without rollback");
+        expect(v.snapshot().state == "FAILED" && v.snapshot().reason == "post_match_multimodal", "multimodal post match should not validate");
     }
     {
         YawCorrectionPostApplyValidator v(c);
@@ -161,6 +232,7 @@ int main() {
         write_yaw_correction_post_apply_row(out, YawCorrectionPostApplySnapshot{});
         std::string csv = out.str();
         expect(csv.find("timestamp_s,state,reason,applied_scan_id") != std::string::npos, "post apply csv header should be stable");
+        expect(csv.find("expected_min_improvement_deg,applied_match_timestamp_s,new_match_timestamp_s") != std::string::npos, "post apply csv header should append 4D+ fields");
     }
 
     if (failures) {

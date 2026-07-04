@@ -242,7 +242,8 @@ int real_main(int argc, char **argv) {
         in.yaw_rad = p.yaw;
         in.linear_speed_mps = loc.v();
         in.yaw_rate_radps = loc.w();
-        in.localization_valid = true;
+        const bool active_scan_localization_valid = std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.yaw);
+        in.localization_valid = active_scan_localization_valid;
         bool changed = active_scan.update(in);
         latest_active_scan_snapshot = active_scan.snapshot();
         if (cfg.active_scan_enabled && active_scan_log && (force_log || changed || active_scan.should_log(now_s))) {
@@ -264,7 +265,8 @@ int real_main(int argc, char **argv) {
         in.yaw_rad = p.yaw;
         in.linear_speed_mps = loc.v();
         in.yaw_rate_radps = loc.w();
-        in.localization_valid = true;
+        const bool active_scan_command_localization_valid = std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.yaw);
+        in.localization_valid = active_scan_command_localization_valid;
         bool changed = active_scan_command.update(in);
         ActiveScanCommandSnapshot cs = active_scan_command.snapshot();
         latest_active_scan_command_snapshot = cs;
@@ -316,8 +318,8 @@ int real_main(int argc, char **argv) {
             return;
         }
         const auto &p = loc.pose();
-        const bool localization_valid = compute_localization_valid_for_yaw_writeback(loc, latest_supervisor_snapshot, latest_map_quality_snapshot, gate_snap);
-        YawCorrectionApplySnapshot apply_snap = yaw_correction_apply.update(now_s, gate_snap, loc, p.yaw, loc.v(), loc.w(), latest_supervisor_snapshot, localization_valid);
+        const auto localization_validity = compute_localization_validity_for_yaw_writeback(loc, latest_supervisor_snapshot, latest_map_quality_snapshot, gate_snap);
+        YawCorrectionApplySnapshot apply_snap = yaw_correction_apply.update(now_s, gate_snap, loc, p.yaw, loc.v(), loc.w(), latest_supervisor_snapshot, localization_validity.valid, localization_validity.reason);
         if (yaw_correction_apply_log && apply_snap.attempted) write_yaw_correction_apply_row(yaw_correction_apply_log, apply_snap);
         if (apply_snap.applied) {
             yaw_correction_gate.notify_yaw_correction_applied(now_s, apply_snap.gate_match_scan_id, apply_snap.gate_match_timestamp_s, apply_snap.delta_yaw_deg);
@@ -343,7 +345,8 @@ int real_main(int argc, char **argv) {
         in.current_yaw_rad = p.yaw;
         in.linear_speed_mps = loc.v();
         in.yaw_rate_radps = loc.w();
-        in.localization_valid = true;
+        const bool yaw_gate_localization_valid = std::isfinite(p.x) && std::isfinite(p.y) && std::isfinite(p.yaw);
+        in.localization_valid = yaw_gate_localization_valid;
         bool changed = yaw_correction_gate.update(in);
         YawCorrectionGateSnapshot snap = yaw_correction_gate.snapshot();
         if (yaw_correction_gate_log && (force_log || changed || yaw_correction_gate.should_log(now_s))) {
@@ -384,7 +387,9 @@ int real_main(int argc, char **argv) {
         in.pose = loc.pose();
         in.linear_speed_mps = loc.v();
         in.yaw_rate_radps = loc.w();
-        in.localization_valid = true;
+        const auto sparse_pose = loc.pose();
+        const bool sparse_scan_localization_valid = std::isfinite(sparse_pose.x) && std::isfinite(sparse_pose.y) && std::isfinite(sparse_pose.yaw);
+        in.localization_valid = sparse_scan_localization_valid;
         in.map_quality = latest_map_quality_snapshot;
         in.supervisor = latest_supervisor_snapshot;
         in.active_scan = latest_active_scan_snapshot;
@@ -781,7 +786,9 @@ int real_main(int argc, char **argv) {
             finish_in.pose = loc.pose();
             finish_in.linear_speed_mps = loc.v();
             finish_in.yaw_rate_radps = 0.0;
-            finish_in.localization_valid = true;
+            const auto sparse_finish_pose = loc.pose();
+            const bool sparse_scan_finish_localization_valid = std::isfinite(sparse_finish_pose.x) && std::isfinite(sparse_finish_pose.y) && std::isfinite(sparse_finish_pose.yaw);
+            finish_in.localization_valid = sparse_scan_finish_localization_valid;
             finish_in.map_quality = latest_map_quality_snapshot;
             finish_in.supervisor = latest_supervisor_snapshot;
             finish_in.active_scan = latest_active_scan_snapshot;

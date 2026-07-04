@@ -122,14 +122,16 @@ void init_localizer(robot_slamd::Localizer &loc) {
 robot_slamd::YawCorrectionApplySnapshot apply_once(robot_slamd::YawCorrectionApply &apply,
                                                    robot_slamd::Localizer &loc,
                                                    const robot_slamd::YawCorrectionGateSnapshot &gate,
-                                                   double t = 1.0,
-                                                   double linear_speed = 0.0,
-                                                   double yaw_rate_radps = 0.0,
-                                                   const std::string &supervisor_state = "MAPPING",
-                                                   bool localization_valid = true) {
+                                                   double t,
+                                                   double linear_speed,
+                                                   double yaw_rate_radps,
+                                                   const std::string &supervisor_state,
+                                                   bool localization_valid_for_test,
+                                                   const std::string &localization_invalid_reason_for_test) {
     if (!loc.initialized()) init_localizer(loc);
     return apply.update(t, gate, loc, loc.pose().yaw, linear_speed, yaw_rate_radps,
-                        supervisor_snapshot(supervisor_state), localization_valid);
+                        supervisor_snapshot(supervisor_state), localization_valid_for_test,
+                        localization_invalid_reason_for_test);
 }
 
 std::string read_file(const std::string &path) {
@@ -159,11 +161,20 @@ void static_safety_search() {
         "pwm",
         "fr_output",
     };
+    std::vector<std::string> writeback_default_forbidden = {
+        "bool localization_valid = true",
+        "localization_valid = true",
+    };
     for (const auto &path : production) {
         std::string content = read_file(path);
         expect(!content.empty(), "production file should be readable for safety search");
         for (const auto &needle : forbidden) {
             expect(content.find(needle) == std::string::npos, ("production code must not contain dangerous token " + needle).c_str());
+        }
+        if (path.find("app.hpp") != std::string::npos || path.find("yaw_correction_apply.hpp") != std::string::npos) {
+            for (const auto &needle : writeback_default_forbidden) {
+                expect(content.find(needle) == std::string::npos, ("production code must not contain unsafe writeback localization default " + needle).c_str());
+            }
         }
         if (path.find("app.hpp") != std::string::npos) {
             size_t call = content.find("yaw_correction_apply.update");
@@ -171,6 +182,7 @@ void static_safety_search() {
             size_t end = content.find(");", call);
             std::string snippet = call == std::string::npos ? std::string() : content.substr(call, end == std::string::npos ? std::string::npos : end - call);
             expect(snippet.find(", true") == std::string::npos, "YawCorrectionApply update must not hardcode localization_valid=true");
+            expect(snippet.find("localization_validity.valid") != std::string::npos, "app should pass computed localization validity explicitly");
         }
     }
 }
@@ -183,7 +195,7 @@ int main() {
     Config dry;
     YawCorrectionApply dry_apply(dry);
     Localizer dry_loc(dry);
-    auto dry_snap = apply_once(dry_apply, dry_loc, gate_snapshot(), 1.0);
+    auto dry_snap = apply_once(dry_apply, dry_loc, gate_snapshot(), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
     expect(!dry_snap.attempted && !dry_snap.applied && dry_snap.reason == "not_writeback_mode", "default dry_run should not attempt writeback");
     expect_near(dry_loc.pose().yaw, 0.0, 1e-12, "default dry_run should not change yaw");
     expect_near(dry_loc.yaw_correction_offset_rad(), 0.0, 1e-12, "default dry_run should not change yaw correction offset");
@@ -219,13 +231,13 @@ int main() {
 
     auto reject_case = [&](const char *expected, const std::function<void(YawCorrectionGateSnapshot &)> &mutate,
                            double linear_speed = 0.0, double yaw_rate_radps = 0.0,
-                           const std::string &supervisor_state = "MAPPING", bool localization_valid = true) {
+                           const std::string &supervisor_state = "MAPPING", bool localization_valid_for_test = true) {
         Config rcfg = writeback_config();
         YawCorrectionApply apply(rcfg);
         Localizer loc(rcfg);
         auto g = gate_snapshot();
         mutate(g);
-        auto s = apply_once(apply, loc, g, 1.0, linear_speed, yaw_rate_radps, supervisor_state, localization_valid);
+        auto s = apply_once(apply, loc, g, 1.0, linear_speed, yaw_rate_radps, supervisor_state, localization_valid_for_test, "test_validity");
         expect(s.attempted && !s.applied && s.reason == expected, expected);
         expect_near(loc.pose().yaw, 0.0, 1e-12, "rejected writeback should not change yaw");
         expect_near(loc.yaw_correction_offset_rad(), 0.0, 1e-12, "rejected writeback should not change yaw correction offset");
@@ -265,16 +277,34 @@ int main() {
         MapQualitySnapshot mq;
         mq.quality_level = "GOOD";
         auto sup = supervisor_snapshot("MAPPING");
-        expect(!compute_localization_valid_for_yaw_writeback(loc, sup, mq, g), "uninitialized localizer should make yaw writeback localization invalid");
+        auto validity = compute_localization_validity_for_yaw_writeback(loc, sup, mq, g);
+        expect(!validity.valid && validity.reason == "localizer_not_initialized", "uninitialized localizer should make yaw writeback localization invalid");
         init_localizer(loc);
-        expect(compute_localization_valid_for_yaw_writeback(loc, sup, mq, g), "initialized good state should be valid for yaw writeback");
+        validity = compute_localization_validity_for_yaw_writeback(loc, sup, mq, g);
+        expect(validity.valid && validity.reason == "ok", "initialized good state should be valid for yaw writeback");
         expect(!compute_localization_valid_for_yaw_writeback(loc, supervisor_snapshot("LOST"), mq, g), "LOST supervisor should be invalid for yaw writeback");
-        expect(!compute_localization_valid_for_yaw_writeback(loc, supervisor_snapshot("DEGRADED"), mq, g), "DEGRADED supervisor should be invalid for yaw writeback");
+        expect(compute_localization_validity_for_yaw_writeback(loc, supervisor_snapshot("DEGRADED"), mq, g).reason == "supervisor_degraded", "DEGRADED supervisor should report reason");
         auto bad_gate = g;
         bad_gate.scan_evidence_ok = false;
-        expect(!compute_localization_valid_for_yaw_writeback(loc, sup, mq, bad_gate), "missing scan evidence should be invalid for yaw writeback");
+        expect(compute_localization_validity_for_yaw_writeback(loc, sup, mq, bad_gate).reason == "scan_evidence_not_ok", "missing scan evidence should be invalid for yaw writeback");
+        mq.quality_level = "BAD";
+        expect(compute_localization_validity_for_yaw_writeback(loc, sup, mq, g).reason == "map_quality_bad", "BAD map quality should be invalid for yaw writeback");
         mq.quality_level = "INVALID";
-        expect(!compute_localization_valid_for_yaw_writeback(loc, sup, mq, g), "INVALID map quality should be invalid for yaw writeback");
+        expect(compute_localization_validity_for_yaw_writeback(loc, sup, mq, g).reason == "map_quality_invalid", "INVALID map quality should be invalid for yaw writeback");
+        mq.quality_level.clear();
+        expect(compute_localization_validity_for_yaw_writeback(loc, sup, mq, g).reason == "map_quality_unknown", "empty map quality should be invalid for yaw writeback");
+        mq.quality_level = "GOOD";
+        auto &mutable_pose = const_cast<Pose &>(loc.pose());
+        const Pose saved_pose = loc.pose();
+        mutable_pose.x = std::numeric_limits<double>::quiet_NaN();
+        expect(compute_localization_validity_for_yaw_writeback(loc, sup, mq, g).reason == "pose_not_finite", "non-finite pose.x should be invalid");
+        mutable_pose = saved_pose;
+        mutable_pose.y = std::numeric_limits<double>::quiet_NaN();
+        expect(compute_localization_validity_for_yaw_writeback(loc, sup, mq, g).reason == "pose_not_finite", "non-finite pose.y should be invalid");
+        mutable_pose = saved_pose;
+        mutable_pose.yaw = std::numeric_limits<double>::quiet_NaN();
+        expect(compute_localization_validity_for_yaw_writeback(loc, sup, mq, g).reason == "pose_not_finite", "non-finite pose.yaw should be invalid");
+        mutable_pose = saved_pose;
     }
 
     {
@@ -283,7 +313,7 @@ int main() {
         Localizer loc(ok);
         double old_x = loc.pose().x;
         double old_y = loc.pose().y;
-        auto s = apply_once(apply, loc, gate_snapshot(0.5), 1.0);
+        auto s = apply_once(apply, loc, gate_snapshot(0.5), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(s.applied && s.reason == "applied", "normal gated writeback should apply");
         expect_near(loc.pose().yaw, deg2rad(0.5), 1e-12, "writeback should apply delta yaw");
         expect_near(loc.pose().x, old_x, 1e-12, "writeback must not change x");
@@ -365,8 +395,8 @@ int main() {
         Config ok = writeback_config();
         YawCorrectionApply apply(ok);
         Localizer loc(ok);
-        auto first = apply_once(apply, loc, gate_snapshot(0.5), 1.0);
-        auto second = apply_once(apply, loc, gate_snapshot(0.5), 2.0);
+        auto first = apply_once(apply, loc, gate_snapshot(0.5), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
+        auto second = apply_once(apply, loc, gate_snapshot(0.5), 2.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(first.applied, "first cooldown test apply should succeed");
         expect(!second.applied && second.reason == "cooldown", "second apply inside cooldown should reject");
         expect(apply.run_stats().cooldown_reject_count == 1, "cooldown metric should increment");
@@ -378,8 +408,8 @@ int main() {
         ok.yaw_correction_max_writeback_count_per_session = 1;
         YawCorrectionApply apply(ok);
         Localizer loc(ok);
-        expect(apply_once(apply, loc, gate_snapshot(0.5), 1.0).applied, "first count-limit apply should succeed");
-        auto second = apply_once(apply, loc, gate_snapshot(0.5), 2.0);
+        expect(apply_once(apply, loc, gate_snapshot(0.5), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid").applied, "first count-limit apply should succeed");
+        auto second = apply_once(apply, loc, gate_snapshot(0.5), 2.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(!second.applied && second.reason == "session_writeback_count_limit", "session count limit should reject");
     }
 
@@ -389,8 +419,8 @@ int main() {
         ok.yaw_correction_max_total_writeback_per_session_deg = 0.75;
         YawCorrectionApply apply(ok);
         Localizer loc(ok);
-        expect(apply_once(apply, loc, gate_snapshot(0.5), 1.0).applied, "first angle-limit apply should succeed");
-        auto second = apply_once(apply, loc, gate_snapshot(0.5), 2.0);
+        expect(apply_once(apply, loc, gate_snapshot(0.5), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid").applied, "first angle-limit apply should succeed");
+        auto second = apply_once(apply, loc, gate_snapshot(0.5), 2.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(!second.applied && second.reason == "session_writeback_angle_limit", "session total angle limit should reject");
     }
 
@@ -404,7 +434,7 @@ int main() {
         Localizer loc(loc_cfg);
         init_localizer(loc);
         expect(loc.apply_yaw_correction_only(deg2rad(179.0), "seed"), "wrap test seed should succeed");
-        auto s = apply_once(apply, loc, gate_snapshot(5.0), 1.0);
+        auto s = apply_once(apply, loc, gate_snapshot(5.0), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(s.applied, "wrap test apply should succeed");
         expect_near(loc.pose().yaw, deg2rad(-176.0), 1e-12, "yaw writeback should wrap pi");
     }
@@ -415,7 +445,7 @@ int main() {
         Localizer loc(ok);
         auto g = gate_snapshot(0.5);
         g.suggested_new_yaw_rad = deg2rad(90.0);
-        auto s = apply_once(apply, loc, g, 1.0);
+        auto s = apply_once(apply, loc, g, 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(s.applied, "delta-only test apply should succeed");
         expect_near(loc.pose().yaw, deg2rad(0.5), 1e-12, "writeback must use delta, not absolute suggested_new_yaw_rad");
     }
@@ -427,7 +457,7 @@ int main() {
         loc_cfg.yaw_correction_max_writeback_abs_deg = 1.0;
         YawCorrectionApply apply(apply_cfg);
         Localizer loc(loc_cfg);
-        auto s = apply_once(apply, loc, gate_snapshot(2.0), 1.0);
+        auto s = apply_once(apply, loc, gate_snapshot(2.0), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(!s.applied && s.reason == "localizer_rejected", "localizer rejection should be surfaced");
     }
 
@@ -436,7 +466,7 @@ int main() {
         YawCorrectionApply apply(ok);
         Localizer loc(ok);
         auto g = gate_snapshot(2.0);
-        auto s = apply_once(apply, loc, g, 1.0);
+        auto s = apply_once(apply, loc, g, 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         const double offset_before = loc.yaw_correction_offset_rad();
         expect(!s.applied && s.reason == "correction_too_large", "rejection metrics scenario should reject");
         expect_near(loc.yaw_correction_offset_rad(), offset_before, 1e-12, "YawCorrectionApply rejected path should not change localizer offset");
@@ -450,9 +480,9 @@ int main() {
         ok.yaw_correction_max_writeback_count_per_session = 5;
         YawCorrectionApply apply(ok);
         Localizer loc(ok);
-        auto first = apply_once(apply, loc, identified_gate_snapshot(10, 10.0, 0.5), 1.0);
+        auto first = apply_once(apply, loc, identified_gate_snapshot(10, 10.0, 0.5), 1.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         const double offset_after_first = loc.yaw_correction_offset_rad();
-        auto second = apply_once(apply, loc, identified_gate_snapshot(10, 10.0, 0.5), 10.0);
+        auto second = apply_once(apply, loc, identified_gate_snapshot(10, 10.0, 0.5), 10.0, 0.0, 0.0, "MAPPING", true, "test_valid");
         expect(first.applied, "first identified candidate should apply");
         expect(!second.applied && second.reason == "duplicate_candidate" && second.duplicate_candidate_rejected, "same scan_id/timestamp should be duplicate rejected");
         expect_near(loc.yaw_correction_offset_rad(), offset_after_first, 1e-12, "duplicate candidate should not change offset");
