@@ -347,6 +347,12 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.yaw_correction_require_scan_evidence_ok = get_bool(kv, "yaw_correction.require_scan_evidence_ok", c.yaw_correction_require_scan_evidence_ok);
     c.yaw_correction_require_yaw_match_evidence_ok = get_bool(kv, "yaw_correction.require_yaw_match_evidence_ok", c.yaw_correction_require_yaw_match_evidence_ok);
     c.yaw_correction_apply_log_enabled = get_bool(kv, "yaw_correction.apply_log_enabled", c.yaw_correction_apply_log_enabled);
+    c.yaw_correction_post_apply_enabled = get_bool(kv, "yaw_correction_post_apply.enabled", c.yaw_correction_post_apply_enabled);
+    c.yaw_correction_post_apply_timeout_s = get_double(kv, "yaw_correction_post_apply.timeout_s", c.yaw_correction_post_apply_timeout_s);
+    c.yaw_correction_post_apply_min_improvement_deg = get_double(kv, "yaw_correction_post_apply.min_improvement_deg", c.yaw_correction_post_apply_min_improvement_deg);
+    c.yaw_correction_post_apply_max_allowed_worse_deg = get_double(kv, "yaw_correction_post_apply.max_allowed_worse_deg", c.yaw_correction_post_apply_max_allowed_worse_deg);
+    c.yaw_correction_post_apply_require_new_scan_id = get_bool(kv, "yaw_correction_post_apply.require_new_scan_id", c.yaw_correction_post_apply_require_new_scan_id);
+    c.yaw_correction_post_apply_log_enabled = get_bool(kv, "yaw_correction_post_apply.log_enabled", c.yaw_correction_post_apply_log_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -623,6 +629,9 @@ void validate_config(const Config &c) {
     positive("yaw_correction.max_total_writeback_per_session_deg", c.yaw_correction_max_total_writeback_per_session_deg);
     if (c.yaw_correction_max_writeback_count_per_session <= 0) errors.push_back("yaw_correction.max_writeback_count_per_session must be > 0");
     non_negative("yaw_correction.min_seconds_between_writebacks", c.yaw_correction_min_seconds_between_writebacks);
+    positive("yaw_correction_post_apply.timeout_s", c.yaw_correction_post_apply_timeout_s);
+    non_negative("yaw_correction_post_apply.min_improvement_deg", c.yaw_correction_post_apply_min_improvement_deg);
+    non_negative("yaw_correction_post_apply.max_allowed_worse_deg", c.yaw_correction_post_apply_max_allowed_worse_deg);
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -929,6 +938,13 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_scan_evidence_ok: " << bool_yaml(c.yaw_correction_require_scan_evidence_ok) << "\n"
       << "  require_yaw_match_evidence_ok: " << bool_yaml(c.yaw_correction_require_yaw_match_evidence_ok) << "\n"
       << "  apply_log_enabled: " << bool_yaml(c.yaw_correction_apply_log_enabled) << "\n";
+    o << "yaw_correction_post_apply:\n"
+      << "  enabled: " << bool_yaml(c.yaw_correction_post_apply_enabled) << "\n"
+      << "  timeout_s: " << c.yaw_correction_post_apply_timeout_s << "\n"
+      << "  min_improvement_deg: " << c.yaw_correction_post_apply_min_improvement_deg << "\n"
+      << "  max_allowed_worse_deg: " << c.yaw_correction_post_apply_max_allowed_worse_deg << "\n"
+      << "  require_new_scan_id: " << bool_yaml(c.yaw_correction_post_apply_require_new_scan_id) << "\n"
+      << "  log_enabled: " << bool_yaml(c.yaw_correction_post_apply_log_enabled) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
       << "  mode: " << c.tof_pose_correction_mode << "\n"

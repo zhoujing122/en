@@ -85,6 +85,13 @@ robot_slamd::YawCorrectionGateSnapshot gate_snapshot(double correction_deg = 0.5
     return g;
 }
 
+robot_slamd::YawCorrectionGateSnapshot identified_gate_snapshot(uint64_t scan_id, double match_t, double correction_deg = 0.5) {
+    auto g = gate_snapshot(correction_deg);
+    g.match_scan_id = scan_id;
+    g.match_timestamp_s = match_t;
+    return g;
+}
+
 robot_slamd::MappingSupervisorSnapshot supervisor_snapshot(const std::string &state = "MAPPING") {
     robot_slamd::MappingSupervisorSnapshot s;
     s.state = state;
@@ -120,6 +127,7 @@ robot_slamd::YawCorrectionApplySnapshot apply_once(robot_slamd::YawCorrectionApp
                                                    double yaw_rate_radps = 0.0,
                                                    const std::string &supervisor_state = "MAPPING",
                                                    bool localization_valid = true) {
+    if (!loc.initialized()) init_localizer(loc);
     return apply.update(t, gate, loc, loc.pose().yaw, linear_speed, yaw_rate_radps,
                         supervisor_snapshot(supervisor_state), localization_valid);
 }
@@ -156,6 +164,13 @@ void static_safety_search() {
         expect(!content.empty(), "production file should be readable for safety search");
         for (const auto &needle : forbidden) {
             expect(content.find(needle) == std::string::npos, ("production code must not contain dangerous token " + needle).c_str());
+        }
+        if (path.find("app.hpp") != std::string::npos) {
+            size_t call = content.find("yaw_correction_apply.update");
+            expect(call != std::string::npos, "app should call YawCorrectionApply update");
+            size_t end = content.find(");", call);
+            std::string snippet = call == std::string::npos ? std::string() : content.substr(call, end == std::string::npos ? std::string::npos : end - call);
+            expect(snippet.find(", true") == std::string::npos, "YawCorrectionApply update must not hardcode localization_valid=true");
         }
     }
 }
@@ -226,6 +241,41 @@ int main() {
     reject_case("yaw_rate_too_high", [](auto &) {}, 0.0, deg2rad(8.0));
     reject_case("supervisor_lost", [](auto &) {}, 0.0, 0.0, "LOST");
     reject_case("localization_invalid", [](auto &) {}, 0.0, 0.0, "MAPPING", false);
+
+    {
+        Config ok = writeback_config();
+        Localizer loc(ok);
+        const Pose p0 = loc.pose();
+        expect(!loc.initialized(), "new localizer should start uninitialized");
+        expect(!loc.apply_yaw_correction_only(deg2rad(1.0), "uninitialized"), "uninitialized localizer should reject yaw correction");
+        expect_near(loc.yaw_correction_offset_rad(), 0.0, 1e-12, "uninitialized reject should not change offset");
+        expect_near(loc.pose().x, p0.x, 1e-12, "uninitialized reject should not change x");
+        expect_near(loc.pose().y, p0.y, 1e-12, "uninitialized reject should not change y");
+        expect_near(loc.pose().yaw, p0.yaw, 1e-12, "uninitialized reject should not change yaw");
+        expect(loc.yaw_correction_apply_count() == 0, "uninitialized reject should not increment localizer apply count");
+        init_localizer(loc);
+        expect(loc.initialized(), "localizer should report initialized after first update");
+        expect(loc.apply_yaw_correction_only(deg2rad(0.5), "initialized"), "initialized localizer should allow yaw correction");
+    }
+
+    {
+        Config ok = writeback_config();
+        Localizer loc(ok);
+        auto g = gate_snapshot();
+        MapQualitySnapshot mq;
+        mq.quality_level = "GOOD";
+        auto sup = supervisor_snapshot("MAPPING");
+        expect(!compute_localization_valid_for_yaw_writeback(loc, sup, mq, g), "uninitialized localizer should make yaw writeback localization invalid");
+        init_localizer(loc);
+        expect(compute_localization_valid_for_yaw_writeback(loc, sup, mq, g), "initialized good state should be valid for yaw writeback");
+        expect(!compute_localization_valid_for_yaw_writeback(loc, supervisor_snapshot("LOST"), mq, g), "LOST supervisor should be invalid for yaw writeback");
+        expect(!compute_localization_valid_for_yaw_writeback(loc, supervisor_snapshot("DEGRADED"), mq, g), "DEGRADED supervisor should be invalid for yaw writeback");
+        auto bad_gate = g;
+        bad_gate.scan_evidence_ok = false;
+        expect(!compute_localization_valid_for_yaw_writeback(loc, sup, mq, bad_gate), "missing scan evidence should be invalid for yaw writeback");
+        mq.quality_level = "INVALID";
+        expect(!compute_localization_valid_for_yaw_writeback(loc, sup, mq, g), "INVALID map quality should be invalid for yaw writeback");
+    }
 
     {
         Config ok = writeback_config();
@@ -352,6 +402,7 @@ int main() {
         loc_cfg.yaw_correction_max_writeback_abs_deg = 200.0;
         YawCorrectionApply apply(ok);
         Localizer loc(loc_cfg);
+        init_localizer(loc);
         expect(loc.apply_yaw_correction_only(deg2rad(179.0), "seed"), "wrap test seed should succeed");
         auto s = apply_once(apply, loc, gate_snapshot(5.0), 1.0);
         expect(s.applied, "wrap test apply should succeed");
@@ -394,6 +445,22 @@ int main() {
     }
 
     {
+        Config ok = writeback_config();
+        ok.yaw_correction_min_seconds_between_writebacks = 0.0;
+        ok.yaw_correction_max_writeback_count_per_session = 5;
+        YawCorrectionApply apply(ok);
+        Localizer loc(ok);
+        auto first = apply_once(apply, loc, identified_gate_snapshot(10, 10.0, 0.5), 1.0);
+        const double offset_after_first = loc.yaw_correction_offset_rad();
+        auto second = apply_once(apply, loc, identified_gate_snapshot(10, 10.0, 0.5), 10.0);
+        expect(first.applied, "first identified candidate should apply");
+        expect(!second.applied && second.reason == "duplicate_candidate" && second.duplicate_candidate_rejected, "same scan_id/timestamp should be duplicate rejected");
+        expect_near(loc.yaw_correction_offset_rad(), offset_after_first, 1e-12, "duplicate candidate should not change offset");
+        auto stats = apply.run_stats();
+        expect(stats.duplicate_candidate_reject_count == 1 && stats.last_match_scan_id == 10, "duplicate metrics should increment and keep last match id");
+    }
+
+    {
         std::ostringstream out;
         write_yaw_correction_apply_header(out);
         write_yaw_correction_apply_row(out, gate_snapshot().would_apply ? YawCorrectionApplySnapshot{} : YawCorrectionApplySnapshot{});
@@ -401,6 +468,7 @@ int main() {
         expect(csv.find("timestamp_s,state,reason,attempted,applied") != std::string::npos, "apply csv header should contain leading fields");
         expect(csv.find("gate_scan_evidence_ok,gate_yaw_match_evidence_ok") != std::string::npos, "apply csv header should contain gate evidence fields");
         expect(csv.find("old_yaw_correction_offset_rad,new_yaw_correction_offset_rad,localizer_yaw_correction_apply_count,localizer_yaw_correction_total_abs_deg") != std::string::npos, "apply csv header should contain localizer offset fields");
+        expect(csv.find("gate_match_scan_id,gate_match_timestamp_s,duplicate_candidate_rejected") != std::string::npos, "apply csv header should contain candidate identity fields");
     }
 
     static_safety_search();

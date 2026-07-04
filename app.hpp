@@ -16,6 +16,7 @@
 #include "tof_pose_correction.hpp"
 #include "yaw_correction_gate.hpp"
 #include "yaw_correction_apply.hpp"
+#include "yaw_correction_post_apply_validator.hpp"
 
 namespace robot_slamd {
 
@@ -66,6 +67,7 @@ int real_main(int argc, char **argv) {
     std::ofstream yaw_match_summary_log;
     std::ofstream yaw_correction_gate_log;
     std::ofstream yaw_correction_apply_log;
+    std::ofstream yaw_correction_post_apply_log;
     std::ofstream encoderlog;
     std::ofstream corrlog;
     std::ofstream yawlog;
@@ -87,6 +89,7 @@ int real_main(int argc, char **argv) {
     if (cfg.sparse_scan_yaw_match_enabled && cfg.sparse_scan_yaw_match_write_summary_log) yaw_match_summary_log.open(run_dir + "/yaw_match_summary.csv");
     if (cfg.yaw_correction_enabled && cfg.yaw_correction_mode != "disabled") yaw_correction_gate_log.open(run_dir + "/yaw_correction_gate.csv");
     if (cfg.yaw_correction_enabled && cfg.yaw_correction_mode == "writeback" && cfg.yaw_correction_writeback_enabled && cfg.yaw_correction_apply_log_enabled) yaw_correction_apply_log.open(run_dir + "/yaw_correction_apply.csv");
+    if (cfg.yaw_correction_post_apply_enabled && cfg.yaw_correction_post_apply_log_enabled) yaw_correction_post_apply_log.open(run_dir + "/yaw_correction_post_apply.csv");
     if (cfg.encoder_source == "cjc_bl4820_uart") encoderlog.open(run_dir + "/encoder_log.csv");
     if (cfg.tof_pose_correction_enabled) corrlog.open(run_dir + "/tof_correction_log.csv");
     if (cfg.tof_pose_correction_enabled && cfg.tof_pose_correction_mode == "yaw_candidate") yawlog.open(run_dir + "/candidate_yaw.csv");
@@ -114,6 +117,7 @@ int real_main(int argc, char **argv) {
     if (yaw_match_summary_log) write_yaw_match_summary_header(yaw_match_summary_log);
     if (yaw_correction_gate_log) write_yaw_correction_gate_header(yaw_correction_gate_log);
     if (yaw_correction_apply_log) write_yaw_correction_apply_header(yaw_correction_apply_log);
+    if (yaw_correction_post_apply_log) write_yaw_correction_post_apply_header(yaw_correction_post_apply_log);
     if (encoderlog) encoderlog << "timestamp_us,left_pos_raw,right_pos_raw,left_delta_ticks,right_delta_ticks,left_total_ticks,right_total_ticks,left_rpm,right_rpm,left_current_raw,right_current_raw,left_status,right_status,decision,reason\n";
     if (cfg.tof_pose_correction_enabled) {
         corrlog << "timestamp_us,mode,accepted,reason,localizer_x,localizer_y,localizer_yaw,odom_x,odom_y,odom_yaw,debug_offset_x_m,debug_offset_y_m,debug_offset_yaw_rad,odom_residual,improvement,best_x,best_y,best_yaw,best_dx,best_dy,best_dyaw,best_residual,second_best_residual,used_tof,candidate_count,odom_front_expected_m,odom_left_expected_m,odom_right_expected_m,best_front_expected_m,best_left_expected_m,best_right_expected_m\n";
@@ -147,6 +151,7 @@ int real_main(int argc, char **argv) {
     SparseScanYawMatcher sparse_scan_yaw_match(cfg);
     YawCorrectionGate yaw_correction_gate(cfg);
     YawCorrectionApply yaw_correction_apply(cfg);
+    YawCorrectionPostApplyValidator yaw_correction_post_apply(cfg);
     MapQualitySnapshot latest_map_quality_snapshot;
     MappingSupervisorSnapshot latest_supervisor_snapshot;
     ActiveScanSnapshot latest_active_scan_snapshot;
@@ -288,11 +293,41 @@ int real_main(int argc, char **argv) {
         }
     };
 
-    auto update_yaw_correction_apply_from_gate = [&](double now_s, const YawCorrectionGateSnapshot &gate_snap) {
-        if (!cfg.yaw_correction_enabled || cfg.yaw_correction_mode != "writeback" || !cfg.yaw_correction_writeback_enabled) return;
+    auto update_yaw_correction_post_apply = [&](double now_s, bool apply_happened, const YawCorrectionApplySnapshot &apply_snap,
+                                                const YawCorrectionGateSnapshot &gate_snap, const SparseScanYawMatchSummary &ys) {
+        if (!cfg.yaw_correction_post_apply_enabled) return;
+        YawCorrectionPostApplyInput pin;
+        pin.timestamp_s = now_s;
+        pin.apply_happened = apply_happened;
+        pin.applied_scan_id = apply_snap.gate_match_scan_id;
+        pin.applied_match_timestamp_s = apply_snap.gate_match_timestamp_s;
+        pin.applied_delta_deg = apply_snap.delta_yaw_deg;
+        pin.latest_yaw_match = ys;
+        pin.latest_gate = gate_snap;
+        pin.supervisor = latest_supervisor_snapshot;
+        bool changed = yaw_correction_post_apply.update(pin);
+        if (yaw_correction_post_apply_log && (changed || apply_happened)) write_yaw_correction_post_apply_row(yaw_correction_post_apply_log, yaw_correction_post_apply.snapshot());
+    };
+
+    auto update_yaw_correction_apply_from_gate = [&](double now_s, const YawCorrectionGateSnapshot &gate_snap, const SparseScanYawMatchSummary &ys) {
+        if (!cfg.yaw_correction_enabled || cfg.yaw_correction_mode != "writeback" || !cfg.yaw_correction_writeback_enabled) {
+            YawCorrectionApplySnapshot no_apply;
+            update_yaw_correction_post_apply(now_s, false, no_apply, gate_snap, ys);
+            return;
+        }
         const auto &p = loc.pose();
-        YawCorrectionApplySnapshot apply_snap = yaw_correction_apply.update(now_s, gate_snap, loc, p.yaw, loc.v(), loc.w(), latest_supervisor_snapshot, true);
+        const bool localization_valid = compute_localization_valid_for_yaw_writeback(loc, latest_supervisor_snapshot, latest_map_quality_snapshot, gate_snap);
+        YawCorrectionApplySnapshot apply_snap = yaw_correction_apply.update(now_s, gate_snap, loc, p.yaw, loc.v(), loc.w(), latest_supervisor_snapshot, localization_valid);
         if (yaw_correction_apply_log && apply_snap.attempted) write_yaw_correction_apply_row(yaw_correction_apply_log, apply_snap);
+        if (apply_snap.applied) {
+            yaw_correction_gate.notify_yaw_correction_applied(now_s, apply_snap.gate_match_scan_id, apply_snap.gate_match_timestamp_s, apply_snap.delta_yaw_deg);
+            if (yaw_correction_gate_log) {
+                YawCorrectionGateSnapshot feedback_snap = yaw_correction_gate.snapshot();
+                write_yaw_correction_gate_row(yaw_correction_gate_log, feedback_snap);
+                yaw_correction_gate.mark_logged(now_s, feedback_snap);
+            }
+        }
+        update_yaw_correction_post_apply(now_s, apply_snap.applied, apply_snap, gate_snap, ys);
     };
 
     auto update_yaw_correction_gate_from_summary = [&](double now_s, const SparseScanYawMatchSummary &ys, bool force_log) {
@@ -315,7 +350,7 @@ int real_main(int argc, char **argv) {
             write_yaw_correction_gate_row(yaw_correction_gate_log, snap);
             yaw_correction_gate.mark_logged(now_s, snap);
         }
-        update_yaw_correction_apply_from_gate(now_s, snap);
+        update_yaw_correction_apply_from_gate(now_s, snap, ys);
     };
 
     auto drain_yaw_match_logs = [&](double now_s, bool force_gate_log) {
@@ -731,7 +766,8 @@ int real_main(int argc, char **argv) {
             if (cfg.mapping_supervisor_enabled) metrics.mapping_supervisor = supervisor.run_stats(quality_now_s);
         }
         if (cfg.active_scan_enabled || cfg.active_scan_execution_enabled || cfg.sparse_scan_enabled || cfg.sparse_scan_yaw_match_enabled || cfg.yaw_correction_enabled) {
-            update_active_scan_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, true);
+            const bool force_final_log = true;
+            update_active_scan_from_snapshots(quality_now_s, qs, latest_supervisor_snapshot, force_final_log);
             if (cfg.active_scan_enabled) metrics.active_scan = active_scan.run_stats(quality_now_s);
         }
         if (cfg.active_scan_execution_enabled) {
@@ -763,6 +799,7 @@ int real_main(int argc, char **argv) {
             update_yaw_correction_gate_from_summary(quality_now_s, latest_yaw_match_summary, true);
             metrics.yaw_correction = yaw_correction_gate.run_stats(quality_now_s);
             metrics.yaw_correction_apply = yaw_correction_apply.run_stats();
+            metrics.yaw_correction_post_apply = yaw_correction_post_apply.run_stats();
         }
     }
     write_run_metrics(run_dir + "/metrics.csv", metrics, loc, grid, tof_health, cfg, sensors.encoder_stats());

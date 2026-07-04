@@ -57,7 +57,22 @@ struct YawCorrectionApplySnapshot {
     double new_yaw_correction_offset_rad = 0.0;
     uint64_t localizer_yaw_correction_apply_count = 0;
     double localizer_yaw_correction_total_abs_deg = 0.0;
+    uint64_t gate_match_scan_id = 0;
+    double gate_match_timestamp_s = 0.0;
+    bool duplicate_candidate_rejected = false;
 };
+
+inline bool compute_localization_valid_for_yaw_writeback(const Localizer &loc,
+                                                         const MappingSupervisorSnapshot &supervisor,
+                                                         const MapQualitySnapshot &map_quality,
+                                                         const YawCorrectionGateSnapshot &gate) {
+    if (!loc.initialized()) return false;
+    if (supervisor.state == "LOST" || supervisor.state == "DEGRADED") return false;
+    if (map_quality.quality_level == "BAD" || map_quality.quality_level == "INVALID") return false;
+    if (!gate.scan_evidence_ok || !gate.yaw_match_evidence_ok) return false;
+    const auto &p = loc.pose();
+    return std::isfinite(p.yaw) && std::isfinite(loc.v()) && std::isfinite(loc.w());
+}
 
 class YawCorrectionApply {
 public:
@@ -122,6 +137,15 @@ public:
 
         const double since_last = last_apply_s_ >= 0.0 ? timestamp_s - last_apply_s_ : -1.0;
         s.time_since_last_apply_s = since_last;
+        const bool has_candidate_id = gate.match_scan_id != 0 || gate.match_timestamp_s > 0.0;
+        if (has_candidate_id && gate.match_scan_id == last_applied_scan_id_ &&
+            std::fabs(gate.match_timestamp_s - last_applied_match_timestamp_s_) < 1e-9) {
+            s.duplicate_candidate_rejected = true;
+            reject(s, "duplicate_candidate", RejectBucket::Safety);
+            stats_.duplicate_candidate_reject_count++;
+            latest_ = s;
+            return latest_;
+        }
         if (since_last >= 0.0 && since_last < cfg_.yaw_correction_min_seconds_between_writebacks) {
             reject(s, "cooldown", RejectBucket::Cooldown);
             state_ = YawCorrectionApplyState::COOLDOWN;
@@ -227,6 +251,10 @@ public:
         stats_.last_new_yaw_rad = s.new_yaw_rad;
         stats_.session_count = session_apply_count_;
         stats_.session_total_abs_deg = session_total_abs_correction_deg_;
+        last_applied_scan_id_ = gate.match_scan_id;
+        last_applied_match_timestamp_s_ = gate.match_timestamp_s;
+        stats_.last_match_scan_id = gate.match_scan_id;
+        stats_.last_match_timestamp_s = gate.match_timestamp_s;
         latest_ = s;
         return latest_;
     }
@@ -256,6 +284,8 @@ private:
         s.gate_inlier_ratio = gate.inlier_ratio;
         s.gate_scan_evidence_ok = gate.scan_evidence_ok;
         s.gate_yaw_match_evidence_ok = gate.yaw_match_evidence_ok;
+        s.gate_match_scan_id = gate.match_scan_id;
+        s.gate_match_timestamp_s = gate.match_timestamp_s;
         s.linear_speed_mps = linear_speed_mps;
         s.yaw_rate_dps = yaw_rate_radps * 180.0 / kPi;
         s.supervisor_state = supervisor.state;
@@ -278,6 +308,8 @@ private:
         stats_.last_new_yaw_rad = s.new_yaw_rad;
         stats_.session_count = session_apply_count_;
         stats_.session_total_abs_deg = session_total_abs_correction_deg_;
+        stats_.last_match_scan_id = s.gate_match_scan_id;
+        stats_.last_match_timestamp_s = s.gate_match_timestamp_s;
         if (bucket == RejectBucket::Cooldown) stats_.cooldown_reject_count++;
         if (bucket == RejectBucket::Gate) stats_.gate_reject_count++;
         if (bucket == RejectBucket::Safety) stats_.safety_reject_count++;
@@ -288,12 +320,14 @@ private:
     double last_apply_s_ = -1.0;
     uint64_t session_apply_count_ = 0;
     double session_total_abs_correction_deg_ = 0.0;
+    uint64_t last_applied_scan_id_ = 0;
+    double last_applied_match_timestamp_s_ = -1.0;
     YawCorrectionApplySnapshot latest_;
     YawCorrectionApplyRunStats stats_;
 };
 
 inline void write_yaw_correction_apply_header(std::ostream &o) {
-    o << "timestamp_s,state,reason,attempted,applied,old_yaw_rad,delta_yaw_deg,new_yaw_rad,gate_would_apply,gate_reason,gate_candidate_yaw_delta_deg,gate_suggested_correction_deg,gate_best_score,gate_score_margin,gate_inlier_ratio,gate_scan_evidence_ok,gate_yaw_match_evidence_ok,linear_speed_mps,yaw_rate_dps,supervisor_state,session_apply_count,session_total_abs_correction_deg,time_since_last_apply_s,old_yaw_correction_offset_rad,new_yaw_correction_offset_rad,localizer_yaw_correction_apply_count,localizer_yaw_correction_total_abs_deg\n";
+    o << "timestamp_s,state,reason,attempted,applied,old_yaw_rad,delta_yaw_deg,new_yaw_rad,gate_would_apply,gate_reason,gate_candidate_yaw_delta_deg,gate_suggested_correction_deg,gate_best_score,gate_score_margin,gate_inlier_ratio,gate_scan_evidence_ok,gate_yaw_match_evidence_ok,linear_speed_mps,yaw_rate_dps,supervisor_state,session_apply_count,session_total_abs_correction_deg,time_since_last_apply_s,old_yaw_correction_offset_rad,new_yaw_correction_offset_rad,localizer_yaw_correction_apply_count,localizer_yaw_correction_total_abs_deg,gate_match_scan_id,gate_match_timestamp_s,duplicate_candidate_rejected\n";
 }
 
 inline void write_yaw_correction_apply_row(std::ostream &o, const YawCorrectionApplySnapshot &s) {
@@ -309,7 +343,8 @@ inline void write_yaw_correction_apply_row(std::ostream &o, const YawCorrectionA
       << s.session_apply_count << ',' << s.session_total_abs_correction_deg << ','
       << s.time_since_last_apply_s << ',' << s.old_yaw_correction_offset_rad << ','
       << s.new_yaw_correction_offset_rad << ',' << s.localizer_yaw_correction_apply_count << ','
-      << s.localizer_yaw_correction_total_abs_deg << "\n";
+      << s.localizer_yaw_correction_total_abs_deg << ',' << s.gate_match_scan_id << ','
+      << s.gate_match_timestamp_s << ',' << (s.duplicate_candidate_rejected ? 1 : 0) << "\n";
 }
 
 } // namespace robot_slamd

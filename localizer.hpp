@@ -77,6 +77,7 @@ public:
     }
     void set_gyro_bias(double b) { gyro_bias_ = b; gyro_filtered_ = b; have_gyro_filter_ = true; }
     bool apply_yaw_correction_only(double delta_yaw_rad, const std::string &reason) {
+        if (!have_) return false;
         if (!std::isfinite(delta_yaw_rad)) return false;
         if (std::fabs(delta_yaw_rad) > deg2rad(cfg_.yaw_correction_max_writeback_abs_deg)) return false;
         yaw_correction_offset_rad_ = wrap_pi(yaw_correction_offset_rad_ + delta_yaw_rad);
@@ -109,6 +110,7 @@ public:
     uint64_t gyro_spikes() const { return gyro_spikes_; }
     uint64_t bias_adapt_updates() const { return bias_adapt_updates_; }
     bool stationary() const { return stationary_; }
+    bool initialized() const { return have_; }
     EncoderSample last_encoder() const { return last_; }
 private:
     const Config &cfg_;

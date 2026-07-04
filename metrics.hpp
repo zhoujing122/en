@@ -119,6 +119,10 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "yaw_correction_last_match_valid_samples," << m.yaw_correction.last_match_valid_samples << "\n";
     o << "yaw_correction_last_match_valid_bins," << m.yaw_correction.last_match_valid_bins << "\n";
     o << "yaw_correction_last_match_valid_bin_ratio," << m.yaw_correction.last_match_valid_bin_ratio << "\n";
+    o << "yaw_correction_gate_apply_feedback_count," << m.yaw_correction.apply_feedback_count << "\n";
+    o << "yaw_correction_gate_window_reset_count," << m.yaw_correction.window_reset_count << "\n";
+    o << "yaw_correction_gate_last_applied_scan_id," << m.yaw_correction.last_applied_scan_id << "\n";
+    o << "yaw_correction_gate_last_applied_delta_deg," << m.yaw_correction.last_applied_delta_deg << "\n";
     o << "yaw_correction_apply_attempts," << m.yaw_correction_apply.attempts << "\n";
     o << "yaw_correction_apply_success_count," << m.yaw_correction_apply.success_count << "\n";
     o << "yaw_correction_apply_rejected_count," << m.yaw_correction_apply.rejected_count << "\n";
@@ -132,6 +136,16 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "yaw_correction_apply_cooldown_reject_count," << m.yaw_correction_apply.cooldown_reject_count << "\n";
     o << "yaw_correction_apply_gate_reject_count," << m.yaw_correction_apply.gate_reject_count << "\n";
     o << "yaw_correction_apply_safety_reject_count," << m.yaw_correction_apply.safety_reject_count << "\n";
+    o << "yaw_correction_apply_duplicate_candidate_reject_count," << m.yaw_correction_apply.duplicate_candidate_reject_count << "\n";
+    o << "yaw_correction_apply_last_match_scan_id," << m.yaw_correction_apply.last_match_scan_id << "\n";
+    o << "yaw_correction_apply_last_match_timestamp_s," << m.yaw_correction_apply.last_match_timestamp_s << "\n";
+    o << "yaw_correction_post_apply_validated_count," << m.yaw_correction_post_apply.validated_count << "\n";
+    o << "yaw_correction_post_apply_suspect_count," << m.yaw_correction_post_apply.suspect_count << "\n";
+    o << "yaw_correction_post_apply_failed_count," << m.yaw_correction_post_apply.failed_count << "\n";
+    o << "yaw_correction_post_apply_timeout_count," << m.yaw_correction_post_apply.timeout_count << "\n";
+    o << "yaw_correction_post_apply_last_state," << m.yaw_correction_post_apply.last_state << "\n";
+    o << "yaw_correction_post_apply_last_reason," << m.yaw_correction_post_apply.last_reason << "\n";
+    o << "yaw_correction_post_apply_last_improvement_deg," << m.yaw_correction_post_apply.last_improvement_deg << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";
@@ -180,6 +194,7 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "gyro_spikes," << loc.gyro_spikes() << "\n";
     o << "gyro_bias_adapt_updates," << loc.bias_adapt_updates() << "\n";
     o << "final_gyro_bias_rad_s," << loc.gyro_bias() << "\n";
+    o << "localizer_initialized," << (loc.initialized() ? 1 : 0) << "\n";
     o << "localizer_yaw_correction_offset_rad," << loc.yaw_correction_offset_rad() << "\n";
     o << "localizer_yaw_correction_apply_count," << loc.yaw_correction_apply_count() << "\n";
     o << "localizer_yaw_correction_total_abs_deg," << loc.yaw_correction_total_abs_deg() << "\n";

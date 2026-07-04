@@ -409,6 +409,12 @@ struct Config {
     bool yaw_correction_require_scan_evidence_ok = true;
     bool yaw_correction_require_yaw_match_evidence_ok = true;
     bool yaw_correction_apply_log_enabled = true;
+    bool yaw_correction_post_apply_enabled = true;
+    double yaw_correction_post_apply_timeout_s = 20.0;
+    double yaw_correction_post_apply_min_improvement_deg = 0.2;
+    double yaw_correction_post_apply_max_allowed_worse_deg = 0.5;
+    bool yaw_correction_post_apply_require_new_scan_id = true;
+    bool yaw_correction_post_apply_log_enabled = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -661,6 +667,10 @@ struct YawCorrectionGateRunStats {
     int last_match_valid_samples = 0;
     int last_match_valid_bins = 0;
     double last_match_valid_bin_ratio = 0.0;
+    uint64_t apply_feedback_count = 0;
+    uint64_t window_reset_count = 0;
+    uint64_t last_applied_scan_id = 0;
+    double last_applied_delta_deg = 0.0;
 };
 
 struct YawCorrectionApplyRunStats {
@@ -677,6 +687,19 @@ struct YawCorrectionApplyRunStats {
     uint64_t cooldown_reject_count = 0;
     uint64_t gate_reject_count = 0;
     uint64_t safety_reject_count = 0;
+    uint64_t duplicate_candidate_reject_count = 0;
+    uint64_t last_match_scan_id = 0;
+    double last_match_timestamp_s = 0.0;
+};
+
+struct YawCorrectionPostApplyRunStats {
+    uint64_t validated_count = 0;
+    uint64_t suspect_count = 0;
+    uint64_t failed_count = 0;
+    uint64_t timeout_count = 0;
+    std::string last_state = "IDLE";
+    std::string last_reason = "idle";
+    double last_improvement_deg = 0.0;
 };
 
 struct RunMetrics {
@@ -723,6 +746,7 @@ struct RunMetrics {
     SparseScanYawMatchRunStats sparse_scan_yaw_match;
     YawCorrectionGateRunStats yaw_correction;
     YawCorrectionApplyRunStats yaw_correction_apply;
+    YawCorrectionPostApplyRunStats yaw_correction_post_apply;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

@@ -76,6 +76,8 @@ struct YawCorrectionGateSnapshot {
     int match_valid_samples = 0;
     int match_valid_bins = 0;
     double match_valid_bin_ratio = 0.0;
+    uint64_t match_scan_id = 0;
+    double match_timestamp_s = 0.0;
 };
 
 class YawCorrectionGate {
@@ -186,6 +188,33 @@ public:
         return true;
     }
 
+    void notify_yaw_correction_applied(double timestamp_s,
+                                       uint64_t scan_id,
+                                       double match_timestamp_s,
+                                       double applied_delta_deg) {
+        candidate_window_.clear();
+        last_applied_scan_id_ = scan_id;
+        last_applied_match_timestamp_s_ = match_timestamp_s;
+        last_applied_delta_deg_ = applied_delta_deg;
+        stats_.apply_feedback_count++;
+        stats_.window_reset_count++;
+        stats_.last_applied_scan_id = scan_id;
+        stats_.last_applied_delta_deg = applied_delta_deg;
+        cooldown_until_s_ = std::max(cooldown_until_s_, timestamp_s + cfg_.yaw_correction_cooldown_s);
+        transition_to(YawCorrectionGateState::COOLDOWN, timestamp_s);
+        latest_.timestamp_s = timestamp_s;
+        latest_.state = yaw_correction_gate_state_name(state_);
+        latest_.previous_state = yaw_correction_gate_state_name(previous_state_);
+        latest_.reason = "apply_feedback_cooldown";
+        latest_.would_apply = false;
+        latest_.rejected = false;
+        latest_.consistency_count = 0;
+        latest_.consistency_spread_deg = 0.0;
+        latest_.match_scan_id = scan_id;
+        latest_.match_timestamp_s = match_timestamp_s;
+        update_last_stats(latest_);
+    }
+
     bool should_log(double now_s) const {
         if (!enabled()) return false;
         if (last_log_s_ < 0.0) return true;
@@ -217,6 +246,7 @@ private:
 
     bool is_new_candidate(const SparseScanYawMatchSummary &s) const {
         if (!s.attempted) return false;
+        if (s.scan_id == last_applied_scan_id_ && std::fabs(s.timestamp_s - last_applied_match_timestamp_s_) <= 1e-9) return false;
         return s.scan_id != last_scan_id_ || std::fabs(s.timestamp_s - last_match_timestamp_s_) > 1e-9;
     }
 
@@ -254,6 +284,8 @@ private:
         s.match_valid_samples = in.yaw_match.valid_samples;
         s.match_valid_bins = in.yaw_match.valid_bins;
         s.match_valid_bin_ratio = in.yaw_match.valid_bin_ratio;
+        s.match_scan_id = in.yaw_match.scan_id;
+        s.match_timestamp_s = in.yaw_match.timestamp_s;
         return s;
     }
 
@@ -393,13 +425,16 @@ private:
     double cooldown_until_s_ = -1.0;
     uint64_t last_scan_id_ = 0;
     double last_match_timestamp_s_ = -1.0;
+    uint64_t last_applied_scan_id_ = 0;
+    double last_applied_match_timestamp_s_ = -1.0;
+    double last_applied_delta_deg_ = 0.0;
     std::deque<double> candidate_window_;
     YawCorrectionGateSnapshot latest_;
     YawCorrectionGateRunStats stats_;
 };
 
 inline void write_yaw_correction_gate_header(std::ofstream &o) {
-    o << "timestamp_s,state,previous_state,reason,candidate_seen,would_apply,rejected,candidate_yaw_delta_deg,suggested_correction_deg,suggested_new_yaw_rad,best_score,score_margin,inlier_ratio,curve_flatness,multimodal,consistency_count,consistency_spread_deg,linear_speed_mps,yaw_rate_dps,supervisor_state,yaw_match_reason,active_scan_evidence_ok,yaw_match_evidence_ok,scan_evidence_ok,scan_completion_source,match_observed_yaw_delta_deg,match_valid_samples,match_valid_bins,match_valid_bin_ratio\n";
+    o << "timestamp_s,state,previous_state,reason,candidate_seen,would_apply,rejected,candidate_yaw_delta_deg,suggested_correction_deg,suggested_new_yaw_rad,best_score,score_margin,inlier_ratio,curve_flatness,multimodal,consistency_count,consistency_spread_deg,linear_speed_mps,yaw_rate_dps,supervisor_state,yaw_match_reason,active_scan_evidence_ok,yaw_match_evidence_ok,scan_evidence_ok,scan_completion_source,match_observed_yaw_delta_deg,match_valid_samples,match_valid_bins,match_valid_bin_ratio,match_scan_id,match_timestamp_s\n";
 }
 
 inline void write_yaw_correction_gate_row(std::ofstream &o, const YawCorrectionGateSnapshot &s) {
@@ -412,7 +447,8 @@ inline void write_yaw_correction_gate_row(std::ofstream &o, const YawCorrectionG
       << (s.active_scan_evidence_ok ? 1 : 0) << "," << (s.yaw_match_evidence_ok ? 1 : 0) << ","
       << (s.scan_evidence_ok ? 1 : 0) << "," << s.scan_completion_source << ","
       << s.match_observed_yaw_delta_deg << "," << s.match_valid_samples << ","
-      << s.match_valid_bins << "," << s.match_valid_bin_ratio << "\n";
+      << s.match_valid_bins << "," << s.match_valid_bin_ratio << ","
+      << s.match_scan_id << "," << s.match_timestamp_s << "\n";
 }
 
 } // namespace robot_slamd

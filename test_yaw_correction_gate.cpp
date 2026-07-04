@@ -212,6 +212,7 @@ int main() {
     YawCorrectionGate seen(cfg);
     auto first = update_once(seen, input(1, 1.0, 2.0));
     expect(first.state == "CANDIDATE_SEEN" && first.candidate_seen, "usable yaw match should enter CANDIDATE_SEEN");
+    expect(first.match_scan_id == 1 && std::fabs(first.match_timestamp_s - 1.0) < 1e-9, "gate snapshot should carry match identity");
     expect(!first.would_apply && first.reason == "consistency_not_enough", "first candidate should wait for consistency");
 
     auto reject_case = [&](const char *expected, const std::function<void(YawCorrectionGateInput &)> &mutate) {
@@ -320,6 +321,19 @@ int main() {
     auto cooldown_in = input(61, 2.0, 2.0);
     auto cooldown_s = update_once(wrap, cooldown_in);
     expect(cooldown_s.state == "COOLDOWN" && cooldown_s.reason == "cooldown" && cooldown_s.rejected, "cooldown should block repeated candidate");
+
+    YawCorrectionGate feedback(cfg);
+    update_once(feedback, input(70, 1.0, 2.0));
+    update_once(feedback, input(71, 2.0, 2.1));
+    auto feedback_apply = update_once(feedback, input(72, 3.0, 2.05));
+    expect(feedback_apply.would_apply, "feedback setup should would_apply");
+    feedback.notify_yaw_correction_applied(3.1, feedback_apply.match_scan_id, feedback_apply.match_timestamp_s, feedback_apply.suggested_correction_deg);
+    auto feedback_stats = feedback.run_stats(3.2);
+    expect(feedback_stats.apply_feedback_count == 1 && feedback_stats.window_reset_count == 1, "apply feedback should reset gate window and update stats");
+    auto after_feedback = update_once(feedback, input(73, 10.0, 2.05));
+    expect(!after_feedback.would_apply && after_feedback.consistency_count == 1, "after apply feedback a new candidate must rebuild consistency");
+    auto old_again = update_once(feedback, input(72, 3.0, 2.05));
+    expect(!old_again.would_apply, "old applied scan_id/timestamp should not be reused");
 
     YawCorrectionGate duplicate(cfg);
     update_once(duplicate, input(70, 1.0, 2.0));
