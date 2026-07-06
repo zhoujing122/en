@@ -364,6 +364,7 @@ motion_execution:
   required_write_mode_acknowledgement: I_UNDERSTAND_LOW_SPEED_MOTOR_WRITE_RISK
   max_allowed_write_yaw_rate_dps: 10.0
   max_allowed_write_duration_s: 3.0
+  allow_writer_dispatch: false
   apply_log_enabled: true
 
 tof_pose_correction:

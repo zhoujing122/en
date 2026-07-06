@@ -420,6 +420,7 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.motion_execution_required_write_mode_acknowledgement = get_string(kv, "motion_execution.required_write_mode_acknowledgement", c.motion_execution_required_write_mode_acknowledgement);
     c.motion_execution_max_allowed_write_yaw_rate_dps = get_double(kv, "motion_execution.max_allowed_write_yaw_rate_dps", c.motion_execution_max_allowed_write_yaw_rate_dps);
     c.motion_execution_max_allowed_write_duration_s = get_double(kv, "motion_execution.max_allowed_write_duration_s", c.motion_execution_max_allowed_write_duration_s);
+    c.motion_execution_allow_writer_dispatch = get_bool(kv, "motion_execution.allow_writer_dispatch", c.motion_execution_allow_writer_dispatch);
     c.motion_execution_apply_log_enabled = get_bool(kv, "motion_execution.apply_log_enabled", c.motion_execution_apply_log_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
@@ -717,6 +718,7 @@ void validate_config(const Config &c) {
     if (!one_of(c.motion_execution_mode, {"disabled", "dry_run"})) errors.push_back("motion_execution.mode must be disabled or dry_run; motor write unsupported in M1");
     if (c.motion_execution_hardware_write_enabled) errors.push_back("motion_execution.hardware_write_enabled=true unsupported in M1 dry-run");
     if (c.motion_execution_dry_run_write_motor_commands) errors.push_back("motion_execution.dry_run_write_motor_commands=true unsupported in M1 dry-run");
+    if (c.motion_execution_allow_writer_dispatch) errors.push_back("motion_execution.allow_writer_dispatch=true unsupported in M2-A production config");
     positive("motion_execution.log_hz", c.motion_execution_log_hz);
     positive("motion_execution.wheel_base_m", c.motion_execution_wheel_base_m);
     positive("motion_execution.wheel_radius_m", c.motion_execution_wheel_radius_m);
@@ -1119,6 +1121,7 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  required_write_mode_acknowledgement: " << c.motion_execution_required_write_mode_acknowledgement << "\n"
       << "  max_allowed_write_yaw_rate_dps: " << c.motion_execution_max_allowed_write_yaw_rate_dps << "\n"
       << "  max_allowed_write_duration_s: " << c.motion_execution_max_allowed_write_duration_s << "\n"
+      << "  allow_writer_dispatch: " << bool_yaml(c.motion_execution_allow_writer_dispatch) << "\n"
       << "  apply_log_enabled: " << bool_yaml(c.motion_execution_apply_log_enabled) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"

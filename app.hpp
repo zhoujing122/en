@@ -9,6 +9,8 @@
 #include "map_quality.hpp"
 #include "mapping_supervisor.hpp"
 #include "metrics.hpp"
+#include "motion_command_writer.hpp"
+#include "motion_write_controller.hpp"
 #include "sensors.hpp"
 #include "sparse_scan_collector.hpp"
 #include "sparse_scan_yaw_matcher.hpp"
@@ -162,6 +164,8 @@ int real_main(int argc, char **argv) {
     YawCorrectionPostApplyValidator yaw_correction_post_apply(cfg);
     RecoveryManager recovery_manager(cfg);
     BL4820MotionSafetyExecutor motion_safety_executor(cfg);
+    NullMotionCommandWriter motion_null_writer;
+    MotionWriteController motion_write_controller;
     MapQualitySnapshot latest_map_quality_snapshot;
     MappingSupervisorSnapshot latest_supervisor_snapshot;
     ActiveScanSnapshot latest_active_scan_snapshot;
@@ -169,6 +173,7 @@ int real_main(int argc, char **argv) {
     SparseScanYawMatchSummary latest_yaw_match_summary;
     RecoveryManagerSnapshot latest_recovery_snapshot;
     MotionSafetyExecutorSnapshot latest_motion_safety_snapshot;
+    MotionWriterDispatchSnapshot latest_motion_writer_snapshot;
     bool map_alloc_fail_pending = false;
     RunMetrics metrics;
     TofHealth tof_health;
@@ -453,6 +458,7 @@ int real_main(int argc, char **argv) {
         }
         bool changed = motion_safety_executor.update(min);
         latest_motion_safety_snapshot = motion_safety_executor.snapshot();
+        latest_motion_writer_snapshot = motion_write_controller.update(latest_motion_safety_snapshot, motion_null_writer, cfg.motion_execution_allow_writer_dispatch);
         if (motion_safety_log && (force_log || changed || motion_safety_executor.should_log(now_s))) {
             write_motion_safety_executor_row(motion_safety_log, latest_motion_safety_snapshot);
             motion_safety_executor.mark_logged(now_s, latest_motion_safety_snapshot);
@@ -914,6 +920,7 @@ int real_main(int argc, char **argv) {
         if (cfg.motion_execution_enabled) {
             update_motion_safety_from_snapshots(quality_now_s, true);
             metrics.motion = motion_safety_executor.run_stats(quality_now_s);
+            metrics.motion_writer = motion_write_controller.run_stats(quality_now_s);
         }
     }
     write_run_metrics(run_dir + "/metrics.csv", metrics, loc, grid, tof_health, cfg, sensors.encoder_stats());

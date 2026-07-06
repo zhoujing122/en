@@ -201,6 +201,13 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "motion_wheel_direction_invalid_count," << m.motion.wheel_direction_invalid_count << "\n";
     o << "motion_command_duration_latched_count," << m.motion.command_duration_latched_count << "\n";
     o << "motion_command_duration_latch_active_last," << (m.motion.command_duration_latch_active_last ? 1 : 0) << "\n";
+    o << "motion_writer_dispatch_enabled_last," << (m.motion_writer.dispatch_enabled_last ? 1 : 0) << "\n";
+    o << "motion_writer_zero_write_count," << m.motion_writer.zero_write_count << "\n";
+    o << "motion_writer_rpm_write_count," << m.motion_writer.rpm_write_count << "\n";
+    o << "motion_writer_error_count," << m.motion_writer.error_count << "\n";
+    o << "motion_writer_last_left_rpm," << m.motion_writer.last_left_rpm << "\n";
+    o << "motion_writer_last_right_rpm," << m.motion_writer.last_right_rpm << "\n";
+    o << "motion_writer_last_error," << m.motion_writer.last_error << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

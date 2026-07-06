@@ -49,3 +49,7 @@ add_test(NAME test_startup_lost_recovery_manager COMMAND test_startup_lost_recov
 add_executable(test_bl4820_motion_safety_executor test_bl4820_motion_safety_executor.cpp)
 target_link_libraries(test_bl4820_motion_safety_executor m dl)
 add_test(NAME test_bl4820_motion_safety_executor COMMAND test_bl4820_motion_safety_executor)
+
+add_executable(test_motion_command_writer test_motion_command_writer.cpp)
+target_link_libraries(test_motion_command_writer m dl)
+add_test(NAME test_motion_command_writer COMMAND test_motion_command_writer)

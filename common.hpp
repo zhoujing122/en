@@ -482,6 +482,7 @@ struct Config {
     std::string motion_execution_required_write_mode_acknowledgement = "I_UNDERSTAND_LOW_SPEED_MOTOR_WRITE_RISK";
     double motion_execution_max_allowed_write_yaw_rate_dps = 10.0;
     double motion_execution_max_allowed_write_duration_s = 3.0;
+    bool motion_execution_allow_writer_dispatch = false;
     bool motion_execution_apply_log_enabled = true;
 };
 
@@ -833,6 +834,16 @@ struct MotionSafetyExecutorRunStats {
     bool command_duration_latch_active_last = false;
 };
 
+struct MotionWriterDispatchRunStats {
+    bool dispatch_enabled_last = false;
+    uint64_t zero_write_count = 0;
+    uint64_t rpm_write_count = 0;
+    uint64_t error_count = 0;
+    double last_left_rpm = 0.0;
+    double last_right_rpm = 0.0;
+    std::string last_error;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -880,6 +891,7 @@ struct RunMetrics {
     YawCorrectionPostApplyRunStats yaw_correction_post_apply;
     RecoveryManagerRunStats recovery;
     MotionSafetyExecutorRunStats motion;
+    MotionWriterDispatchRunStats motion_writer;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {
