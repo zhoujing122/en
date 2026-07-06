@@ -160,6 +160,49 @@ inline int16_t le_i16(const uint8_t *p) {
     return static_cast<int16_t>(le_u16(p));
 }
 
+inline double current_raw_to_a(uint16_t raw) {
+    return static_cast<double>(raw) * 0.1;
+}
+
+inline double pair_skew_us(double left_timestamp_s, double right_timestamp_s) {
+    if (!std::isfinite(left_timestamp_s) || !std::isfinite(right_timestamp_s)) return std::numeric_limits<double>::infinity();
+    return std::fabs(left_timestamp_s - right_timestamp_s) * 1000000.0;
+}
+
+inline bool pair_skew_ok(double left_timestamp_s, double right_timestamp_s, double max_pair_skew_us) {
+    return pair_skew_us(left_timestamp_s, right_timestamp_s) <= max_pair_skew_us;
+}
+
+inline bool parse_read_payload(const std::vector<uint8_t> &payload, CjcBl4820WheelReading &out, std::string &reason) {
+    out = CjcBl4820WheelReading{};
+    if (payload.size() != 6) { reason = "bad_payload_length"; return false; }
+    out.position_raw = le_u16(&payload[0]);
+    out.rpm = le_i16(&payload[2]);
+    out.current_raw = le_u16(&payload[4]);
+    out.current_a = current_raw_to_a(out.current_raw);
+    out.ok = true;
+    out.reason = "ok";
+    reason = "ok";
+    return true;
+}
+
+inline void record_parse_failure(EncoderStats &stats, bool is_left, const std::string &reason, bool checksum_error) {
+    if (is_left) {
+        stats.left_parse_error_count++;
+        if (checksum_error) stats.left_checksum_error_count++;
+        if (reason.find("status") != std::string::npos) stats.left_status_error_count++;
+    } else {
+        stats.right_parse_error_count++;
+        if (checksum_error) stats.right_checksum_error_count++;
+        if (reason.find("status") != std::string::npos) stats.right_status_error_count++;
+    }
+}
+
+inline void record_timeout(EncoderStats &stats, bool is_left) {
+    if (is_left) { stats.left_timeout = true; stats.left_timeout_count++; }
+    else { stats.right_timeout = true; stats.right_timeout_count++; }
+}
+
 inline std::vector<uint8_t> read_request(uint8_t id) {
     std::vector<uint8_t> req{0xff, 0xff, id, 0x04, 0x02, 0x24, 0x06, 0x00};
     req.back() = checksum(req, 2, req.size() - 1);
@@ -196,12 +239,9 @@ inline bool parse_read_response(const std::vector<uint8_t> &frame, uint8_t expec
         reason = "bad_read_echo";
         return false;
     }
-    out.position_raw = le_u16(&frame[8]);
-    out.rpm = le_i16(&frame[10]);
-    out.current_raw = le_u16(&frame[12]);
-    out.ok = true;
-    out.reason = "ok";
-    reason = "ok";
+    std::vector<uint8_t> payload(frame.begin() + 8, frame.begin() + 14);
+    if (!parse_read_payload(payload, out, reason)) return false;
+    out.status = frame[4];
     return true;
 }
 
@@ -241,6 +281,7 @@ public:
         std::string left_reason, right_reason;
         bool left_ok = read_wheel(left_, left_read, left_reason);
         bool right_ok = read_wheel(right_, right_read, right_reason);
+        update_pair_skew();
         fill_log_from_readings(left_read, right_read);
 
         if (!left_ok || !right_ok) {
@@ -267,6 +308,12 @@ public:
         stats_.right_total_ticks = right_.state.total_ticks;
         stats_.left_rpm = left_read.rpm;
         stats_.right_rpm = right_read.rpm;
+        stats_.left_speed_rpm = left_read.rpm;
+        stats_.right_speed_rpm = right_read.rpm;
+        stats_.left_current_a = left_read.current_a;
+        stats_.right_current_a = right_read.current_a;
+        stats_.left_status = left_read.status;
+        stats_.right_status = right_read.status;
 
         last_log_.decision = "accepted";
         last_log_.reason = "ok";
@@ -360,8 +407,11 @@ private:
     }
 
     bool read_wheel(WheelPort &port, CjcBl4820WheelReading &reading, std::string &reason) {
+        begin_read_attempt(port);
+        const uint64_t start_us = now_us_steady();
         if (port.fd < 0) {
             reason = port.name + "_uart_not_open";
+            finish_read_attempt(port, start_us, false);
             record_error(port, reason);
             return false;
         }
@@ -369,28 +419,37 @@ private:
         tcflush(port.fd, TCIFLUSH);
         if (!write_all(port.fd, req, reason)) {
             reason = port.name + "_" + reason;
+            finish_read_attempt(port, start_us, false);
             record_error(port, reason);
             return false;
         }
         std::vector<uint8_t> frame;
         bool checksum_seen = false;
         if (!read_frame(port.fd, port.id, frame, reason, checksum_seen)) {
+            const std::string raw_reason = reason;
             reason = port.name + "_" + reason;
+            finish_read_attempt(port, start_us, false);
+            if (raw_reason.find("timeout") != std::string::npos) cjc_bl4820::record_timeout(stats_, port.is_left);
             record_error(port, reason);
-            if (checksum_seen) stats_.uart_checksum_errors++;
+            if (checksum_seen) { stats_.uart_checksum_errors++; record_checksum_error(port); }
             return false;
         }
-        if (checksum_seen) stats_.uart_checksum_errors++;
+        if (checksum_seen) { stats_.uart_checksum_errors++; record_checksum_error(port); }
         bool checksum_error = false;
         if (!cjc_bl4820::parse_read_response(frame, port.id, reading, reason, checksum_error)) {
+            const std::string raw_reason = reason;
             reason = port.name + "_" + reason;
+            finish_read_attempt(port, start_us, false);
+            cjc_bl4820::record_parse_failure(stats_, port.is_left, raw_reason, checksum_error);
             if (checksum_error) stats_.uart_checksum_errors++;
             else if (reading.status != 0xff) stats_.uart_status_errors++;
             else stats_.uart_frame_errors++;
             record_error(port, reason);
             return false;
         }
+        finish_read_attempt(port, start_us, true);
         record_success(port);
+        record_reading(port, reading);
         return true;
     }
 
@@ -491,6 +550,50 @@ private:
         port.state.last_pos = static_cast<uint16_t>(raw_pos % cfg_.encoder_ticks_per_rev);
         port.state.total_ticks = total_ticks;
         port.state.last_t_us = t_us;
+    }
+
+    void update_pair_skew() {
+        stats_.encoder_pair_skew_us = cjc_bl4820::pair_skew_us(stats_.left_timestamp_s, stats_.right_timestamp_s);
+        stats_.encoder_pair_skew_ok = cjc_bl4820::pair_skew_ok(stats_.left_timestamp_s, stats_.right_timestamp_s, cfg_.encoder_max_pair_skew_us);
+        if (!stats_.encoder_pair_skew_ok) stats_.encoder_pair_skew_bad_count++;
+    }
+
+    void begin_read_attempt(WheelPort &port) {
+        if (port.is_left) {
+            stats_.left_read_ok = false; stats_.left_frame_ok = false; stats_.left_checksum_ok = false; stats_.left_timeout = false;
+        } else {
+            stats_.right_read_ok = false; stats_.right_frame_ok = false; stats_.right_checksum_ok = false; stats_.right_timeout = false;
+        }
+    }
+
+    void finish_read_attempt(WheelPort &port, uint64_t start_us, bool ok) {
+        const uint64_t end_us = now_us_steady();
+        const double latency = static_cast<double>(end_us - start_us);
+        const double timestamp_s = static_cast<double>(end_us) / 1000000.0;
+        if (port.is_left) {
+            stats_.left_latency_us = latency; stats_.left_timestamp_s = timestamp_s; stats_.left_read_ok = ok;
+            if (ok) { stats_.left_frame_ok = true; stats_.left_checksum_ok = true; }
+        } else {
+            stats_.right_latency_us = latency; stats_.right_timestamp_s = timestamp_s; stats_.right_read_ok = ok;
+            if (ok) { stats_.right_frame_ok = true; stats_.right_checksum_ok = true; }
+        }
+    }
+
+    void record_checksum_error(WheelPort &port) {
+        if (port.is_left) stats_.left_checksum_error_count++;
+        else stats_.right_checksum_error_count++;
+    }
+
+    void record_reading(WheelPort &port, const CjcBl4820WheelReading &reading) {
+        if (port.is_left) {
+            stats_.left_speed_rpm = reading.rpm;
+            stats_.left_current_a = reading.current_a;
+            stats_.left_status = reading.status;
+        } else {
+            stats_.right_speed_rpm = reading.rpm;
+            stats_.right_current_a = reading.current_a;
+            stats_.right_status = reading.status;
+        }
     }
 
     void fill_log_from_readings(const CjcBl4820WheelReading &left_read, const CjcBl4820WheelReading &right_read) {

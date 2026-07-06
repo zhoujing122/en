@@ -79,6 +79,10 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.encoder_position_unwrap = get_bool(kv, "encoder.position_unwrap", c.encoder_position_unwrap);
     c.encoder_speed_diagnostic = get_bool(kv, "encoder.speed_diagnostic", c.encoder_speed_diagnostic);
     c.encoder_consecutive_error_limit = get_int(kv, "encoder.consecutive_error_limit", c.encoder_consecutive_error_limit);
+    c.encoder_max_pair_skew_us = get_double(kv, "encoder.max_pair_skew_us", c.encoder_max_pair_skew_us);
+    c.encoder_max_read_latency_us = get_double(kv, "encoder.max_read_latency_us", c.encoder_max_read_latency_us);
+    c.encoder_require_status_zero = get_bool(kv, "encoder.require_status_zero", c.encoder_require_status_zero);
+    c.encoder_require_pair_skew_ok_for_odometry = get_bool(kv, "encoder.require_pair_skew_ok_for_odometry", c.encoder_require_pair_skew_ok_for_odometry);
     c.imu_source = get_string(kv, "imu.source", c.imu_source);
     c.imu_path = get_string(kv, "imu.path", c.imu_path);
     c.imu_mode = get_string(kv, "imu.mode", c.imu_mode);
@@ -457,6 +461,8 @@ void validate_config(const Config &c) {
         if (!c.encoder_position_unwrap) errors.push_back("encoder.position_unwrap must be true when encoder.mode=cjc_bl4820_uart");
         if (!(c.encoder_read_hz > 0.0) || !std::isfinite(c.encoder_read_hz)) errors.push_back("encoder.read_hz must be > 0");
         if (c.encoder_consecutive_error_limit < 1) errors.push_back("encoder.consecutive_error_limit must be >= 1");
+        non_negative("encoder.max_pair_skew_us", c.encoder_max_pair_skew_us);
+        non_negative("encoder.max_read_latency_us", c.encoder_max_read_latency_us);
     }
     if (!one_of(c.imu_source, {"sim", "csv", "icm43600_ffi"})) errors.push_back("imu.source must be sim, csv, or icm43600_ffi");
     if (!one_of(c.imu_mode, {"localization", "log_only"})) errors.push_back("imu.mode must be localization or log_only");
@@ -768,7 +774,11 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  speed_diagnostic: " << bool_yaml(c.encoder_speed_diagnostic) << "\n"
       << "  left_sign: " << c.encoder_left_sign << "\n"
       << "  right_sign: " << c.encoder_right_sign << "\n"
-      << "  consecutive_error_limit: " << c.encoder_consecutive_error_limit << "\n";
+      << "  consecutive_error_limit: " << c.encoder_consecutive_error_limit << "\n"
+      << "  max_pair_skew_us: " << c.encoder_max_pair_skew_us << "\n"
+      << "  max_read_latency_us: " << c.encoder_max_read_latency_us << "\n"
+      << "  require_status_zero: " << bool_yaml(c.encoder_require_status_zero) << "\n"
+      << "  require_pair_skew_ok_for_odometry: " << bool_yaml(c.encoder_require_pair_skew_ok_for_odometry) << "\n";
     o << "imu:\n"
       << "  source: " << c.imu_source << "\n"
       << "  path: " << c.imu_path << "\n"
@@ -807,6 +817,10 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  encoder_left_sign: " << c.encoder_left_sign << "\n"
       << "  encoder_right_sign: " << c.encoder_right_sign << "\n"
       << "  encoder_consecutive_error_limit: " << c.encoder_consecutive_error_limit << "\n"
+      << "  encoder_max_pair_skew_us: " << c.encoder_max_pair_skew_us << "\n"
+      << "  encoder_max_read_latency_us: " << c.encoder_max_read_latency_us << "\n"
+      << "  encoder_require_status_zero: " << bool_yaml(c.encoder_require_status_zero) << "\n"
+      << "  encoder_require_pair_skew_ok_for_odometry: " << bool_yaml(c.encoder_require_pair_skew_ok_for_odometry) << "\n"
       << "  imu_source: " << c.imu_source << "\n"
       << "  imu_path: " << c.imu_path << "\n"
       << "  imu_mode: " << c.imu_mode << "\n"

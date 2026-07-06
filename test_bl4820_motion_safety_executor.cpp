@@ -116,6 +116,12 @@ robot_slamd::MotionSafetyExecutorInput valid_input(double t = 1.0, double yaw_dp
     in.right_distance_m = 1.0;
     in.encoder_feedback_recent = true;
     in.latest_encoder_age_s = 0.1;
+    in.left_encoder_read_ok = true;
+    in.right_encoder_read_ok = true;
+    in.left_encoder_latency_us = 100.0;
+    in.right_encoder_latency_us = 100.0;
+    in.encoder_pair_skew_us = 100.0;
+    in.encoder_pair_skew_ok = true;
     in.left_speed_rpm = 10.0;
     in.right_speed_rpm = -10.0;
     in.left_current_a = 0.2;
@@ -368,6 +374,25 @@ int main() {
     enc.update(bad);
     expect(enc.snapshot().state == "BLOCKED" && enc.snapshot().reason == "encoder_stale", "stale encoder should block");
 
+    BL4820MotionSafetyExecutor read_failed(cfg);
+    bad = valid_input();
+    bad.left_encoder_read_ok = false;
+    read_failed.update(bad);
+    expect(read_failed.snapshot().state == "BLOCKED" && read_failed.snapshot().reason == "encoder_read_failed", "failed encoder read should block");
+
+    BL4820MotionSafetyExecutor latency_high(cfg);
+    bad = valid_input();
+    bad.left_encoder_latency_us = cfg.encoder_max_read_latency_us + 1.0;
+    latency_high.update(bad);
+    expect(latency_high.snapshot().state == "BLOCKED" && latency_high.snapshot().reason == "encoder_latency_high", "high encoder latency should block");
+
+    BL4820MotionSafetyExecutor pair_skew_high(cfg);
+    bad = valid_input();
+    bad.encoder_pair_skew_ok = false;
+    bad.encoder_pair_skew_us = cfg.encoder_max_pair_skew_us + 1.0;
+    pair_skew_high.update(bad);
+    expect(pair_skew_high.snapshot().state == "BLOCKED" && pair_skew_high.snapshot().reason == "encoder_pair_skew_high", "high encoder pair skew should block");
+
     BL4820MotionSafetyExecutor feedback_nan(cfg);
     bad = valid_input();
     bad.left_speed_rpm = std::numeric_limits<double>::quiet_NaN();
@@ -396,7 +421,7 @@ int main() {
     bad = valid_input();
     bad.left_status = 7;
     status.update(bad);
-    expect(status.snapshot().state == "WOULD_ZERO" && status.snapshot().reason == "motor_status_error", "motor status error should zero");
+    expect(status.snapshot().state == "WOULD_ZERO" && status.snapshot().reason == "motor_status_nonzero", "motor status error should zero");
 
     BL4820MotionSafetyExecutor stall(cfg);
     bad = valid_input();
@@ -457,6 +482,9 @@ int main() {
     expect_near(stats.last_command_session_duration_s, 0.2, 1e-9, "metrics should keep command session duration");
     expect(duration.run_stats(3.0).command_duration_exceeded_count >= 1, "metrics should count duration exceeded");
     expect(duration.run_stats(3.0).command_duration_latched_count >= 1, "metrics should count duration latch rejects");
+    expect(read_failed.run_stats(1.0).encoder_read_failed_block_count >= 1, "metrics should count encoder read failed reject");
+    expect(latency_high.run_stats(1.0).encoder_latency_high_block_count >= 1, "metrics should count encoder latency reject");
+    expect(pair_skew_high.run_stats(1.0).encoder_pair_skew_high_block_count >= 1, "metrics should count encoder pair skew reject");
     expect(feedback_nan.run_stats(1.0).feedback_not_finite_block_count >= 1, "metrics should count feedback finite reject");
     expect(bad_direction.run_stats(1.0).wheel_direction_invalid_count >= 1, "metrics should count wheel direction invalid");
     expect(ack.run_stats(1.0).write_authorization_valid_last, "metrics should keep write authorization validity");

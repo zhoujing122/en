@@ -442,15 +442,26 @@ int real_main(int argc, char **argv) {
         min.latest_encoder_age_s = latest_encoder_feedback_s >= 0.0 ? now_s - latest_encoder_feedback_s : std::numeric_limits<double>::infinity();
         min.encoder_feedback_recent = latest_encoder_feedback_s >= 0.0 && min.latest_encoder_age_s <= cfg.motion_execution_max_encoder_age_s;
         const auto &est = sensors.encoder_stats();
-        min.left_speed_rpm = est.left_rpm;
-        min.right_speed_rpm = est.right_rpm;
+        min.left_speed_rpm = est.left_speed_rpm;
+        min.right_speed_rpm = est.right_speed_rpm;
         if (cfg.encoder_source == "cjc_bl4820_uart") {
-            const auto &elog = sensors.last_encoder_log();
-            min.left_current_a = static_cast<double>(elog.left_current_raw) / 1000.0;
-            min.right_current_a = static_cast<double>(elog.right_current_raw) / 1000.0;
-            min.left_status = static_cast<int>(elog.left_status);
-            min.right_status = static_cast<int>(elog.right_status);
+            min.left_encoder_read_ok = est.left_read_ok;
+            min.right_encoder_read_ok = est.right_read_ok;
+            min.left_encoder_latency_us = est.left_latency_us;
+            min.right_encoder_latency_us = est.right_latency_us;
+            min.encoder_pair_skew_us = est.encoder_pair_skew_us;
+            min.encoder_pair_skew_ok = est.encoder_pair_skew_ok;
+            min.left_current_a = est.left_current_a;
+            min.right_current_a = est.right_current_a;
+            min.left_status = est.left_status;
+            min.right_status = est.right_status;
         } else {
+            min.left_encoder_read_ok = true;
+            min.right_encoder_read_ok = true;
+            min.left_encoder_latency_us = 0.0;
+            min.right_encoder_latency_us = 0.0;
+            min.encoder_pair_skew_us = 0.0;
+            min.encoder_pair_skew_ok = true;
             min.left_current_a = 0.0;
             min.right_current_a = 0.0;
             min.left_status = 0;

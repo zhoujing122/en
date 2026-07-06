@@ -49,6 +49,12 @@ struct MotionSafetyExecutorInput {
     double right_distance_m = std::numeric_limits<double>::infinity();
     bool encoder_feedback_recent = false;
     double latest_encoder_age_s = 0.0;
+    bool left_encoder_read_ok = true;
+    bool right_encoder_read_ok = true;
+    double left_encoder_latency_us = 0.0;
+    double right_encoder_latency_us = 0.0;
+    double encoder_pair_skew_us = 0.0;
+    bool encoder_pair_skew_ok = true;
     double left_speed_rpm = 0.0;
     double right_speed_rpm = 0.0;
     double left_current_a = 0.0;
@@ -79,6 +85,9 @@ struct MotionSafetyExecutorSnapshot {
     bool tof_ok = false;
     bool obstacle_ok = false;
     bool encoder_ok = false;
+    bool encoder_read_ok = true;
+    bool encoder_latency_ok = true;
+    bool encoder_pair_skew_ok = true;
     bool current_ok = false;
     bool status_ok = false;
     bool command_fresh = false;
@@ -185,9 +194,9 @@ public:
         else if (!s.supervisor_ok) { reason = "supervisor_lost"; zero_required = true; }
         else if (!s.tof_ok) reason = "tof_stale";
         else if (!s.obstacle_ok) { reason = obstacle_reason(in); zero_required = true; }
-        else if (!s.encoder_ok) reason = "encoder_stale";
+        else if (!s.encoder_ok) reason = encoder_reason(s);
         else if (!s.feedback_finite_ok) reason = "feedback_not_finite";
-        else if (!s.status_ok) { reason = "motor_status_error"; zero_required = true; }
+        else if (!s.status_ok) { reason = "motor_status_nonzero"; zero_required = true; }
         else if (!s.current_ok) { reason = "motor_current_high"; zero_required = true; }
         else if (stall_detected(in)) { reason = "stall_detected"; zero_required = true; }
         else if (!allowed_command_state(in.active_scan_command.state)) reason = "command_state_not_allowed";
@@ -293,10 +302,18 @@ private:
         s.supervisor_ok = !cfg_.motion_execution_require_supervisor_not_lost || in.supervisor.state != "LOST";
         s.tof_ok = !cfg_.motion_execution_require_tof_recent || (in.tof_recent && std::isfinite(in.latest_tof_age_s) && in.latest_tof_age_s <= cfg_.motion_execution_max_tof_age_s);
         s.obstacle_ok = obstacle_ok(in);
-        s.encoder_ok = !cfg_.motion_execution_require_encoder_feedback_recent || (in.encoder_feedback_recent && std::isfinite(in.latest_encoder_age_s) && in.latest_encoder_age_s <= cfg_.motion_execution_max_encoder_age_s);
+        s.encoder_read_ok = in.left_encoder_read_ok && in.right_encoder_read_ok;
+        s.encoder_latency_ok = std::isfinite(in.left_encoder_latency_us) && std::isfinite(in.right_encoder_latency_us) &&
+                               in.left_encoder_latency_us <= cfg_.encoder_max_read_latency_us &&
+                               in.right_encoder_latency_us <= cfg_.encoder_max_read_latency_us;
+        s.encoder_pair_skew_ok = !cfg_.encoder_require_pair_skew_ok_for_odometry ||
+                                 (in.encoder_pair_skew_ok && std::isfinite(in.encoder_pair_skew_us) && in.encoder_pair_skew_us <= cfg_.encoder_max_pair_skew_us);
+        const bool encoder_recent_ok = !cfg_.motion_execution_require_encoder_feedback_recent ||
+            (in.encoder_feedback_recent && std::isfinite(in.latest_encoder_age_s) && in.latest_encoder_age_s <= cfg_.motion_execution_max_encoder_age_s);
+        s.encoder_ok = encoder_recent_ok && s.encoder_read_ok && s.encoder_latency_ok && s.encoder_pair_skew_ok;
         s.feedback_finite_ok = feedback_finite_ok(in);
         s.current_ok = !cfg_.motion_execution_current_safety_enabled || (s.feedback_finite_ok && std::fabs(in.left_current_a) <= cfg_.motion_execution_max_motor_current_a && std::fabs(in.right_current_a) <= cfg_.motion_execution_max_motor_current_a);
-        s.status_ok = in.left_status == 0 && in.right_status == 0;
+        s.status_ok = !cfg_.encoder_require_status_zero || (in.left_status == 0 && in.right_status == 0);
         s.command_age_s = command_age(in);
         s.deadman_age_s = deadman_age(in);
         s.write_authorization_present = !cfg_.motion_execution_write_mode_acknowledgement.empty();
@@ -321,6 +338,13 @@ private:
         s.supervisor_state = in.supervisor.state;
         s.recovery_state = in.recovery.state;
         return s;
+    }
+
+    static std::string encoder_reason(const MotionSafetyExecutorSnapshot &s) {
+        if (!s.encoder_read_ok) return "encoder_read_failed";
+        if (!s.encoder_latency_ok) return "encoder_latency_high";
+        if (!s.encoder_pair_skew_ok) return "encoder_pair_skew_high";
+        return "encoder_stale";
     }
 
     bool obstacle_ok(const MotionSafetyExecutorInput &in) const {
@@ -489,8 +513,11 @@ private:
         if (s.reason == "front_obstacle_too_close" || s.reason == "left_obstacle_too_close" || s.reason == "right_obstacle_too_close") stats_.obstacle_stop_count++;
         if (s.reason == "tof_stale") stats_.tof_stale_block_count++;
         if (s.reason == "encoder_stale") stats_.encoder_stale_block_count++;
+        if (s.reason == "encoder_read_failed") stats_.encoder_read_failed_block_count++;
+        if (s.reason == "encoder_latency_high") stats_.encoder_latency_high_block_count++;
+        if (s.reason == "encoder_pair_skew_high") stats_.encoder_pair_skew_high_block_count++;
         if (s.reason == "motor_current_high") stats_.current_high_block_count++;
-        if (s.reason == "motor_status_error") stats_.status_error_block_count++;
+        if (s.reason == "motor_status_nonzero") stats_.status_error_block_count++;
         if (s.reason == "stall_detected") stats_.stall_block_count++;
         if (s.reason == "supervisor_lost") stats_.supervisor_lost_block_count++;
         if (s.reason == "command_duration_exceeded") stats_.command_duration_exceeded_count++;

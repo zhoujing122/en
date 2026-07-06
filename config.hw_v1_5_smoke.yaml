@@ -17,6 +17,10 @@ encoder:
   speed_diagnostic: true
   left_sign: 1
   right_sign: 1
+  max_pair_skew_us: 10000
+  max_read_latency_us: 10000
+  require_status_zero: true
+  require_pair_skew_ok_for_odometry: true
 
 imu:
   # Head IMU is intentionally not fused for V1.5 smoke.

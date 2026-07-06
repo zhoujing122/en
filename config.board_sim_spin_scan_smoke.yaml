@@ -26,6 +26,10 @@ encoder:
   source: sim
   path: /userdata/encoder.csv
   ticks_are_cumulative: true
+  max_pair_skew_us: 10000
+  max_read_latency_us: 10000
+  require_status_zero: true
+  require_pair_skew_ok_for_odometry: true
 
 tof:
   source: sim
