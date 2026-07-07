@@ -47,3 +47,7 @@ The current algorithm convention is left wheel negative and right wheel positive
 ## Algorithm Motion Facade
 
 M2-B2 adds the algorithm-side facade described in `docs/ALGORITHM_MOTION_API.md`. A future real transport should implement `SoftwareMotionCommandTransport` or an equivalent adapter for `SoftwareMotionCommand`. The production transport still must enforce TTL, STOP idempotence, ACK/reject semantics, and fail-closed behavior.
+
+## M2-B3 Implementation Spec
+
+Before a real transport is connected, software must satisfy `SOFTWARE_TRANSPORT_ACCEPTANCE_TESTS.md` using the golden commands in `SOFTWARE_TRANSPORT_GOLDEN_COMMANDS.md`. The implementation must accept direction + speed_normalized + timestamp + ttl + source + reason + sequence and return accepted/rejected ACK semantics.

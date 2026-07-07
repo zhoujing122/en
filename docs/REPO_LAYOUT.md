@@ -87,3 +87,7 @@ R2 may consider deeper structural changes, but those should remain separate from
 ## Algorithm Motion API
 
 M2-B2 adds `include/robot_slamd/motion/algorithm_motion_command*.hpp` and `include/robot_slamd/motion/algorithm_motion_facade.hpp`. The user-facing contract is documented in `docs/ALGORITHM_MOTION_API.md`. These files define high-level algorithm intent only; they do not add a real transport or hardware write path.
+
+## M2-B3 Software Transport Spec Files
+
+Software-side transport handoff documents live in `docs/SOFTWARE_TRANSPORT_IMPLEMENTATION_SPEC.md`, `docs/SOFTWARE_TRANSPORT_ACCEPTANCE_TESTS.md`, and `docs/SOFTWARE_TRANSPORT_GOLDEN_COMMANDS.md`. Shadow-only contract helpers live under `include/robot_slamd/software_motion/`.

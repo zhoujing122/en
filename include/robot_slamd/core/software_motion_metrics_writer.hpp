@@ -54,6 +54,22 @@ inline void write_software_motion_metrics(std::ostream &o,
       << (m.software_motion.m2b1_confirmed_live_ready_last ? 1 : 0) << "\n";
     o << "m2b1_confirmed_live_reject_count,"
       << m.software_motion.m2b1_confirmed_live_reject_count << "\n";
+    o << "software_transport_contract_enabled_last,"
+      << (cfg.motion_execution_software_transport_contract_enabled ? 1 : 0) << "\n";
+    o << "software_transport_contract_check_ok_last,"
+      << (m.software_motion.software_transport_contract_check_ok_last ? 1 : 0) << "\n";
+    o << "software_transport_contract_check_error_count,"
+      << m.software_motion.software_transport_contract_check_error_count << "\n";
+    o << "software_transport_shadow_adapter_send_count,"
+      << m.software_motion.software_transport_shadow_adapter_send_count << "\n";
+    o << "software_transport_shadow_adapter_reject_count,"
+      << m.software_motion.software_transport_shadow_adapter_reject_count << "\n";
+    o << "software_transport_acceptance_run_count,"
+      << m.software_motion.software_transport_acceptance_run_count << "\n";
+    o << "software_transport_acceptance_pass_count,"
+      << m.software_motion.software_transport_acceptance_pass_count << "\n";
+    o << "software_transport_acceptance_fail_count,"
+      << m.software_motion.software_transport_acceptance_fail_count << "\n";
 }
 
 } // namespace robot_slamd

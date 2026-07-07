@@ -253,6 +253,44 @@ inline void parse_motion_execution_config(Config &c,
         "motion_execution.algorithm_motion.manual_test_duration_s",
         c.motion_execution_algorithm_motion_manual_test_duration_s);
 
+    // software transport contract
+    c.motion_execution_software_transport_contract_enabled = get_bool(
+        kv,
+        "motion_execution.software_transport_contract.enabled",
+        c.motion_execution_software_transport_contract_enabled);
+    c.motion_execution_software_transport_contract_require_shadow_mode = get_bool(
+        kv,
+        "motion_execution.software_transport_contract.require_shadow_mode",
+        c.motion_execution_software_transport_contract_require_shadow_mode);
+    c.motion_execution_software_transport_contract_allow_rotation_commands = get_bool(
+        kv,
+        "motion_execution.software_transport_contract.allow_rotation_commands",
+        c.motion_execution_software_transport_contract_allow_rotation_commands);
+    c.motion_execution_software_transport_contract_allow_translation_commands = get_bool(
+        kv,
+        "motion_execution.software_transport_contract.allow_translation_commands",
+        c.motion_execution_software_transport_contract_allow_translation_commands);
+    c.motion_execution_software_transport_contract_allow_emergency_stop = get_bool(
+        kv,
+        "motion_execution.software_transport_contract.allow_emergency_stop",
+        c.motion_execution_software_transport_contract_allow_emergency_stop);
+    c.motion_execution_software_transport_contract_max_speed_normalized = get_double(
+        kv,
+        "motion_execution.software_transport_contract.max_speed_normalized",
+        c.motion_execution_software_transport_contract_max_speed_normalized);
+    c.motion_execution_software_transport_contract_max_direction_probe_speed = get_double(
+        kv,
+        "motion_execution.software_transport_contract.max_direction_probe_speed",
+        c.motion_execution_software_transport_contract_max_direction_probe_speed);
+    c.motion_execution_software_transport_contract_max_ttl_s = get_double(
+        kv,
+        "motion_execution.software_transport_contract.max_ttl_s",
+        c.motion_execution_software_transport_contract_max_ttl_s);
+    c.motion_execution_software_transport_contract_max_command_age_s = get_double(
+        kv,
+        "motion_execution.software_transport_contract.max_command_age_s",
+        c.motion_execution_software_transport_contract_max_command_age_s);
+
     // M2-B1 preflight
     c.motion_execution_m2b1_preflight_enabled = get_bool(
         kv,
@@ -446,6 +484,32 @@ inline void validate_motion_execution_config(const Config &c, std::vector<std::s
         errors.push_back("motion_execution.algorithm_motion.manual_test_duration_s must be > 0");
     } else if (c.motion_execution_algorithm_motion_manual_test_duration_s > 0.30) {
         errors.push_back("motion_execution.algorithm_motion.manual_test_duration_s must be <= 0.30");
+    }
+
+    // software transport contract constraints
+    if (!std::isfinite(c.motion_execution_software_transport_contract_max_speed_normalized) ||
+        c.motion_execution_software_transport_contract_max_speed_normalized <= 0.0) {
+        errors.push_back("motion_execution.software_transport_contract.max_speed_normalized must be > 0");
+    } else if (c.motion_execution_software_transport_contract_max_speed_normalized > 0.05) {
+        errors.push_back("motion_execution.software_transport_contract.max_speed_normalized must be <= 0.05");
+    }
+    if (!std::isfinite(c.motion_execution_software_transport_contract_max_direction_probe_speed) ||
+        c.motion_execution_software_transport_contract_max_direction_probe_speed <= 0.0) {
+        errors.push_back("motion_execution.software_transport_contract.max_direction_probe_speed must be > 0");
+    } else if (c.motion_execution_software_transport_contract_max_direction_probe_speed > 0.03) {
+        errors.push_back("motion_execution.software_transport_contract.max_direction_probe_speed must be <= 0.03");
+    }
+    if (!std::isfinite(c.motion_execution_software_transport_contract_max_ttl_s) ||
+        c.motion_execution_software_transport_contract_max_ttl_s <= 0.0) {
+        errors.push_back("motion_execution.software_transport_contract.max_ttl_s must be > 0");
+    } else if (c.motion_execution_software_transport_contract_max_ttl_s > 0.50) {
+        errors.push_back("motion_execution.software_transport_contract.max_ttl_s must be <= 0.50");
+    }
+    if (!std::isfinite(c.motion_execution_software_transport_contract_max_command_age_s) ||
+        c.motion_execution_software_transport_contract_max_command_age_s <= 0.0) {
+        errors.push_back("motion_execution.software_transport_contract.max_command_age_s must be > 0");
+    } else if (c.motion_execution_software_transport_contract_max_command_age_s > 1.0) {
+        errors.push_back("motion_execution.software_transport_contract.max_command_age_s must be <= 1.0");
     }
 
     // M2-B1 preflight constraints

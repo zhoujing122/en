@@ -383,6 +383,16 @@ motion_execution:
     recovery_duration_s: 0.50
     manual_test_speed: 0.03
     manual_test_duration_s: 0.30
+  software_transport_contract:
+    enabled: false
+    require_shadow_mode: true
+    allow_rotation_commands: true
+    allow_translation_commands: false
+    allow_emergency_stop: true
+    max_speed_normalized: 0.05
+    max_direction_probe_speed: 0.03
+    max_ttl_s: 0.50
+    max_command_age_s: 0.50
   m2b1_preflight:
     enabled: false
     mode: confirmed_lifted_live

@@ -91,3 +91,7 @@ but new algorithm modules should prefer `AlgorithmMotionFacade` for high-level i
 
 M2-B2 only defines and tests the high-level API, builder, adapter, and facade. Production remains
 fail-closed. No real transport is enabled and Xiao En must not move in this stage.
+
+## M2-B3 Software Transport Handoff
+
+M2-B3 adds `SOFTWARE_TRANSPORT_IMPLEMENTATION_SPEC.md`, `SOFTWARE_TRANSPORT_ACCEPTANCE_TESTS.md`, and `SOFTWARE_TRANSPORT_GOLDEN_COMMANDS.md`. Software-side live transport must implement the direction + speed + duration + ttl contract; the algorithm layer still does not output BL4820 register writes, UART speed commands, PWM/FR, or socket/ROS/LCM motion sends.

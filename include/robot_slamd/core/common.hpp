@@ -512,6 +512,15 @@ struct Config {
     double motion_execution_algorithm_motion_recovery_duration_s = 0.50;
     double motion_execution_algorithm_motion_manual_test_speed = 0.03;
     double motion_execution_algorithm_motion_manual_test_duration_s = 0.30;
+    bool motion_execution_software_transport_contract_enabled = false;
+    bool motion_execution_software_transport_contract_require_shadow_mode = true;
+    bool motion_execution_software_transport_contract_allow_rotation_commands = true;
+    bool motion_execution_software_transport_contract_allow_translation_commands = false;
+    bool motion_execution_software_transport_contract_allow_emergency_stop = true;
+    double motion_execution_software_transport_contract_max_speed_normalized = 0.05;
+    double motion_execution_software_transport_contract_max_direction_probe_speed = 0.03;
+    double motion_execution_software_transport_contract_max_ttl_s = 0.50;
+    double motion_execution_software_transport_contract_max_command_age_s = 0.50;
     bool motion_execution_m2b1_preflight_enabled = false;
     std::string motion_execution_m2b1_preflight_mode = "confirmed_lifted_live";
     bool motion_execution_m2b1_preflight_require_operator_present = true;
@@ -971,6 +980,14 @@ struct SoftwareMotionRunStats {
     uint64_t algorithm_motion_backward_block_count = 0;
     uint64_t algorithm_motion_recovery_block_count = 0;
     uint64_t algorithm_motion_manual_test_block_count = 0;
+    bool software_transport_contract_enabled_last = false;
+    bool software_transport_contract_check_ok_last = false;
+    uint64_t software_transport_contract_check_error_count = 0;
+    uint64_t software_transport_shadow_adapter_send_count = 0;
+    uint64_t software_transport_shadow_adapter_reject_count = 0;
+    uint64_t software_transport_acceptance_run_count = 0;
+    uint64_t software_transport_acceptance_pass_count = 0;
+    uint64_t software_transport_acceptance_fail_count = 0;
 };
 
 struct RunMetrics {

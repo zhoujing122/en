@@ -51,3 +51,7 @@ Use this stage only after the direction convention has been confirmed in Stage 1
 ## Algorithm Motion API Link
 
 Direction probe and confirmed lifted live procedures should use the high-level command definitions in `docs/ALGORITHM_MOTION_API.md`. `DirectionProbeLeft` / `DirectionProbeRight` are allowed only for lifted, low-speed direction verification before any grounded motion.
+
+## M2-B3 Prerequisite
+
+Do not enter lifted live testing until the software transport passes the M2-B3 shadow acceptance contract. M2-B3 itself does not move the robot and does not validate real TTL stopping on hardware.
