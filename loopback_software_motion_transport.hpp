@@ -1,11 +1,13 @@
 #pragma once
+// M2-B1-pre shadow/loopback only, no hardware IO.
 #include "software_motion_transport.hpp"
 
 namespace robot_slamd {
 
 class LoopbackSoftwareMotionCommandTransport final : public SoftwareMotionCommandTransport {
 public:
-    explicit LoopbackSoftwareMotionCommandTransport(bool shadow = true) : shadow_mode(shadow) {}
+    explicit LoopbackSoftwareMotionCommandTransport(bool shadow = true)
+        : shadow_mode(shadow) {}
 
     SoftwareMotionSendResult send_command(const SoftwareMotionCommand &command) override {
         send_count++;

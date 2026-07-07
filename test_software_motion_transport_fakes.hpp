@@ -1,4 +1,5 @@
 #pragma once
+// Test-only fake transport, not production transport.
 #include "software_motion_transport.hpp"
 
 namespace robot_slamd {
