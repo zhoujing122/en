@@ -1,6 +1,7 @@
 #include "config.hpp"
 #include "motion_write_controller.hpp"
 #include "software_direction_speed_motion_command_writer.hpp"
+#include "test_software_motion_transport_fakes.hpp"
 
 #include <cmath>
 #include <fstream>
@@ -81,6 +82,7 @@ void static_safety_search() {
     const std::vector<std::string> production = {
         dir + "software_motion_command.hpp",
         dir + "software_motion_transport.hpp",
+        dir + "loopback_software_motion_transport.hpp",
         dir + "software_direction_speed_motion_command_writer.hpp",
         dir + "motion_write_controller.hpp",
         dir + "app.hpp",
