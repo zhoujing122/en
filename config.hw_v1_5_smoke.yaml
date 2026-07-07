@@ -356,6 +356,16 @@ motion_execution:
   max_allowed_write_yaw_rate_dps: 10.0
   max_allowed_write_duration_s: 3.0
   allow_writer_dispatch: false
+  writer_backend: null
+  software_motion:
+    max_internal_rpm_for_normalization: 30.0
+    max_speed_normalized: 0.10
+    command_ttl_s: 0.30
+    allow_rotation_commands: false
+    allow_translation_commands: false
+    allow_emergency_stop: true
+    require_opposite_wheel_sign_for_rotation: true
+    production_interface_enabled: false
   apply_log_enabled: true
 
 tof_pose_correction:

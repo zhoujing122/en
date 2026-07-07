@@ -487,6 +487,15 @@ struct Config {
     double motion_execution_max_allowed_write_yaw_rate_dps = 10.0;
     double motion_execution_max_allowed_write_duration_s = 3.0;
     bool motion_execution_allow_writer_dispatch = false;
+    std::string motion_execution_writer_backend = "null";
+    double motion_execution_software_motion_max_internal_rpm_for_normalization = 30.0;
+    double motion_execution_software_motion_max_speed_normalized = 0.10;
+    double motion_execution_software_motion_command_ttl_s = 0.30;
+    bool motion_execution_software_motion_allow_rotation_commands = false;
+    bool motion_execution_software_motion_allow_translation_commands = false;
+    bool motion_execution_software_motion_allow_emergency_stop = true;
+    bool motion_execution_software_motion_require_opposite_wheel_sign_for_rotation = true;
+    bool motion_execution_software_motion_production_interface_enabled = false;
     bool motion_execution_apply_log_enabled = true;
 };
 
@@ -881,6 +890,24 @@ struct MotionWriterDispatchRunStats {
     std::string last_error;
 };
 
+struct SoftwareMotionRunStats {
+    int writer_backend = 0;
+    int last_direction = 0;
+    double last_speed_normalized = 0.0;
+    double last_ttl_s = 0.0;
+    bool last_send_ok = false;
+    bool last_accepted = false;
+    uint64_t send_count = 0;
+    uint64_t reject_count = 0;
+    uint64_t error_count = 0;
+    uint64_t stop_count = 0;
+    uint64_t turn_left_count = 0;
+    uint64_t turn_right_count = 0;
+    uint64_t forward_block_count = 0;
+    uint64_t backward_block_count = 0;
+    uint64_t validation_error_count = 0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -929,6 +956,7 @@ struct RunMetrics {
     RecoveryManagerRunStats recovery;
     MotionSafetyExecutorRunStats motion;
     MotionWriterDispatchRunStats motion_writer;
+    SoftwareMotionRunStats software_motion;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

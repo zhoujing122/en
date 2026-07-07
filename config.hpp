@@ -35,6 +35,7 @@ std::unordered_map<std::string, std::string> parse_config_file(const std::string
     if (!in) throw std::runtime_error("failed to open config: " + path);
     std::unordered_map<std::string, std::string> kv;
     std::string section;
+    std::string subsection;
     std::string line;
     while (std::getline(in, line)) {
         size_t hash = line.find('#');
@@ -48,9 +49,20 @@ std::unordered_map<std::string, std::string> parse_config_file(const std::string
         std::string val = trim(t.substr(colon + 1));
         if (indent == 0 && val.empty()) {
             section = key;
+            subsection.clear();
             continue;
         }
-        std::string full = section.empty() ? key : section + "." + key;
+        if (indent > 0 && val.empty()) {
+            subsection = key;
+            continue;
+        }
+        std::string full;
+        if (section.empty()) full = key;
+        else if (!subsection.empty() && indent > 2) full = section + "." + subsection + "." + key;
+        else {
+            if (indent <= 2) subsection.clear();
+            full = section + "." + key;
+        }
         kv[full] = strip_quotes(val);
     }
     return kv;
@@ -425,6 +437,15 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.motion_execution_max_allowed_write_yaw_rate_dps = get_double(kv, "motion_execution.max_allowed_write_yaw_rate_dps", c.motion_execution_max_allowed_write_yaw_rate_dps);
     c.motion_execution_max_allowed_write_duration_s = get_double(kv, "motion_execution.max_allowed_write_duration_s", c.motion_execution_max_allowed_write_duration_s);
     c.motion_execution_allow_writer_dispatch = get_bool(kv, "motion_execution.allow_writer_dispatch", c.motion_execution_allow_writer_dispatch);
+    c.motion_execution_writer_backend = get_string(kv, "motion_execution.writer_backend", c.motion_execution_writer_backend);
+    c.motion_execution_software_motion_max_internal_rpm_for_normalization = get_double(kv, "motion_execution.software_motion.max_internal_rpm_for_normalization", c.motion_execution_software_motion_max_internal_rpm_for_normalization);
+    c.motion_execution_software_motion_max_speed_normalized = get_double(kv, "motion_execution.software_motion.max_speed_normalized", c.motion_execution_software_motion_max_speed_normalized);
+    c.motion_execution_software_motion_command_ttl_s = get_double(kv, "motion_execution.software_motion.command_ttl_s", c.motion_execution_software_motion_command_ttl_s);
+    c.motion_execution_software_motion_allow_rotation_commands = get_bool(kv, "motion_execution.software_motion.allow_rotation_commands", c.motion_execution_software_motion_allow_rotation_commands);
+    c.motion_execution_software_motion_allow_translation_commands = get_bool(kv, "motion_execution.software_motion.allow_translation_commands", c.motion_execution_software_motion_allow_translation_commands);
+    c.motion_execution_software_motion_allow_emergency_stop = get_bool(kv, "motion_execution.software_motion.allow_emergency_stop", c.motion_execution_software_motion_allow_emergency_stop);
+    c.motion_execution_software_motion_require_opposite_wheel_sign_for_rotation = get_bool(kv, "motion_execution.software_motion.require_opposite_wheel_sign_for_rotation", c.motion_execution_software_motion_require_opposite_wheel_sign_for_rotation);
+    c.motion_execution_software_motion_production_interface_enabled = get_bool(kv, "motion_execution.software_motion.production_interface_enabled", c.motion_execution_software_motion_production_interface_enabled);
     c.motion_execution_apply_log_enabled = get_bool(kv, "motion_execution.apply_log_enabled", c.motion_execution_apply_log_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
@@ -725,6 +746,9 @@ void validate_config(const Config &c) {
     if (c.motion_execution_hardware_write_enabled) errors.push_back("motion_execution.hardware_write_enabled=true unsupported in M1 dry-run");
     if (c.motion_execution_dry_run_write_motor_commands) errors.push_back("motion_execution.dry_run_write_motor_commands=true unsupported in M1 dry-run");
     if (c.motion_execution_allow_writer_dispatch) errors.push_back("motion_execution.allow_writer_dispatch=true unsupported in M2-A production config");
+    if (!one_of(c.motion_execution_writer_backend, {"null", "software_direction_speed_test_only"})) errors.push_back("motion_execution.writer_backend must be null or software_direction_speed_test_only");
+    if (c.motion_execution_writer_backend != "null") errors.push_back("software_direction_speed_writer_is_test_only_in_m2b0");
+    if (c.motion_execution_software_motion_production_interface_enabled) errors.push_back("motion_execution.software_motion.production_interface_enabled=true unsupported in M2-B0");
     positive("motion_execution.log_hz", c.motion_execution_log_hz);
     positive("motion_execution.wheel_base_m", c.motion_execution_wheel_base_m);
     positive("motion_execution.wheel_radius_m", c.motion_execution_wheel_radius_m);
@@ -745,6 +769,9 @@ void validate_config(const Config &c) {
     if (c.motion_execution_stall_confirm_count < 0) errors.push_back("motion_execution.stall_confirm_count must be >= 0");
     positive("motion_execution.max_allowed_write_yaw_rate_dps", c.motion_execution_max_allowed_write_yaw_rate_dps);
     positive("motion_execution.max_allowed_write_duration_s", c.motion_execution_max_allowed_write_duration_s);
+    positive("motion_execution.software_motion.max_internal_rpm_for_normalization", c.motion_execution_software_motion_max_internal_rpm_for_normalization);
+    if (!std::isfinite(c.motion_execution_software_motion_max_speed_normalized) || c.motion_execution_software_motion_max_speed_normalized < 0.0 || c.motion_execution_software_motion_max_speed_normalized > 1.0) errors.push_back("motion_execution.software_motion.max_speed_normalized must be in [0,1]");
+    positive("motion_execution.software_motion.command_ttl_s", c.motion_execution_software_motion_command_ttl_s);
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1136,6 +1163,16 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  max_allowed_write_yaw_rate_dps: " << c.motion_execution_max_allowed_write_yaw_rate_dps << "\n"
       << "  max_allowed_write_duration_s: " << c.motion_execution_max_allowed_write_duration_s << "\n"
       << "  allow_writer_dispatch: " << bool_yaml(c.motion_execution_allow_writer_dispatch) << "\n"
+      << "  writer_backend: " << c.motion_execution_writer_backend << "\n"
+      << "  software_motion:\n"
+      << "    max_internal_rpm_for_normalization: " << c.motion_execution_software_motion_max_internal_rpm_for_normalization << "\n"
+      << "    max_speed_normalized: " << c.motion_execution_software_motion_max_speed_normalized << "\n"
+      << "    command_ttl_s: " << c.motion_execution_software_motion_command_ttl_s << "\n"
+      << "    allow_rotation_commands: " << bool_yaml(c.motion_execution_software_motion_allow_rotation_commands) << "\n"
+      << "    allow_translation_commands: " << bool_yaml(c.motion_execution_software_motion_allow_translation_commands) << "\n"
+      << "    allow_emergency_stop: " << bool_yaml(c.motion_execution_software_motion_allow_emergency_stop) << "\n"
+      << "    require_opposite_wheel_sign_for_rotation: " << bool_yaml(c.motion_execution_software_motion_require_opposite_wheel_sign_for_rotation) << "\n"
+      << "    production_interface_enabled: " << bool_yaml(c.motion_execution_software_motion_production_interface_enabled) << "\n"
       << "  apply_log_enabled: " << bool_yaml(c.motion_execution_apply_log_enabled) << "\n";
     o << "tof_pose_correction:\n"
       << "  enabled: " << bool_yaml(c.tof_pose_correction_enabled) << "\n"
