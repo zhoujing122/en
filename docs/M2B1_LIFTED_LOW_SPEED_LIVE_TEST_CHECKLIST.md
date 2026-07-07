@@ -47,3 +47,7 @@ Use this stage only after the direction convention has been confirmed in Stage 1
 10. Test TURN_RIGHT for no more than 0.5 s, then STOP.
 11. Do not run ground motion in M2-B1.
 12. Do not enter any later ground-motion stage until this checklist passes and a separate ground-motion checklist exists.
+
+## Algorithm Motion API Link
+
+Direction probe and confirmed lifted live procedures should use the high-level command definitions in `docs/ALGORITHM_MOTION_API.md`. `DirectionProbeLeft` / `DirectionProbeRight` are allowed only for lifted, low-speed direction verification before any grounded motion.

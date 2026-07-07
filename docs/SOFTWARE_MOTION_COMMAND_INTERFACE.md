@@ -69,3 +69,7 @@ real transport in this stage.
 
 Any transport failure, rejected command, stale command, safety fault, or invalid
 command must result in STOP as the preferred next action.
+
+## Algorithm Motion API
+
+The high-level algorithm command facade is documented in `docs/ALGORITHM_MOTION_API.md`. New algorithm modules should express stop, emergency stop, direction probe, active-scan turn, and recovery intent through that API, then convert to `SoftwareMotionCommand` for software-side transport. Software-side code should consume direction + speed + duration + TTL, not algorithm-internal wheel RPM.

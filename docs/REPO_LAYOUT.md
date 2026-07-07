@@ -83,3 +83,7 @@ R2 may consider deeper structural changes, but those should remain separate from
 - Move Docker/compose assets into a dedicated docker layout if deployment commands are updated together.
 - Extract shared test fixtures and helpers.
 - Introduce stricter include visibility rules if the project grows beyond header-only modules.
+
+## Algorithm Motion API
+
+M2-B2 adds `include/robot_slamd/motion/algorithm_motion_command*.hpp` and `include/robot_slamd/motion/algorithm_motion_facade.hpp`. The user-facing contract is documented in `docs/ALGORITHM_MOTION_API.md`. These files define high-level algorithm intent only; they do not add a real transport or hardware write path.

@@ -43,3 +43,7 @@ M2-B1 uses two lifted-only preflight modes:
 - `ConfirmedLiftedLive`: lifted low-speed motion after direction convention is verified. Direction convention must be confirmed before this mode can pass.
 
 The current algorithm convention is left wheel negative and right wheel positive means `TURN_LEFT`; left positive and right negative means `TURN_RIGHT`. This must be verified during `LiftedDirectionProbe` before any `ConfirmedLiftedLive` run or later ground motion. If reversed, adjust the software mapping/configuration first; do not compensate by unsafe hardware changes.
+
+## Algorithm Motion Facade
+
+M2-B2 adds the algorithm-side facade described in `docs/ALGORITHM_MOTION_API.md`. A future real transport should implement `SoftwareMotionCommandTransport` or an equivalent adapter for `SoftwareMotionCommand`. The production transport still must enforce TTL, STOP idempotence, ACK/reject semantics, and fail-closed behavior.

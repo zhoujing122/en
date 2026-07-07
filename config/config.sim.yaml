@@ -361,6 +361,21 @@ motion_execution:
     production_interface_enabled: false
     production_transport_backend: none
     loopback_shadow_mode: true
+  algorithm_motion:
+    enabled: false
+    allow_rotation_commands: true
+    allow_translation_commands: false
+    allow_recovery_commands: false
+    allow_manual_test_commands: false
+    default_ttl_s: 0.30
+    direction_probe_speed: 0.03
+    direction_probe_duration_s: 0.30
+    active_scan_speed: 0.05
+    active_scan_duration_s: 0.50
+    recovery_speed: 0.05
+    recovery_duration_s: 0.50
+    manual_test_speed: 0.03
+    manual_test_duration_s: 0.30
   m2b1_preflight:
     enabled: false
     mode: confirmed_lifted_live

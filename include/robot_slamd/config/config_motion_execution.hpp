@@ -195,6 +195,64 @@ inline void parse_motion_execution_config(Config &c,
         "motion_execution.software_motion.loopback_shadow_mode",
         c.motion_execution_software_motion_loopback_shadow_mode);
 
+    // algorithm motion
+    c.motion_execution_algorithm_motion_enabled = get_bool(
+        kv,
+        "motion_execution.algorithm_motion.enabled",
+        c.motion_execution_algorithm_motion_enabled);
+    c.motion_execution_algorithm_motion_allow_rotation_commands = get_bool(
+        kv,
+        "motion_execution.algorithm_motion.allow_rotation_commands",
+        c.motion_execution_algorithm_motion_allow_rotation_commands);
+    c.motion_execution_algorithm_motion_allow_translation_commands = get_bool(
+        kv,
+        "motion_execution.algorithm_motion.allow_translation_commands",
+        c.motion_execution_algorithm_motion_allow_translation_commands);
+    c.motion_execution_algorithm_motion_allow_recovery_commands = get_bool(
+        kv,
+        "motion_execution.algorithm_motion.allow_recovery_commands",
+        c.motion_execution_algorithm_motion_allow_recovery_commands);
+    c.motion_execution_algorithm_motion_allow_manual_test_commands = get_bool(
+        kv,
+        "motion_execution.algorithm_motion.allow_manual_test_commands",
+        c.motion_execution_algorithm_motion_allow_manual_test_commands);
+    c.motion_execution_algorithm_motion_default_ttl_s = get_double(
+        kv,
+        "motion_execution.algorithm_motion.default_ttl_s",
+        c.motion_execution_algorithm_motion_default_ttl_s);
+    c.motion_execution_algorithm_motion_direction_probe_speed = get_double(
+        kv,
+        "motion_execution.algorithm_motion.direction_probe_speed",
+        c.motion_execution_algorithm_motion_direction_probe_speed);
+    c.motion_execution_algorithm_motion_direction_probe_duration_s = get_double(
+        kv,
+        "motion_execution.algorithm_motion.direction_probe_duration_s",
+        c.motion_execution_algorithm_motion_direction_probe_duration_s);
+    c.motion_execution_algorithm_motion_active_scan_speed = get_double(
+        kv,
+        "motion_execution.algorithm_motion.active_scan_speed",
+        c.motion_execution_algorithm_motion_active_scan_speed);
+    c.motion_execution_algorithm_motion_active_scan_duration_s = get_double(
+        kv,
+        "motion_execution.algorithm_motion.active_scan_duration_s",
+        c.motion_execution_algorithm_motion_active_scan_duration_s);
+    c.motion_execution_algorithm_motion_recovery_speed = get_double(
+        kv,
+        "motion_execution.algorithm_motion.recovery_speed",
+        c.motion_execution_algorithm_motion_recovery_speed);
+    c.motion_execution_algorithm_motion_recovery_duration_s = get_double(
+        kv,
+        "motion_execution.algorithm_motion.recovery_duration_s",
+        c.motion_execution_algorithm_motion_recovery_duration_s);
+    c.motion_execution_algorithm_motion_manual_test_speed = get_double(
+        kv,
+        "motion_execution.algorithm_motion.manual_test_speed",
+        c.motion_execution_algorithm_motion_manual_test_speed);
+    c.motion_execution_algorithm_motion_manual_test_duration_s = get_double(
+        kv,
+        "motion_execution.algorithm_motion.manual_test_duration_s",
+        c.motion_execution_algorithm_motion_manual_test_duration_s);
+
     // M2-B1 preflight
     c.motion_execution_m2b1_preflight_enabled = get_bool(
         kv,
@@ -333,6 +391,62 @@ inline void validate_motion_execution_config(const Config &c, std::vector<std::s
     }
     positive("motion_execution.software_motion.command_ttl_s",
              c.motion_execution_software_motion_command_ttl_s);
+
+    // algorithm motion constraints
+    if (!std::isfinite(c.motion_execution_algorithm_motion_default_ttl_s) ||
+        c.motion_execution_algorithm_motion_default_ttl_s <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.default_ttl_s must be > 0");
+    } else if (c.motion_execution_algorithm_motion_default_ttl_s > 0.5) {
+        errors.push_back("motion_execution.algorithm_motion.default_ttl_s must be <= 0.5");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_direction_probe_speed) ||
+        c.motion_execution_algorithm_motion_direction_probe_speed <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.direction_probe_speed must be > 0");
+    } else if (c.motion_execution_algorithm_motion_direction_probe_speed > 0.03) {
+        errors.push_back("motion_execution.algorithm_motion.direction_probe_speed must be <= 0.03");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_direction_probe_duration_s) ||
+        c.motion_execution_algorithm_motion_direction_probe_duration_s <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.direction_probe_duration_s must be > 0");
+    } else if (c.motion_execution_algorithm_motion_direction_probe_duration_s > 0.30) {
+        errors.push_back("motion_execution.algorithm_motion.direction_probe_duration_s must be <= 0.30");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_active_scan_speed) ||
+        c.motion_execution_algorithm_motion_active_scan_speed <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.active_scan_speed must be > 0");
+    } else if (c.motion_execution_algorithm_motion_active_scan_speed > 0.05) {
+        errors.push_back("motion_execution.algorithm_motion.active_scan_speed must be <= 0.05");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_active_scan_duration_s) ||
+        c.motion_execution_algorithm_motion_active_scan_duration_s <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.active_scan_duration_s must be > 0");
+    } else if (c.motion_execution_algorithm_motion_active_scan_duration_s > 0.50) {
+        errors.push_back("motion_execution.algorithm_motion.active_scan_duration_s must be <= 0.50");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_recovery_speed) ||
+        c.motion_execution_algorithm_motion_recovery_speed <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.recovery_speed must be > 0");
+    } else if (c.motion_execution_algorithm_motion_recovery_speed > 0.05) {
+        errors.push_back("motion_execution.algorithm_motion.recovery_speed must be <= 0.05");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_recovery_duration_s) ||
+        c.motion_execution_algorithm_motion_recovery_duration_s <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.recovery_duration_s must be > 0");
+    } else if (c.motion_execution_algorithm_motion_recovery_duration_s > 0.50) {
+        errors.push_back("motion_execution.algorithm_motion.recovery_duration_s must be <= 0.50");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_manual_test_speed) ||
+        c.motion_execution_algorithm_motion_manual_test_speed <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.manual_test_speed must be > 0");
+    } else if (c.motion_execution_algorithm_motion_manual_test_speed > 0.03) {
+        errors.push_back("motion_execution.algorithm_motion.manual_test_speed must be <= 0.03");
+    }
+    if (!std::isfinite(c.motion_execution_algorithm_motion_manual_test_duration_s) ||
+        c.motion_execution_algorithm_motion_manual_test_duration_s <= 0.0) {
+        errors.push_back("motion_execution.algorithm_motion.manual_test_duration_s must be > 0");
+    } else if (c.motion_execution_algorithm_motion_manual_test_duration_s > 0.30) {
+        errors.push_back("motion_execution.algorithm_motion.manual_test_duration_s must be <= 0.30");
+    }
 
     // M2-B1 preflight constraints
     if (!one_of(c.motion_execution_m2b1_preflight_mode,

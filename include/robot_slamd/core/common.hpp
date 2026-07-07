@@ -498,6 +498,20 @@ struct Config {
     bool motion_execution_software_motion_production_interface_enabled = false;
     std::string motion_execution_software_motion_production_transport_backend = "none";
     bool motion_execution_software_motion_loopback_shadow_mode = true;
+    bool motion_execution_algorithm_motion_enabled = false;
+    bool motion_execution_algorithm_motion_allow_rotation_commands = true;
+    bool motion_execution_algorithm_motion_allow_translation_commands = false;
+    bool motion_execution_algorithm_motion_allow_recovery_commands = false;
+    bool motion_execution_algorithm_motion_allow_manual_test_commands = false;
+    double motion_execution_algorithm_motion_default_ttl_s = 0.30;
+    double motion_execution_algorithm_motion_direction_probe_speed = 0.03;
+    double motion_execution_algorithm_motion_direction_probe_duration_s = 0.30;
+    double motion_execution_algorithm_motion_active_scan_speed = 0.05;
+    double motion_execution_algorithm_motion_active_scan_duration_s = 0.50;
+    double motion_execution_algorithm_motion_recovery_speed = 0.05;
+    double motion_execution_algorithm_motion_recovery_duration_s = 0.50;
+    double motion_execution_algorithm_motion_manual_test_speed = 0.03;
+    double motion_execution_algorithm_motion_manual_test_duration_s = 0.30;
     bool motion_execution_m2b1_preflight_enabled = false;
     std::string motion_execution_m2b1_preflight_mode = "confirmed_lifted_live";
     bool motion_execution_m2b1_preflight_require_operator_present = true;
@@ -938,6 +952,25 @@ struct SoftwareMotionRunStats {
     uint64_t m2b1_direction_probe_reject_count = 0;
     bool m2b1_confirmed_live_ready_last = false;
     uint64_t m2b1_confirmed_live_reject_count = 0;
+    bool algorithm_motion_enabled_last = false;
+    int algorithm_motion_last_kind = 0;
+    int algorithm_motion_last_profile = 0;
+    double algorithm_motion_last_speed_normalized = 0.0;
+    double algorithm_motion_last_duration_s = 0.0;
+    double algorithm_motion_last_ttl_s = 0.0;
+    bool algorithm_motion_last_send_ok = false;
+    bool algorithm_motion_last_accepted = false;
+    uint64_t algorithm_motion_send_count = 0;
+    uint64_t algorithm_motion_reject_count = 0;
+    uint64_t algorithm_motion_validation_error_count = 0;
+    uint64_t algorithm_motion_stop_count = 0;
+    uint64_t algorithm_motion_emergency_stop_count = 0;
+    uint64_t algorithm_motion_turn_left_count = 0;
+    uint64_t algorithm_motion_turn_right_count = 0;
+    uint64_t algorithm_motion_forward_block_count = 0;
+    uint64_t algorithm_motion_backward_block_count = 0;
+    uint64_t algorithm_motion_recovery_block_count = 0;
+    uint64_t algorithm_motion_manual_test_block_count = 0;
 };
 
 struct RunMetrics {
