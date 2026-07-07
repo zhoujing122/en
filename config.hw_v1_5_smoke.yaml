@@ -366,6 +366,20 @@ motion_execution:
     allow_emergency_stop: true
     require_opposite_wheel_sign_for_rotation: true
     production_interface_enabled: false
+    production_transport_backend: none
+    loopback_shadow_mode: true
+  m2b1_preflight:
+    enabled: false
+    require_operator_present: true
+    require_robot_lifted_or_wheels_free: true
+    require_emergency_stop_available: true
+    max_live_speed_normalized: 0.05
+    max_live_duration_s: 0.50
+    require_shadow_transport_first: true
+    require_left_right_direction_confirmation: true
+  manual_arm:
+    enable_live_motion: false
+    confirmation_phrase: ""
   apply_log_enabled: true
 
 tof_pose_correction:

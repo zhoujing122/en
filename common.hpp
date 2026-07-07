@@ -496,6 +496,18 @@ struct Config {
     bool motion_execution_software_motion_allow_emergency_stop = true;
     bool motion_execution_software_motion_require_opposite_wheel_sign_for_rotation = true;
     bool motion_execution_software_motion_production_interface_enabled = false;
+    std::string motion_execution_software_motion_production_transport_backend = "none";
+    bool motion_execution_software_motion_loopback_shadow_mode = true;
+    bool motion_execution_m2b1_preflight_enabled = false;
+    bool motion_execution_m2b1_preflight_require_operator_present = true;
+    bool motion_execution_m2b1_preflight_require_robot_lifted_or_wheels_free = true;
+    bool motion_execution_m2b1_preflight_require_emergency_stop_available = true;
+    double motion_execution_m2b1_preflight_max_live_speed_normalized = 0.05;
+    double motion_execution_m2b1_preflight_max_live_duration_s = 0.50;
+    bool motion_execution_m2b1_preflight_require_shadow_transport_first = true;
+    bool motion_execution_m2b1_preflight_require_left_right_direction_confirmation = true;
+    bool motion_execution_manual_arm_enable_live_motion = false;
+    std::string motion_execution_manual_arm_confirmation_phrase = "";
     bool motion_execution_apply_log_enabled = true;
 };
 
@@ -906,6 +918,17 @@ struct SoftwareMotionRunStats {
     uint64_t forward_block_count = 0;
     uint64_t backward_block_count = 0;
     uint64_t validation_error_count = 0;
+    bool m2b1_preflight_enabled_last = false;
+    bool m2b1_preflight_ok_last = false;
+    uint64_t m2b1_preflight_error_count = 0;
+    bool m2b1_manual_arm_requested_last = false;
+    bool m2b1_manual_arm_armed_last = false;
+    uint64_t m2b1_manual_arm_reject_count = 0;
+    int transport_backend = 0;
+    bool loopback_shadow_mode_last = true;
+    uint64_t loopback_send_count = 0;
+    uint64_t loopback_reject_count = 0;
+    bool m2b1_ready_for_lifted_live_test_last = false;
 };
 
 struct RunMetrics {

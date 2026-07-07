@@ -226,6 +226,17 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "software_motion_forward_block_count," << m.software_motion.forward_block_count << "\n";
     o << "software_motion_backward_block_count," << m.software_motion.backward_block_count << "\n";
     o << "software_motion_validation_error_count," << m.software_motion.validation_error_count << "\n";
+    o << "m2b1_preflight_enabled_last," << (m.software_motion.m2b1_preflight_enabled_last ? 1 : 0) << "\n";
+    o << "m2b1_preflight_ok_last," << (m.software_motion.m2b1_preflight_ok_last ? 1 : 0) << "\n";
+    o << "m2b1_preflight_error_count," << m.software_motion.m2b1_preflight_error_count << "\n";
+    o << "m2b1_manual_arm_requested_last," << (m.software_motion.m2b1_manual_arm_requested_last ? 1 : 0) << "\n";
+    o << "m2b1_manual_arm_armed_last," << (m.software_motion.m2b1_manual_arm_armed_last ? 1 : 0) << "\n";
+    o << "m2b1_manual_arm_reject_count," << m.software_motion.m2b1_manual_arm_reject_count << "\n";
+    o << "software_motion_transport_backend," << (cfg.motion_execution_software_motion_production_transport_backend == "loopback_shadow" ? 1 : 0) << "\n";
+    o << "software_motion_loopback_shadow_mode_last," << (cfg.motion_execution_software_motion_loopback_shadow_mode ? 1 : 0) << "\n";
+    o << "software_motion_loopback_send_count," << m.software_motion.loopback_send_count << "\n";
+    o << "software_motion_loopback_reject_count," << m.software_motion.loopback_reject_count << "\n";
+    o << "m2b1_ready_for_lifted_live_test_last," << (m.software_motion.m2b1_ready_for_lifted_live_test_last ? 1 : 0) << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";
