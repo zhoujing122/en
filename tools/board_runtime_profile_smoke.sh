@@ -2,7 +2,7 @@
 set -u
 
 BIN=${1:-/userdata/robot_slamd/robot_slamd}
-CFG=${2:-/userdata/robot_slamd/config.board_sim_spin_scan_smoke.yaml}
+CFG=${2:-/userdata/robot_slamd/config/config.board_sim_spin_scan_smoke.yaml}
 OUT=${3:-/userdata/robot_slamd_board_runtime_profile_smoke}
 DUR=${4:-20}
 PROF=/tmp/runtime_profile.csv
