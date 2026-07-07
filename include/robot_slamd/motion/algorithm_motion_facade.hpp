@@ -4,6 +4,7 @@
 #include "robot_slamd/software_motion/software_motion_transport.hpp"
 
 #include <memory>
+#include <utility>
 
 namespace robot_slamd {
 
@@ -23,12 +24,14 @@ public:
                           AlgorithmMotionCommandAdapter adapter)
         : transport_(std::move(transport)), builder_(builder), adapter_(adapter) {}
 
-    AlgorithmMotionFacadeResult stop(double timestamp_s, std::string reason = "facade_stop") {
+    AlgorithmMotionFacadeResult stop(double timestamp_s,
+                                     std::string reason = "facade_stop") {
         return send_algorithm_command(builder_.stop(timestamp_s, std::move(reason)));
     }
 
-    AlgorithmMotionFacadeResult emergency_stop(double timestamp_s,
-                                               std::string reason = "facade_emergency_stop") {
+    AlgorithmMotionFacadeResult emergency_stop(
+        double timestamp_s,
+        std::string reason = "facade_emergency_stop") {
         return send_algorithm_command(builder_.emergency_stop(timestamp_s, std::move(reason)));
     }
 
@@ -65,14 +68,18 @@ public:
     }
 
 private:
-    AlgorithmMotionFacadeResult send_algorithm_command(const AlgorithmMotionCommand &command) {
+    AlgorithmMotionFacadeResult send_algorithm_command(
+        const AlgorithmMotionCommand &command) {
         AlgorithmMotionFacadeResult result;
         result.algorithm_command = command;
+
+        // Missing transport.
         if (!transport_) {
             result.error = "software_motion_transport_missing";
             return result;
         }
 
+        // Adapter conversion.
         auto converted = adapter_.to_software_command(command);
         if (!converted.ok) {
             result.error = converted.error;
@@ -80,16 +87,20 @@ private:
         }
         result.software_command = converted.command;
 
+        // Send.
         result.send_result = transport_->send_command(converted.command);
         if (!result.send_result.ok) {
             result.error = "software_motion_send_failed";
             return result;
         }
+
+        // Rejected.
         if (!result.send_result.accepted) {
             result.error = "software_motion_rejected";
             return result;
         }
 
+        // Success.
         result.ok = true;
         result.accepted = true;
         return result;

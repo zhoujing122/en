@@ -1,6 +1,8 @@
 #pragma once
 #include "robot_slamd/motion/algorithm_motion_command.hpp"
 
+#include <utility>
+
 namespace robot_slamd {
 
 class AlgorithmMotionCommandBuilder {
@@ -32,7 +34,8 @@ public:
                             false);
     }
 
-    AlgorithmMotionCommand emergency_stop(double timestamp_s, std::string reason = "emergency_stop") {
+    AlgorithmMotionCommand emergency_stop(double timestamp_s,
+                                          std::string reason = "emergency_stop") {
         return make_command(AlgorithmMotionKind::EmergencyStop,
                             AlgorithmMotionProfile::Safety,
                             timestamp_s,
@@ -79,35 +82,51 @@ public:
     }
 
     AlgorithmMotionCommand recovery_forward(double timestamp_s) {
-        return recovery_command(AlgorithmMotionKind::RecoveryForward, timestamp_s, "recovery_forward");
+        return recovery_command(AlgorithmMotionKind::RecoveryForward,
+                                timestamp_s,
+                                "recovery_forward");
     }
 
     AlgorithmMotionCommand recovery_backward(double timestamp_s) {
-        return recovery_command(AlgorithmMotionKind::RecoveryBackward, timestamp_s, "recovery_backward");
+        return recovery_command(AlgorithmMotionKind::RecoveryBackward,
+                                timestamp_s,
+                                "recovery_backward");
     }
 
     AlgorithmMotionCommand recovery_turn_left(double timestamp_s) {
-        return recovery_command(AlgorithmMotionKind::RecoveryTurnLeft, timestamp_s, "recovery_turn_left");
+        return recovery_command(AlgorithmMotionKind::RecoveryTurnLeft,
+                                timestamp_s,
+                                "recovery_turn_left");
     }
 
     AlgorithmMotionCommand recovery_turn_right(double timestamp_s) {
-        return recovery_command(AlgorithmMotionKind::RecoveryTurnRight, timestamp_s, "recovery_turn_right");
+        return recovery_command(AlgorithmMotionKind::RecoveryTurnRight,
+                                timestamp_s,
+                                "recovery_turn_right");
     }
 
     AlgorithmMotionCommand manual_turn_left(double timestamp_s) {
-        return manual_command(AlgorithmMotionKind::TurnLeft, timestamp_s, "manual_turn_left");
+        return manual_command(AlgorithmMotionKind::TurnLeft,
+                              timestamp_s,
+                              "manual_turn_left");
     }
 
     AlgorithmMotionCommand manual_turn_right(double timestamp_s) {
-        return manual_command(AlgorithmMotionKind::TurnRight, timestamp_s, "manual_turn_right");
+        return manual_command(AlgorithmMotionKind::TurnRight,
+                              timestamp_s,
+                              "manual_turn_right");
     }
 
     AlgorithmMotionCommand manual_forward(double timestamp_s) {
-        return manual_command(AlgorithmMotionKind::Forward, timestamp_s, "manual_forward");
+        return manual_command(AlgorithmMotionKind::Forward,
+                              timestamp_s,
+                              "manual_forward");
     }
 
     AlgorithmMotionCommand manual_backward(double timestamp_s) {
-        return manual_command(AlgorithmMotionKind::Backward, timestamp_s, "manual_backward");
+        return manual_command(AlgorithmMotionKind::Backward,
+                              timestamp_s,
+                              "manual_backward");
     }
 
 private:

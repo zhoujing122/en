@@ -34,8 +34,11 @@ public:
     explicit AlgorithmMotionCommandAdapter(AlgorithmToSoftwareMotionOptions options)
         : options_(options) {}
 
-    AlgorithmToSoftwareMotionResult to_software_command(const AlgorithmMotionCommand &command) const {
+    AlgorithmToSoftwareMotionResult to_software_command(
+        const AlgorithmMotionCommand &command) const {
         AlgorithmToSoftwareMotionResult result;
+
+        // Algorithm validation.
         auto validation = validate_algorithm_motion_command(command,
                                                             options_.max_direction_probe_speed,
                                                             options_.max_active_scan_speed,
@@ -54,6 +57,7 @@ public:
             return result;
         }
 
+        // Field mapping.
         result.command.direction = map_direction(command.kind);
         result.command.speed_normalized = command.speed_normalized;
         result.command.timestamp_s = command.timestamp_s;
@@ -62,6 +66,7 @@ public:
         result.command.reason = command.reason;
         result.command.sequence = command.sequence;
 
+        // Software validation.
         auto software_validation = validate_software_motion_command(result.command,
                                                                     max_software_speed(command.profile),
                                                                     options_.allow_translation_commands,
@@ -72,6 +77,7 @@ public:
             return result;
         }
 
+        // Success.
         result.ok = true;
         return result;
     }
@@ -79,8 +85,10 @@ public:
 private:
     static SoftwareMotionDirection map_direction(AlgorithmMotionKind kind) {
         switch (kind) {
-        case AlgorithmMotionKind::Stop: return SoftwareMotionDirection::Stop;
-        case AlgorithmMotionKind::EmergencyStop: return SoftwareMotionDirection::EmergencyStop;
+        case AlgorithmMotionKind::Stop:
+            return SoftwareMotionDirection::Stop;
+        case AlgorithmMotionKind::EmergencyStop:
+            return SoftwareMotionDirection::EmergencyStop;
         case AlgorithmMotionKind::TurnLeft:
         case AlgorithmMotionKind::DirectionProbeLeft:
         case AlgorithmMotionKind::ActiveScanTurnLeft:
@@ -110,18 +118,27 @@ private:
             command.profile == AlgorithmMotionProfile::ManualTest) {
             return SoftwareMotionCommandSource::ManualTest;
         }
-        if (command.profile == AlgorithmMotionProfile::ActiveScan) return SoftwareMotionCommandSource::ActiveScan;
-        if (command.profile == AlgorithmMotionProfile::Recovery) return SoftwareMotionCommandSource::Recovery;
+        if (command.profile == AlgorithmMotionProfile::ActiveScan) {
+            return SoftwareMotionCommandSource::ActiveScan;
+        }
+        if (command.profile == AlgorithmMotionProfile::Recovery) {
+            return SoftwareMotionCommandSource::Recovery;
+        }
         return SoftwareMotionCommandSource::Unknown;
     }
 
     double max_software_speed(AlgorithmMotionProfile profile) const {
         switch (profile) {
-        case AlgorithmMotionProfile::DirectionProbe: return options_.max_direction_probe_speed;
-        case AlgorithmMotionProfile::ActiveScan: return options_.max_active_scan_speed;
-        case AlgorithmMotionProfile::Recovery: return options_.max_recovery_speed;
-        case AlgorithmMotionProfile::ManualTest: return options_.max_manual_test_speed;
-        case AlgorithmMotionProfile::Safety: return 0.0;
+        case AlgorithmMotionProfile::DirectionProbe:
+            return options_.max_direction_probe_speed;
+        case AlgorithmMotionProfile::ActiveScan:
+            return options_.max_active_scan_speed;
+        case AlgorithmMotionProfile::Recovery:
+            return options_.max_recovery_speed;
+        case AlgorithmMotionProfile::ManualTest:
+            return options_.max_manual_test_speed;
+        case AlgorithmMotionProfile::Safety:
+            return 0.0;
         }
         return 0.0;
     }
