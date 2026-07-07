@@ -449,11 +449,14 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.motion_execution_software_motion_production_transport_backend = get_string(kv, "motion_execution.software_motion.production_transport_backend", c.motion_execution_software_motion_production_transport_backend);
     c.motion_execution_software_motion_loopback_shadow_mode = get_bool(kv, "motion_execution.software_motion.loopback_shadow_mode", c.motion_execution_software_motion_loopback_shadow_mode);
     c.motion_execution_m2b1_preflight_enabled = get_bool(kv, "motion_execution.m2b1_preflight.enabled", c.motion_execution_m2b1_preflight_enabled);
+    c.motion_execution_m2b1_preflight_mode = get_string(kv, "motion_execution.m2b1_preflight.mode", c.motion_execution_m2b1_preflight_mode);
     c.motion_execution_m2b1_preflight_require_operator_present = get_bool(kv, "motion_execution.m2b1_preflight.require_operator_present", c.motion_execution_m2b1_preflight_require_operator_present);
     c.motion_execution_m2b1_preflight_require_robot_lifted_or_wheels_free = get_bool(kv, "motion_execution.m2b1_preflight.require_robot_lifted_or_wheels_free", c.motion_execution_m2b1_preflight_require_robot_lifted_or_wheels_free);
     c.motion_execution_m2b1_preflight_require_emergency_stop_available = get_bool(kv, "motion_execution.m2b1_preflight.require_emergency_stop_available", c.motion_execution_m2b1_preflight_require_emergency_stop_available);
     c.motion_execution_m2b1_preflight_max_live_speed_normalized = get_double(kv, "motion_execution.m2b1_preflight.max_live_speed_normalized", c.motion_execution_m2b1_preflight_max_live_speed_normalized);
     c.motion_execution_m2b1_preflight_max_live_duration_s = get_double(kv, "motion_execution.m2b1_preflight.max_live_duration_s", c.motion_execution_m2b1_preflight_max_live_duration_s);
+    c.motion_execution_m2b1_preflight_direction_probe_max_speed_normalized = get_double(kv, "motion_execution.m2b1_preflight.direction_probe_max_speed_normalized", c.motion_execution_m2b1_preflight_direction_probe_max_speed_normalized);
+    c.motion_execution_m2b1_preflight_direction_probe_max_duration_s = get_double(kv, "motion_execution.m2b1_preflight.direction_probe_max_duration_s", c.motion_execution_m2b1_preflight_direction_probe_max_duration_s);
     c.motion_execution_m2b1_preflight_require_shadow_transport_first = get_bool(kv, "motion_execution.m2b1_preflight.require_shadow_transport_first", c.motion_execution_m2b1_preflight_require_shadow_transport_first);
     c.motion_execution_m2b1_preflight_require_left_right_direction_confirmation = get_bool(kv, "motion_execution.m2b1_preflight.require_left_right_direction_confirmation", c.motion_execution_m2b1_preflight_require_left_right_direction_confirmation);
     c.motion_execution_manual_arm_enable_live_motion = get_bool(kv, "motion_execution.manual_arm.enable_live_motion", c.motion_execution_manual_arm_enable_live_motion);
@@ -786,10 +789,15 @@ void validate_config(const Config &c) {
     positive("motion_execution.software_motion.max_internal_rpm_for_normalization", c.motion_execution_software_motion_max_internal_rpm_for_normalization);
     if (!std::isfinite(c.motion_execution_software_motion_max_speed_normalized) || c.motion_execution_software_motion_max_speed_normalized < 0.0 || c.motion_execution_software_motion_max_speed_normalized > 1.0) errors.push_back("motion_execution.software_motion.max_speed_normalized must be in [0,1]");
     positive("motion_execution.software_motion.command_ttl_s", c.motion_execution_software_motion_command_ttl_s);
+    if (!one_of(c.motion_execution_m2b1_preflight_mode, {"lifted_direction_probe", "confirmed_lifted_live"})) errors.push_back("motion_execution.m2b1_preflight.mode must be lifted_direction_probe or confirmed_lifted_live");
     if (!std::isfinite(c.motion_execution_m2b1_preflight_max_live_speed_normalized) || c.motion_execution_m2b1_preflight_max_live_speed_normalized <= 0.0) errors.push_back("motion_execution.m2b1_preflight.max_live_speed_normalized must be > 0");
     else if (c.motion_execution_m2b1_preflight_max_live_speed_normalized > 0.05) errors.push_back("motion_execution.m2b1_preflight.max_live_speed_normalized must be <= 0.05");
     if (!std::isfinite(c.motion_execution_m2b1_preflight_max_live_duration_s) || c.motion_execution_m2b1_preflight_max_live_duration_s <= 0.0) errors.push_back("motion_execution.m2b1_preflight.max_live_duration_s must be > 0");
     else if (c.motion_execution_m2b1_preflight_max_live_duration_s > 0.5) errors.push_back("motion_execution.m2b1_preflight.max_live_duration_s must be <= 0.5");
+    if (!std::isfinite(c.motion_execution_m2b1_preflight_direction_probe_max_speed_normalized) || c.motion_execution_m2b1_preflight_direction_probe_max_speed_normalized <= 0.0) errors.push_back("motion_execution.m2b1_preflight.direction_probe_max_speed_normalized must be > 0");
+    else if (c.motion_execution_m2b1_preflight_direction_probe_max_speed_normalized > 0.03) errors.push_back("motion_execution.m2b1_preflight.direction_probe_max_speed_normalized must be <= 0.03");
+    if (!std::isfinite(c.motion_execution_m2b1_preflight_direction_probe_max_duration_s) || c.motion_execution_m2b1_preflight_direction_probe_max_duration_s <= 0.0) errors.push_back("motion_execution.m2b1_preflight.direction_probe_max_duration_s must be > 0");
+    else if (c.motion_execution_m2b1_preflight_direction_probe_max_duration_s > 0.30) errors.push_back("motion_execution.m2b1_preflight.direction_probe_max_duration_s must be <= 0.30");
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1195,11 +1203,14 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "    loopback_shadow_mode: " << bool_yaml(c.motion_execution_software_motion_loopback_shadow_mode) << "\n"
       << "  m2b1_preflight:\n"
       << "    enabled: " << bool_yaml(c.motion_execution_m2b1_preflight_enabled) << "\n"
+      << "    mode: " << c.motion_execution_m2b1_preflight_mode << "\n"
       << "    require_operator_present: " << bool_yaml(c.motion_execution_m2b1_preflight_require_operator_present) << "\n"
       << "    require_robot_lifted_or_wheels_free: " << bool_yaml(c.motion_execution_m2b1_preflight_require_robot_lifted_or_wheels_free) << "\n"
       << "    require_emergency_stop_available: " << bool_yaml(c.motion_execution_m2b1_preflight_require_emergency_stop_available) << "\n"
       << "    max_live_speed_normalized: " << c.motion_execution_m2b1_preflight_max_live_speed_normalized << "\n"
       << "    max_live_duration_s: " << c.motion_execution_m2b1_preflight_max_live_duration_s << "\n"
+      << "    direction_probe_max_speed_normalized: " << c.motion_execution_m2b1_preflight_direction_probe_max_speed_normalized << "\n"
+      << "    direction_probe_max_duration_s: " << c.motion_execution_m2b1_preflight_direction_probe_max_duration_s << "\n"
       << "    require_shadow_transport_first: " << bool_yaml(c.motion_execution_m2b1_preflight_require_shadow_transport_first) << "\n"
       << "    require_left_right_direction_confirmation: " << bool_yaml(c.motion_execution_m2b1_preflight_require_left_right_direction_confirmation) << "\n"
       << "  manual_arm:\n"

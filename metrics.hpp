@@ -237,6 +237,12 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "software_motion_loopback_send_count," << m.software_motion.loopback_send_count << "\n";
     o << "software_motion_loopback_reject_count," << m.software_motion.loopback_reject_count << "\n";
     o << "m2b1_ready_for_lifted_live_test_last," << (m.software_motion.m2b1_ready_for_lifted_live_test_last ? 1 : 0) << "\n";
+    o << "m2b1_preflight_mode_last," << (cfg.motion_execution_m2b1_preflight_mode == "lifted_direction_probe" ? 0 : 1) << "\n";
+    o << "m2b1_direction_convention_pending_last," << (m.software_motion.m2b1_direction_convention_pending_last ? 1 : 0) << "\n";
+    o << "m2b1_direction_probe_ready_last," << (m.software_motion.m2b1_direction_probe_ready_last ? 1 : 0) << "\n";
+    o << "m2b1_direction_probe_reject_count," << m.software_motion.m2b1_direction_probe_reject_count << "\n";
+    o << "m2b1_confirmed_live_ready_last," << (m.software_motion.m2b1_confirmed_live_ready_last ? 1 : 0) << "\n";
+    o << "m2b1_confirmed_live_reject_count," << m.software_motion.m2b1_confirmed_live_reject_count << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

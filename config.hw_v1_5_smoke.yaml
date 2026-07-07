@@ -370,11 +370,14 @@ motion_execution:
     loopback_shadow_mode: true
   m2b1_preflight:
     enabled: false
+    mode: confirmed_lifted_live
     require_operator_present: true
     require_robot_lifted_or_wheels_free: true
     require_emergency_stop_available: true
     max_live_speed_normalized: 0.05
     max_live_duration_s: 0.50
+    direction_probe_max_speed_normalized: 0.03
+    direction_probe_max_duration_s: 0.30
     require_shadow_transport_first: true
     require_left_right_direction_confirmation: true
   manual_arm:
