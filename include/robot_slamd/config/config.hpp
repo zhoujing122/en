@@ -428,6 +428,17 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.real_adapter_contract_wheel_max_abs_linear_mps = get_double(kv, "real_adapter_contract.wheel_max_abs_linear_mps", c.real_adapter_contract_wheel_max_abs_linear_mps);
     c.real_adapter_contract_wheel_max_abs_angular_rad_s = get_double(kv, "real_adapter_contract.wheel_max_abs_angular_rad_s", c.real_adapter_contract_wheel_max_abs_angular_rad_s);
     c.real_adapter_contract_require_shadow_before_live = get_bool(kv, "real_adapter_contract.require_shadow_before_live", c.real_adapter_contract_require_shadow_before_live);
+    c.prelive_autonomous_slam_enabled = get_bool(kv, "prelive_autonomous_slam.enabled", c.prelive_autonomous_slam_enabled);
+    c.prelive_autonomous_slam_max_iterations = get_int(kv, "prelive_autonomous_slam.max_iterations", c.prelive_autonomous_slam_max_iterations);
+    c.prelive_autonomous_slam_start_time_s = get_double(kv, "prelive_autonomous_slam.start_time_s", c.prelive_autonomous_slam_start_time_s);
+    c.prelive_autonomous_slam_step_s = get_double(kv, "prelive_autonomous_slam.step_s", c.prelive_autonomous_slam_step_s);
+    c.prelive_autonomous_slam_require_adapter_acceptance = get_bool(kv, "prelive_autonomous_slam.require_adapter_acceptance", c.prelive_autonomous_slam_require_adapter_acceptance);
+    c.prelive_autonomous_slam_require_coordinator_completed = get_bool(kv, "prelive_autonomous_slam.require_coordinator_completed", c.prelive_autonomous_slam_require_coordinator_completed);
+    c.prelive_autonomous_slam_require_no_motion_rejection = get_bool(kv, "prelive_autonomous_slam.require_no_motion_rejection", c.prelive_autonomous_slam_require_no_motion_rejection);
+    c.prelive_autonomous_slam_require_stop_command_seen = get_bool(kv, "prelive_autonomous_slam.require_stop_command_seen", c.prelive_autonomous_slam_require_stop_command_seen);
+    c.prelive_autonomous_slam_require_active_scan_command_seen = get_bool(kv, "prelive_autonomous_slam.require_active_scan_command_seen", c.prelive_autonomous_slam_require_active_scan_command_seen);
+    c.prelive_autonomous_slam_require_map_quality_good = get_bool(kv, "prelive_autonomous_slam.require_map_quality_good", c.prelive_autonomous_slam_require_map_quality_good);
+    c.prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow = get_bool(kv, "prelive_autonomous_slam.allow_coordinator_incomplete_for_shadow", c.prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -824,6 +835,27 @@ void validate_config(const Config &c) {
     } else if (c.real_adapter_contract_wheel_max_abs_angular_rad_s > 50.0) {
         errors.push_back("real_adapter_contract.wheel_max_abs_angular_rad_s must be <= 50.0");
     }
+    if (c.prelive_autonomous_slam_max_iterations <= 0) {
+        errors.push_back("prelive_autonomous_slam.max_iterations must be > 0");
+    } else if (c.prelive_autonomous_slam_max_iterations > 200) {
+        errors.push_back("prelive_autonomous_slam.max_iterations must be <= 200");
+    }
+    if (!std::isfinite(c.prelive_autonomous_slam_start_time_s)) {
+        errors.push_back("prelive_autonomous_slam.start_time_s must be finite");
+    }
+    if (!std::isfinite(c.prelive_autonomous_slam_step_s) ||
+        c.prelive_autonomous_slam_step_s <= 0.0) {
+        errors.push_back("prelive_autonomous_slam.step_s must be > 0");
+    } else if (c.prelive_autonomous_slam_step_s > 1.0) {
+        errors.push_back("prelive_autonomous_slam.step_s must be <= 1.0");
+    }
+    if (c.prelive_autonomous_slam_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("prelive_autonomous_slam.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.prelive_autonomous_slam_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("prelive_autonomous_slam.enabled=true requires production_interface_enabled=false");
+    }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1204,6 +1236,18 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  wheel_max_abs_linear_mps: " << c.real_adapter_contract_wheel_max_abs_linear_mps << "\n"
       << "  wheel_max_abs_angular_rad_s: " << c.real_adapter_contract_wheel_max_abs_angular_rad_s << "\n"
       << "  require_shadow_before_live: " << bool_yaml(c.real_adapter_contract_require_shadow_before_live) << "\n";
+    o << "prelive_autonomous_slam:\n"
+      << "  enabled: " << bool_yaml(c.prelive_autonomous_slam_enabled) << "\n"
+      << "  max_iterations: " << c.prelive_autonomous_slam_max_iterations << "\n"
+      << "  start_time_s: " << c.prelive_autonomous_slam_start_time_s << "\n"
+      << "  step_s: " << c.prelive_autonomous_slam_step_s << "\n"
+      << "  require_adapter_acceptance: " << bool_yaml(c.prelive_autonomous_slam_require_adapter_acceptance) << "\n"
+      << "  require_coordinator_completed: " << bool_yaml(c.prelive_autonomous_slam_require_coordinator_completed) << "\n"
+      << "  require_no_motion_rejection: " << bool_yaml(c.prelive_autonomous_slam_require_no_motion_rejection) << "\n"
+      << "  require_stop_command_seen: " << bool_yaml(c.prelive_autonomous_slam_require_stop_command_seen) << "\n"
+      << "  require_active_scan_command_seen: " << bool_yaml(c.prelive_autonomous_slam_require_active_scan_command_seen) << "\n"
+      << "  require_map_quality_good: " << bool_yaml(c.prelive_autonomous_slam_require_map_quality_good) << "\n"
+      << "  allow_coordinator_incomplete_for_shadow: " << bool_yaml(c.prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

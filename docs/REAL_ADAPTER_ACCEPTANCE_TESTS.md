@@ -15,3 +15,5 @@ A real adapter candidate must pass shadow acceptance before any live test:
 
 M3-A1 acceptance verifies adapter contract shape only. It does not prove a real
 sensor driver, real chassis transport, or real TTL stop implementation.
+
+M3-A2 runs the adapter acceptance path as one stage of the pre-live autonomous SLAM integration gate.

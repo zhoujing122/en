@@ -99,3 +99,5 @@ M3-A0 adds `include/robot_slamd/autonomy/` for the hardware-ready autonomous SLA
 ## M3-A1 Adapter Contract Layout
 
 Real adapter contracts live under `include/robot_slamd/autonomy/contracts/`. Replay-only adapters live under `include/robot_slamd/autonomy/adapters/`. They are contract and test scaffolding only; real driver implementations are intentionally not present in M3-A1.
+
+M3-A2 adds include/robot_slamd/autonomy/prelive/ for the pre-live autonomous SLAM runner, gate, types, and text report writer.

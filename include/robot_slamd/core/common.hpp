@@ -563,6 +563,17 @@ struct Config {
     double real_adapter_contract_wheel_max_abs_linear_mps = 2.0;
     double real_adapter_contract_wheel_max_abs_angular_rad_s = 10.0;
     bool real_adapter_contract_require_shadow_before_live = true;
+    bool prelive_autonomous_slam_enabled = false;
+    int prelive_autonomous_slam_max_iterations = 30;
+    double prelive_autonomous_slam_start_time_s = 100.0;
+    double prelive_autonomous_slam_step_s = 0.10;
+    bool prelive_autonomous_slam_require_adapter_acceptance = true;
+    bool prelive_autonomous_slam_require_coordinator_completed = false;
+    bool prelive_autonomous_slam_require_no_motion_rejection = true;
+    bool prelive_autonomous_slam_require_stop_command_seen = true;
+    bool prelive_autonomous_slam_require_active_scan_command_seen = false;
+    bool prelive_autonomous_slam_require_map_quality_good = false;
+    bool prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1044,6 +1055,23 @@ struct AutonomousSlamRunStats {
     bool real_adapter_imu_frame_ok_last = false;
     bool real_adapter_wheel_frame_ok_last = false;
     bool real_adapter_map_quality_ok_last = false;
+    bool prelive_autonomous_slam_enabled_last = false;
+    uint64_t prelive_autonomous_slam_run_count = 0;
+    bool prelive_autonomous_slam_ok_last = false;
+    int prelive_autonomous_slam_stage_last = 0;
+    int prelive_autonomous_slam_block_reason_last = 0;
+    int prelive_autonomous_slam_readiness_last = 0;
+    int prelive_autonomous_slam_final_state_last = 0;
+    int prelive_autonomous_slam_final_fault_last = 0;
+    uint64_t prelive_autonomous_slam_readiness_check_count = 0;
+    uint64_t prelive_autonomous_slam_contract_check_count = 0;
+    uint64_t prelive_autonomous_slam_adapter_acceptance_run_count = 0;
+    uint64_t prelive_autonomous_slam_coordinator_step_count = 0;
+    uint64_t prelive_autonomous_slam_motion_command_count = 0;
+    uint64_t prelive_autonomous_slam_stop_command_count = 0;
+    uint64_t prelive_autonomous_slam_active_scan_command_count = 0;
+    uint64_t prelive_autonomous_slam_motion_reject_count = 0;
+    uint64_t prelive_autonomous_slam_coordinator_fault_count = 0;
 };
 
 struct RunMetrics {

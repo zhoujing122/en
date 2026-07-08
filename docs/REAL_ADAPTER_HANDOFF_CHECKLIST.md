@@ -20,3 +20,5 @@ Information required from software and sensor teams:
 
 Do not enter live tests until the real adapters pass contract checks, software
 transport shadow acceptance, and the lifted direction probe checklist.
+
+After handoff, teams should run docs/PRELIVE_AUTONOMOUS_SLAM_INTEGRATION.md in shadow mode before any live validation.

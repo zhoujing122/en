@@ -43,3 +43,5 @@ Map contract:
 Real adapters should pass `RealAdapterContractChecker` before their data reaches
 `AutonomousSlamCoordinator`. This stage does not connect ROS, device files,
 network senders, SDKs, or real map backends.
+
+M3-A2 consumes these contracts through docs/PRELIVE_AUTONOMOUS_SLAM_INTEGRATION.md before any lifted low-speed direction probe work.

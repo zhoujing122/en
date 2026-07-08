@@ -315,6 +315,19 @@ recovery:
   write_candidate_log: true
   write_event_log: true
 
+prelive_autonomous_slam:
+  enabled: false
+  max_iterations: 30
+  start_time_s: 100.0
+  step_s: 0.10
+  require_adapter_acceptance: true
+  require_coordinator_completed: false
+  require_no_motion_rejection: true
+  require_stop_command_seen: true
+  require_active_scan_command_seen: false
+  require_map_quality_good: false
+  allow_coordinator_incomplete_for_shadow: true
+
 motion_execution:
   enabled: true
   mode: dry_run

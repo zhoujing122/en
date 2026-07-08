@@ -62,3 +62,5 @@ M3-A0 cannot prove:
 ## M3-A1 Real Adapter Contracts
 
 M3-A1 adds real adapter contract checkers, readiness checks, replay adapters, and acceptance tests. These define the data quality and readiness rules for future real ToF, IMU, wheel, map, and motion adapters without implementing any real driver. See `docs/REAL_ADAPTER_CONTRACTS.md`, `docs/REAL_ADAPTER_ACCEPTANCE_TESTS.md`, and `docs/REAL_ADAPTER_HANDOFF_CHECKLIST.md`.
+
+M3-A2 adds docs/PRELIVE_AUTONOMOUS_SLAM_INTEGRATION.md, which wires the hardware-ready ports, contracts, coordinator, policy, shadow motion, gate, and report into a pre-live integration runner.
