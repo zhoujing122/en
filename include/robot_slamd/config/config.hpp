@@ -450,6 +450,17 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.slam_backend_binding_require_update_accepted = get_bool(kv, "slam_backend_binding.require_update_accepted", c.slam_backend_binding_require_update_accepted);
     c.slam_backend_binding_require_quality_valid = get_bool(kv, "slam_backend_binding.require_quality_valid", c.slam_backend_binding_require_quality_valid);
     c.slam_backend_binding_require_save_map = get_bool(kv, "slam_backend_binding.require_save_map", c.slam_backend_binding_require_save_map);
+    c.autonomous_slam_e2e_prelive_enabled = get_bool(kv, "autonomous_slam_e2e_prelive.enabled", c.autonomous_slam_e2e_prelive_enabled);
+    c.autonomous_slam_e2e_prelive_scenario_kind = get_string(kv, "autonomous_slam_e2e_prelive.scenario_kind", c.autonomous_slam_e2e_prelive_scenario_kind);
+    c.autonomous_slam_e2e_prelive_max_iterations = get_int(kv, "autonomous_slam_e2e_prelive.max_iterations", c.autonomous_slam_e2e_prelive_max_iterations);
+    c.autonomous_slam_e2e_prelive_start_time_s = get_double(kv, "autonomous_slam_e2e_prelive.start_time_s", c.autonomous_slam_e2e_prelive_start_time_s);
+    c.autonomous_slam_e2e_prelive_step_s = get_double(kv, "autonomous_slam_e2e_prelive.step_s", c.autonomous_slam_e2e_prelive_step_s);
+    c.autonomous_slam_e2e_prelive_require_slam_backend_acceptance = get_bool(kv, "autonomous_slam_e2e_prelive.require_slam_backend_acceptance", c.autonomous_slam_e2e_prelive_require_slam_backend_acceptance);
+    c.autonomous_slam_e2e_prelive_require_prelive_pass = get_bool(kv, "autonomous_slam_e2e_prelive.require_prelive_pass", c.autonomous_slam_e2e_prelive_require_prelive_pass);
+    c.autonomous_slam_e2e_prelive_require_no_forward_backward = get_bool(kv, "autonomous_slam_e2e_prelive.require_no_forward_backward", c.autonomous_slam_e2e_prelive_require_no_forward_backward);
+    c.autonomous_slam_e2e_prelive_require_stop_command_seen = get_bool(kv, "autonomous_slam_e2e_prelive.require_stop_command_seen", c.autonomous_slam_e2e_prelive_require_stop_command_seen);
+    c.autonomous_slam_e2e_prelive_require_active_scan_when_map_poor = get_bool(kv, "autonomous_slam_e2e_prelive.require_active_scan_when_map_poor", c.autonomous_slam_e2e_prelive_require_active_scan_when_map_poor);
+    c.autonomous_slam_e2e_prelive_require_map_quality_good_at_end = get_bool(kv, "autonomous_slam_e2e_prelive.require_map_quality_good_at_end", c.autonomous_slam_e2e_prelive_require_map_quality_good_at_end);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -889,6 +900,39 @@ void validate_config(const Config &c) {
         c.motion_execution_software_motion_production_interface_enabled) {
         errors.push_back("slam_backend_binding.enabled=true requires production_interface_enabled=false");
     }
+    const std::unordered_set<std::string> allowed_e2e_scenarios{
+        "minimal_map_already_good",
+        "active_scan_then_map_good",
+        "sensor_contract_failure",
+        "slam_backend_update_rejected",
+        "slam_backend_quality_invalid",
+        "motion_rejected",
+        "map_quality_stuck",
+    };
+    if (!allowed_e2e_scenarios.count(c.autonomous_slam_e2e_prelive_scenario_kind)) {
+        errors.push_back("autonomous_slam_e2e_prelive.scenario_kind is invalid");
+    }
+    if (c.autonomous_slam_e2e_prelive_max_iterations <= 0) {
+        errors.push_back("autonomous_slam_e2e_prelive.max_iterations must be > 0");
+    } else if (c.autonomous_slam_e2e_prelive_max_iterations > 200) {
+        errors.push_back("autonomous_slam_e2e_prelive.max_iterations must be <= 200");
+    }
+    if (!std::isfinite(c.autonomous_slam_e2e_prelive_start_time_s)) {
+        errors.push_back("autonomous_slam_e2e_prelive.start_time_s must be finite");
+    }
+    if (!std::isfinite(c.autonomous_slam_e2e_prelive_step_s) ||
+        c.autonomous_slam_e2e_prelive_step_s <= 0.0) {
+        errors.push_back("autonomous_slam_e2e_prelive.step_s must be > 0");
+    } else if (c.autonomous_slam_e2e_prelive_step_s > 1.0) {
+        errors.push_back("autonomous_slam_e2e_prelive.step_s must be <= 1.0");
+    }
+    if (c.autonomous_slam_e2e_prelive_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("autonomous_slam_e2e_prelive.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.autonomous_slam_e2e_prelive_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("autonomous_slam_e2e_prelive.enabled=true requires production_interface_enabled=false");
+    }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1293,6 +1337,18 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_update_accepted: " << bool_yaml(c.slam_backend_binding_require_update_accepted) << "\n"
       << "  require_quality_valid: " << bool_yaml(c.slam_backend_binding_require_quality_valid) << "\n"
       << "  require_save_map: " << bool_yaml(c.slam_backend_binding_require_save_map) << "\n";
+    o << "autonomous_slam_e2e_prelive:\n"
+      << "  enabled: " << bool_yaml(c.autonomous_slam_e2e_prelive_enabled) << "\n"
+      << "  scenario_kind: " << c.autonomous_slam_e2e_prelive_scenario_kind << "\n"
+      << "  max_iterations: " << c.autonomous_slam_e2e_prelive_max_iterations << "\n"
+      << "  start_time_s: " << c.autonomous_slam_e2e_prelive_start_time_s << "\n"
+      << "  step_s: " << c.autonomous_slam_e2e_prelive_step_s << "\n"
+      << "  require_slam_backend_acceptance: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_slam_backend_acceptance) << "\n"
+      << "  require_prelive_pass: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_prelive_pass) << "\n"
+      << "  require_no_forward_backward: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_no_forward_backward) << "\n"
+      << "  require_stop_command_seen: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_stop_command_seen) << "\n"
+      << "  require_active_scan_when_map_poor: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_active_scan_when_map_poor) << "\n"
+      << "  require_map_quality_good_at_end: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_map_quality_good_at_end) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

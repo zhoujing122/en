@@ -504,3 +504,16 @@ real_adapter_contract:
   wheel_max_abs_linear_mps: 2.0
   wheel_max_abs_angular_rad_s: 10.0
   require_shadow_before_live: true
+
+autonomous_slam_e2e_prelive:
+  enabled: false
+  scenario_kind: active_scan_then_map_good
+  max_iterations: 30
+  start_time_s: 100.0
+  step_s: 0.10
+  require_slam_backend_acceptance: true
+  require_prelive_pass: true
+  require_no_forward_backward: true
+  require_stop_command_seen: true
+  require_active_scan_when_map_poor: true
+  require_map_quality_good_at_end: false

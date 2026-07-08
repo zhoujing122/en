@@ -18,3 +18,4 @@ The flow is:
 Future live integration should replace ports/adapters only: RealTofImuWheelSensorPort, RealSoftwareMotionPort, and RealMapPort. AutonomousSlamCoordinator and AutonomousSlamPolicy should remain unchanged unless the contract itself changes.
 
 M3-A3 adds the SLAM backend map-port binding contract used by future RealMapPort or RealSlamBackendBinding implementations.
+M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre-live shadow scenario across replay sensors, SLAM backend binding, map port, pre-live runner, coordinator, policy, and shadow motion.

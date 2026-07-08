@@ -585,6 +585,17 @@ struct Config {
     bool slam_backend_binding_require_update_accepted = true;
     bool slam_backend_binding_require_quality_valid = true;
     bool slam_backend_binding_require_save_map = false;
+    bool autonomous_slam_e2e_prelive_enabled = false;
+    std::string autonomous_slam_e2e_prelive_scenario_kind = "active_scan_then_map_good";
+    int autonomous_slam_e2e_prelive_max_iterations = 30;
+    double autonomous_slam_e2e_prelive_start_time_s = 100.0;
+    double autonomous_slam_e2e_prelive_step_s = 0.10;
+    bool autonomous_slam_e2e_prelive_require_slam_backend_acceptance = true;
+    bool autonomous_slam_e2e_prelive_require_prelive_pass = true;
+    bool autonomous_slam_e2e_prelive_require_no_forward_backward = true;
+    bool autonomous_slam_e2e_prelive_require_stop_command_seen = true;
+    bool autonomous_slam_e2e_prelive_require_active_scan_when_map_poor = true;
+    bool autonomous_slam_e2e_prelive_require_map_quality_good_at_end = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1097,6 +1108,20 @@ struct AutonomousSlamRunStats {
     double slam_backend_update_latency_s_last = 0.0;
     bool slam_backend_map_updated_last = false;
     bool slam_backend_keyframe_added_last = false;
+    bool autonomous_slam_e2e_prelive_enabled_last = false;
+    uint64_t autonomous_slam_e2e_prelive_run_count = 0;
+    bool autonomous_slam_e2e_prelive_ok_last = false;
+    int autonomous_slam_e2e_prelive_scenario_kind_last = 0;
+    int autonomous_slam_e2e_prelive_stage_last = 0;
+    int autonomous_slam_e2e_prelive_block_reason_last = 0;
+    bool autonomous_slam_e2e_prelive_backend_acceptance_ok_last = false;
+    bool autonomous_slam_e2e_prelive_prelive_ok_last = false;
+    uint64_t autonomous_slam_e2e_prelive_motion_command_count_last = 0;
+    uint64_t autonomous_slam_e2e_prelive_stop_command_count_last = 0;
+    uint64_t autonomous_slam_e2e_prelive_active_scan_command_count_last = 0;
+    bool autonomous_slam_e2e_prelive_forward_backward_seen_last = false;
+    uint64_t autonomous_slam_e2e_prelive_failed_case_count_last = 0;
+    uint64_t autonomous_slam_e2e_prelive_warning_count_last = 0;
 };
 
 struct RunMetrics {

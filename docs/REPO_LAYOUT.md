@@ -103,3 +103,4 @@ Real adapter contracts live under `include/robot_slamd/autonomy/contracts/`. Rep
 M3-A2 adds include/robot_slamd/autonomy/prelive/ for the pre-live autonomous SLAM runner, gate, types, and text report writer.
 
 M3-A3 adds include/robot_slamd/autonomy/map_backend/ for SLAM backend binding contracts, adapter skeleton, replay binding, and acceptance runner.
+M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre-live shadow scenario across replay sensors, SLAM backend binding, map port, pre-live runner, coordinator, policy, and shadow motion.
