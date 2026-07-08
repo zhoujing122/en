@@ -24,12 +24,14 @@ public:
         SoftwareMotionShadowAdapterResult record;
         record.command = command;
 
+        // Missing inner transport.
         if (!inner_) {
             record.error = "shadow_adapter_inner_missing";
             history_.push_back(record);
             return {false, false, record.error, 0, command.timestamp_s};
         }
 
+        // Pre-send command contract check.
         auto command_check = checker_.check_command(command, command.timestamp_s);
         if (!command_check.ok) {
             record.ok = true;
@@ -40,9 +42,14 @@ public:
             return record.send_result;
         }
 
+        // Inner transport send.
         auto send_result = inner_->send_command(command);
         record.send_result = send_result;
-        auto result_check = checker_.check_send_result(command, send_result, command.timestamp_s);
+
+        // Post-send result contract check.
+        auto result_check = checker_.check_send_result(command,
+                                                       send_result,
+                                                       command.timestamp_s);
         if (!result_check.ok) {
             record.ok = true;
             record.accepted = false;
@@ -56,10 +63,13 @@ public:
             return record.send_result;
         }
 
+        // History recording.
         record.ok = send_result.ok;
         record.accepted = send_result.accepted;
         record.error = send_result.error;
         history_.push_back(record);
+
+        // Success return.
         return send_result;
     }
 

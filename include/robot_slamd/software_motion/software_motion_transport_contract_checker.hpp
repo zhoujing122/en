@@ -31,64 +31,60 @@ public:
         double now_s) const {
         SoftwareMotionTransportContractCheckResult result;
 
-        if (!std::isfinite(command.timestamp_s)) {
-            result.error = "non_finite_timestamp";
-            return result;
+        // Timestamp / ttl validation.
+        if (!is_finite(command.timestamp_s)) {
+            return make_error("non_finite_timestamp");
         }
-        if (!std::isfinite(command.ttl_s) || command.ttl_s <= 0.0) {
-            result.error = "invalid_ttl";
-            return result;
+        if (!is_finite(command.ttl_s) || command.ttl_s <= 0.0) {
+            return make_error("invalid_ttl");
         }
         if (command.ttl_s > options_.max_ttl_s) {
-            result.error = "ttl_too_large";
-            return result;
-        }
-        if (!std::isfinite(command.speed_normalized)) {
-            result.error = "non_finite_speed";
-            return result;
-        }
-        if (command.speed_normalized < 0.0 || command.speed_normalized > 1.0) {
-            result.error = "speed_out_of_range";
-            return result;
+            return make_error("ttl_too_large");
         }
 
+        // Speed validation.
+        if (!is_finite(command.speed_normalized)) {
+            return make_error("non_finite_speed");
+        }
+        if (command.speed_normalized < 0.0 || command.speed_normalized > 1.0) {
+            return make_error("speed_out_of_range");
+        }
+
+        // Direction gate validation.
         if (command.direction == SoftwareMotionDirection::Stop) {
             if (std::fabs(command.speed_normalized) > 1e-12) {
-                result.error = "stop_requires_zero_speed";
-                return result;
+                return make_error("stop_requires_zero_speed");
             }
         } else if (command.direction == SoftwareMotionDirection::EmergencyStop) {
             if (!options_.allow_emergency_stop) {
-                result.error = "emergency_stop_disabled";
-                return result;
+                return make_error("emergency_stop_disabled");
             }
             if (std::fabs(command.speed_normalized) > 1e-12) {
-                result.error = "emergency_stop_requires_zero_speed";
-                return result;
+                return make_error("emergency_stop_requires_zero_speed");
             }
         } else {
             if (command.speed_normalized > options_.max_speed_normalized) {
-                result.error = "speed_exceeds_limit";
-                return result;
+                return make_error("speed_exceeds_limit");
             }
             if (is_translation(command.direction) && !options_.allow_translation_commands) {
-                result.error = "translation_commands_disabled";
-                return result;
+                return make_error("translation_commands_disabled");
             }
             if (is_rotation(command.direction) && !options_.allow_rotation_commands) {
-                result.error = "rotation_commands_disabled";
-                return result;
+                return make_error("rotation_commands_disabled");
             }
             if (command.sequence == 0) {
-                result.warnings.push_back("sequence_zero_for_motion");
+                append_warning(result, "sequence_zero_for_motion");
             }
         }
 
-        if (std::isfinite(now_s) && now_s - command.timestamp_s > options_.max_command_age_s) {
+        // Command age validation.
+        if (is_finite(now_s) && now_s - command.timestamp_s > options_.max_command_age_s) {
             result.error = "command_too_old";
             result.ok = false;
             return result;
         }
+
+        // Reason / sequence validation.
         if (command.reason.empty()) {
             result.error = "reason_required";
             return result;
@@ -102,45 +98,65 @@ public:
         const SoftwareMotionCommand &command,
         const SoftwareMotionSendResult &send_result,
         double /*now_s*/) const {
-        SoftwareMotionTransportContractCheckResult result;
-
-        if (!std::isfinite(send_result.timestamp_s)) {
-            result.error = "non_finite_result_timestamp";
-            return result;
+        // Result timestamp validation.
+        if (!is_finite(send_result.timestamp_s)) {
+            return make_error("non_finite_result_timestamp");
         }
         if (send_result.timestamp_s + 1e-9 < command.timestamp_s) {
-            result.error = "result_before_command";
-            return result;
+            return make_error("result_before_command");
         }
+
+        // Error semantics validation.
         if (!send_result.ok && send_result.error.empty()) {
-            result.error = "failed_result_requires_error";
-            return result;
+            return make_error("failed_result_requires_error");
         }
         if (send_result.ok && !send_result.accepted && send_result.error.empty()) {
-            result.error = "rejected_result_requires_error";
-            return result;
+            return make_error("rejected_result_requires_error");
         }
+
+        // Transport sequence validation.
         if (have_last_transport_sequence_ &&
             send_result.transport_sequence < last_transport_sequence_) {
-            result.error = "transport_sequence_regressed";
-            return result;
+            return make_error("transport_sequence_regressed");
         }
 
         have_last_transport_sequence_ = true;
         last_transport_sequence_ = send_result.transport_sequence;
-        result.ok = true;
-        return result;
+        return make_ok();
     }
 
 private:
-    static bool is_rotation(SoftwareMotionDirection direction) {
-        return direction == SoftwareMotionDirection::TurnLeft ||
-               direction == SoftwareMotionDirection::TurnRight;
+    static SoftwareMotionTransportContractCheckResult make_ok() {
+        return {true, "", {}};
+    }
+
+    static SoftwareMotionTransportContractCheckResult make_error(
+        const std::string &error) {
+        return {false, error, {}};
+    }
+
+    static void append_warning(SoftwareMotionTransportContractCheckResult &result,
+                               const std::string &warning) {
+        result.warnings.push_back(warning);
+    }
+
+    static bool is_stop_like(SoftwareMotionDirection direction) {
+        return direction == SoftwareMotionDirection::Stop ||
+               direction == SoftwareMotionDirection::EmergencyStop;
     }
 
     static bool is_translation(SoftwareMotionDirection direction) {
         return direction == SoftwareMotionDirection::Forward ||
                direction == SoftwareMotionDirection::Backward;
+    }
+
+    static bool is_rotation(SoftwareMotionDirection direction) {
+        return direction == SoftwareMotionDirection::TurnLeft ||
+               direction == SoftwareMotionDirection::TurnRight;
+    }
+
+    static bool is_finite(double value) {
+        return std::isfinite(value);
     }
 
     SoftwareMotionTransportContractOptions options_;
