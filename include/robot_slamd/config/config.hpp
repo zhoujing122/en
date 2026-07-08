@@ -461,6 +461,22 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.autonomous_slam_e2e_prelive_require_stop_command_seen = get_bool(kv, "autonomous_slam_e2e_prelive.require_stop_command_seen", c.autonomous_slam_e2e_prelive_require_stop_command_seen);
     c.autonomous_slam_e2e_prelive_require_active_scan_when_map_poor = get_bool(kv, "autonomous_slam_e2e_prelive.require_active_scan_when_map_poor", c.autonomous_slam_e2e_prelive_require_active_scan_when_map_poor);
     c.autonomous_slam_e2e_prelive_require_map_quality_good_at_end = get_bool(kv, "autonomous_slam_e2e_prelive.require_map_quality_good_at_end", c.autonomous_slam_e2e_prelive_require_map_quality_good_at_end);
+    c.real_adapter_stubs_enabled = get_bool(kv, "real_adapter_stubs.enabled", c.real_adapter_stubs_enabled);
+    c.real_adapter_stubs_create_sensor_stub = get_bool(kv, "real_adapter_stubs.create_sensor_stub", c.real_adapter_stubs_create_sensor_stub);
+    c.real_adapter_stubs_create_motion_stub = get_bool(kv, "real_adapter_stubs.create_motion_stub", c.real_adapter_stubs_create_motion_stub);
+    c.real_adapter_stubs_create_slam_backend_stub = get_bool(kv, "real_adapter_stubs.create_slam_backend_stub", c.real_adapter_stubs_create_slam_backend_stub);
+    c.real_adapter_stubs_allow_real_hardware_adapters = get_bool(kv, "real_adapter_stubs.allow_real_hardware_adapters", c.real_adapter_stubs_allow_real_hardware_adapters);
+    c.real_adapter_stubs_require_explicit_live_enable = get_bool(kv, "real_adapter_stubs.require_explicit_live_enable", c.real_adapter_stubs_require_explicit_live_enable);
+    c.live_handoff_readiness_enabled = get_bool(kv, "live_handoff_readiness.enabled", c.live_handoff_readiness_enabled);
+    c.live_handoff_readiness_require_real_sensor_adapter = get_bool(kv, "live_handoff_readiness.require_real_sensor_adapter", c.live_handoff_readiness_require_real_sensor_adapter);
+    c.live_handoff_readiness_require_real_motion_adapter = get_bool(kv, "live_handoff_readiness.require_real_motion_adapter", c.live_handoff_readiness_require_real_motion_adapter);
+    c.live_handoff_readiness_require_real_slam_backend = get_bool(kv, "live_handoff_readiness.require_real_slam_backend", c.live_handoff_readiness_require_real_slam_backend);
+    c.live_handoff_readiness_require_software_transport_acceptance = get_bool(kv, "live_handoff_readiness.require_software_transport_acceptance", c.live_handoff_readiness_require_software_transport_acceptance);
+    c.live_handoff_readiness_require_e2e_prelive_pass = get_bool(kv, "live_handoff_readiness.require_e2e_prelive_pass", c.live_handoff_readiness_require_e2e_prelive_pass);
+    c.live_handoff_readiness_require_direction_probe = get_bool(kv, "live_handoff_readiness.require_direction_probe", c.live_handoff_readiness_require_direction_probe);
+    c.live_handoff_readiness_require_stop_estop_ttl = get_bool(kv, "live_handoff_readiness.require_stop_estop_ttl", c.live_handoff_readiness_require_stop_estop_ttl);
+    c.live_handoff_readiness_require_hardware_safety = get_bool(kv, "live_handoff_readiness.require_hardware_safety", c.live_handoff_readiness_require_hardware_safety);
+    c.live_handoff_readiness_allow_forward_backward = get_bool(kv, "live_handoff_readiness.allow_forward_backward", c.live_handoff_readiness_allow_forward_backward);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -933,6 +949,29 @@ void validate_config(const Config &c) {
         c.motion_execution_software_motion_production_interface_enabled) {
         errors.push_back("autonomous_slam_e2e_prelive.enabled=true requires production_interface_enabled=false");
     }
+    if (c.real_adapter_stubs_allow_real_hardware_adapters) {
+        errors.push_back("real_adapter_stubs.allow_real_hardware_adapters must remain false");
+    }
+    if (!c.real_adapter_stubs_require_explicit_live_enable) {
+        errors.push_back("real_adapter_stubs.require_explicit_live_enable must remain true");
+    }
+    if (c.live_handoff_readiness_allow_forward_backward) {
+        errors.push_back("live_handoff_readiness.allow_forward_backward must remain false");
+    }
+    if (c.real_adapter_stubs_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("real_adapter_stubs.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.real_adapter_stubs_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("real_adapter_stubs.enabled=true requires production_interface_enabled=false");
+    }
+    if (c.live_handoff_readiness_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("live_handoff_readiness.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.live_handoff_readiness_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("live_handoff_readiness.enabled=true requires production_interface_enabled=false");
+    }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1349,6 +1388,24 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_stop_command_seen: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_stop_command_seen) << "\n"
       << "  require_active_scan_when_map_poor: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_active_scan_when_map_poor) << "\n"
       << "  require_map_quality_good_at_end: " << bool_yaml(c.autonomous_slam_e2e_prelive_require_map_quality_good_at_end) << "\n";
+    o << "real_adapter_stubs:\n"
+      << "  enabled: " << bool_yaml(c.real_adapter_stubs_enabled) << "\n"
+      << "  create_sensor_stub: " << bool_yaml(c.real_adapter_stubs_create_sensor_stub) << "\n"
+      << "  create_motion_stub: " << bool_yaml(c.real_adapter_stubs_create_motion_stub) << "\n"
+      << "  create_slam_backend_stub: " << bool_yaml(c.real_adapter_stubs_create_slam_backend_stub) << "\n"
+      << "  allow_real_hardware_adapters: " << bool_yaml(c.real_adapter_stubs_allow_real_hardware_adapters) << "\n"
+      << "  require_explicit_live_enable: " << bool_yaml(c.real_adapter_stubs_require_explicit_live_enable) << "\n";
+    o << "live_handoff_readiness:\n"
+      << "  enabled: " << bool_yaml(c.live_handoff_readiness_enabled) << "\n"
+      << "  require_real_sensor_adapter: " << bool_yaml(c.live_handoff_readiness_require_real_sensor_adapter) << "\n"
+      << "  require_real_motion_adapter: " << bool_yaml(c.live_handoff_readiness_require_real_motion_adapter) << "\n"
+      << "  require_real_slam_backend: " << bool_yaml(c.live_handoff_readiness_require_real_slam_backend) << "\n"
+      << "  require_software_transport_acceptance: " << bool_yaml(c.live_handoff_readiness_require_software_transport_acceptance) << "\n"
+      << "  require_e2e_prelive_pass: " << bool_yaml(c.live_handoff_readiness_require_e2e_prelive_pass) << "\n"
+      << "  require_direction_probe: " << bool_yaml(c.live_handoff_readiness_require_direction_probe) << "\n"
+      << "  require_stop_estop_ttl: " << bool_yaml(c.live_handoff_readiness_require_stop_estop_ttl) << "\n"
+      << "  require_hardware_safety: " << bool_yaml(c.live_handoff_readiness_require_hardware_safety) << "\n"
+      << "  allow_forward_backward: " << bool_yaml(c.live_handoff_readiness_allow_forward_backward) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

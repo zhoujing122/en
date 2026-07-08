@@ -14,3 +14,7 @@ Before implementing RealSlamBackendBinding, assign and document:
 10. Joint test time with the pre-live runner.
 
 The implementation target is to replace the replay binding without changing AutonomousSlamCoordinator, AutonomousSlamPolicy, or PreLiveAutonomousSlamRunner.
+
+## M3-B0 Stub Location
+
+The future real SLAM owner should use `RealSlamBackendBindingStub` as the handoff location or replace it with a concrete `SlamBackendBinding`. The M3-A3 backend acceptance must still pass before live handoff.

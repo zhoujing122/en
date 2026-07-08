@@ -69,3 +69,7 @@ The future real software transport should be wrapped by a `RobotSlamMotionPort` 
 ## M3-A1 Adapter Handoff
 
 Software motion transport remains separate from sensor/map adapter contracts. M3-A1 adds readiness and acceptance checks for the real adapter handoff, while live chassis transport remains disabled until the software-side implementation passes shadow acceptance and lifted testing.
+
+## M3-B0 Real Motion Stub
+
+M3-B0 adds `RealSoftwareMotionPortStub` as the placeholder for a future software-side motion adapter. It rejects every command and does not replace the M2-B3 software transport acceptance requirements.

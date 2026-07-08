@@ -48,3 +48,7 @@ M3-A2 consumes these contracts through docs/PRELIVE_AUTONOMOUS_SLAM_INTEGRATION.
 
 M3-A3 separates real sensor adapter contracts from the SLAM backend binding contract in docs/SLAM_BACKEND_MAP_PORT_BINDING.md.
 M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre-live shadow scenario across replay sensors, SLAM backend binding, map port, pre-live runner, coordinator, policy, and shadow motion.
+
+## M3-B0 Stub Handoff
+
+M3-B0 adds the real adapter stub classes that future implementation owners should fill after the M3-A1 contracts are satisfied. The stubs remain not ready and do not validate real hardware.

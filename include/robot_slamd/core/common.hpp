@@ -596,6 +596,22 @@ struct Config {
     bool autonomous_slam_e2e_prelive_require_stop_command_seen = true;
     bool autonomous_slam_e2e_prelive_require_active_scan_when_map_poor = true;
     bool autonomous_slam_e2e_prelive_require_map_quality_good_at_end = false;
+    bool real_adapter_stubs_enabled = false;
+    bool real_adapter_stubs_create_sensor_stub = true;
+    bool real_adapter_stubs_create_motion_stub = true;
+    bool real_adapter_stubs_create_slam_backend_stub = true;
+    bool real_adapter_stubs_allow_real_hardware_adapters = false;
+    bool real_adapter_stubs_require_explicit_live_enable = true;
+    bool live_handoff_readiness_enabled = false;
+    bool live_handoff_readiness_require_real_sensor_adapter = true;
+    bool live_handoff_readiness_require_real_motion_adapter = true;
+    bool live_handoff_readiness_require_real_slam_backend = true;
+    bool live_handoff_readiness_require_software_transport_acceptance = true;
+    bool live_handoff_readiness_require_e2e_prelive_pass = true;
+    bool live_handoff_readiness_require_direction_probe = true;
+    bool live_handoff_readiness_require_stop_estop_ttl = true;
+    bool live_handoff_readiness_require_hardware_safety = true;
+    bool live_handoff_readiness_allow_forward_backward = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1122,6 +1138,19 @@ struct AutonomousSlamRunStats {
     bool autonomous_slam_e2e_prelive_forward_backward_seen_last = false;
     uint64_t autonomous_slam_e2e_prelive_failed_case_count_last = 0;
     uint64_t autonomous_slam_e2e_prelive_warning_count_last = 0;
+    bool real_adapter_stubs_enabled_last = false;
+    uint64_t real_adapter_factory_create_sensor_count = 0;
+    uint64_t real_adapter_factory_create_motion_count = 0;
+    uint64_t real_adapter_factory_create_slam_backend_count = 0;
+    bool real_sensor_stub_ready_last = false;
+    bool real_motion_stub_ready_last = false;
+    bool real_slam_backend_stub_ready_last = false;
+    bool live_handoff_readiness_enabled_last = false;
+    bool live_handoff_readiness_ok_last = false;
+    int live_handoff_readiness_state_last = 0;
+    int live_handoff_block_reason_last = 0;
+    uint64_t live_handoff_failed_case_count_last = 0;
+    uint64_t live_handoff_warning_count_last = 0;
 };
 
 struct RunMetrics {

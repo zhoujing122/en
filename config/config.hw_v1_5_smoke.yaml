@@ -484,3 +484,23 @@ autonomous_slam_e2e_prelive:
   require_stop_command_seen: true
   require_active_scan_when_map_poor: true
   require_map_quality_good_at_end: false
+
+real_adapter_stubs:
+  enabled: false
+  create_sensor_stub: true
+  create_motion_stub: true
+  create_slam_backend_stub: true
+  allow_real_hardware_adapters: false
+  require_explicit_live_enable: true
+
+live_handoff_readiness:
+  enabled: false
+  require_real_sensor_adapter: true
+  require_real_motion_adapter: true
+  require_real_slam_backend: true
+  require_software_transport_acceptance: true
+  require_e2e_prelive_pass: true
+  require_direction_probe: true
+  require_stop_estop_ttl: true
+  require_hardware_safety: true
+  allow_forward_backward: false

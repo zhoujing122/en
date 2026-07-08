@@ -67,3 +67,7 @@ M3-A2 adds docs/PRELIVE_AUTONOMOUS_SLAM_INTEGRATION.md, which wires the hardware
 
 M3-A3 adds docs/SLAM_BACKEND_MAP_PORT_BINDING.md, defining how future SLAM backends bind to RobotSlamMapPort without changing the coordinator.
 M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre-live shadow scenario across replay sensors, SLAM backend binding, map port, pre-live runner, coordinator, policy, and shadow motion.
+
+## M3-B0 Real Adapter Stub Layer
+
+The hardware-ready core now has explicit real adapter stub files for sensor input, motion output, and SLAM backend binding. They are disabled by default and preserve the rule that the coordinator and policy stay unchanged when real adapters are implemented later.
