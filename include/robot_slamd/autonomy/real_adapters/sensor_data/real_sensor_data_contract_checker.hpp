@@ -25,6 +25,12 @@ public:
             return reject(RealSensorDataFault::NonFiniteTimestamp,
                           "real_sensor_packet_non_finite_timestamp");
         }
+        if (options_.reject_future_sensor_time &&
+            packet.packet_timestamp_s - now_s >
+                options_.max_future_timestamp_skew_s) {
+            return reject(RealSensorDataFault::FutureTimestamp,
+                          "real_sensor_packet_timestamp_in_future");
+        }
         if (now_s - packet.packet_timestamp_s > options_.max_packet_age_s) {
             return reject(RealSensorDataFault::StaleTimestamp,
                           "real_sensor_packet_stale");
@@ -59,6 +65,33 @@ public:
             append(result, wheel);
             if (!wheel.ok) {
                 return result;
+            }
+        }
+
+        // Packet time must stay close to each sensor effective time.
+        if (packet.has_tof) {
+            const double tof_time =
+                real_sensor_effective_time_s(packet.tof.timing);
+            if (std::fabs(packet.packet_timestamp_s - tof_time) >
+                options_.max_packet_sensor_time_dt_s) {
+                return reject(RealSensorDataFault::PacketSensorTimeMismatch,
+                              "real_sensor_packet_tof_time_mismatch");
+            }
+        }
+        if (packet.has_imu) {
+            if (std::fabs(packet.packet_timestamp_s - packet.imu.timestamp_s) >
+                options_.max_packet_sensor_time_dt_s) {
+                return reject(RealSensorDataFault::PacketSensorTimeMismatch,
+                              "real_sensor_packet_imu_time_mismatch");
+            }
+        }
+        if (packet.has_wheel) {
+            const double wheel_time =
+                real_sensor_effective_time_s(packet.wheel.timing);
+            if (std::fabs(packet.packet_timestamp_s - wheel_time) >
+                options_.max_packet_sensor_time_dt_s) {
+                return reject(RealSensorDataFault::PacketSensorTimeMismatch,
+                              "real_sensor_packet_wheel_time_mismatch");
             }
         }
 
@@ -180,6 +213,11 @@ public:
             return reject(RealSensorDataFault::InvalidImuTimestamp,
                           "real_sensor_imu_non_finite_timestamp");
         }
+        if (options_.reject_future_sensor_time &&
+            imu.timestamp_s - now_s > options_.max_future_timestamp_skew_s) {
+            return reject(RealSensorDataFault::FutureTimestamp,
+                          "real_sensor_imu_timestamp_in_future");
+        }
         if (now_s - imu.timestamp_s > options_.max_packet_age_s) {
             return reject(RealSensorDataFault::StaleTimestamp,
                           "real_sensor_imu_stale");
@@ -299,15 +337,48 @@ public:
                           label + "_request_latency_non_finite");
         }
 
-        // Latency and age checks.
+        // Latency must match the request window exactly enough for replay.
+        if (timing.request_latency_s < 0.0) {
+            return reject(RealSensorDataFault::InvalidRequestTiming,
+                          label + "_request_latency_negative");
+        }
         const double expected_latency =
             timing.response_received_s - timing.request_start_s;
-        if (std::fabs(timing.request_latency_s - expected_latency) > 1e-6) {
+        if (std::fabs(timing.request_latency_s - expected_latency) >
+            options_.max_request_latency_mismatch_s) {
+            if (options_.reject_request_latency_mismatch) {
+                return reject(RealSensorDataFault::RequestLatencyMismatch,
+                              label + "_request_latency_mismatch");
+            }
             result.warnings.push_back(label + "_request_latency_mismatch");
         }
         if (timing.request_latency_s > options_.max_request_latency_s) {
             return reject(RealSensorDataFault::RequestLatencyTooHigh,
                           label + "_request_latency_too_high");
+        }
+
+        // Estimated sample time is a request-window midpoint estimate.
+        if (options_.require_estimated_sample_time_in_window &&
+            (timing.estimated_sample_time_s < timing.request_start_s ||
+             timing.estimated_sample_time_s > timing.response_received_s)) {
+            return reject(
+                RealSensorDataFault::EstimatedSampleTimeOutsideWindow,
+                label + "_estimated_sample_time_outside_request_window");
+        }
+        const double midpoint =
+            0.5 * (timing.request_start_s + timing.response_received_s);
+        if (options_.require_estimated_sample_time_midpoint &&
+            std::fabs(timing.estimated_sample_time_s - midpoint) >
+                options_.max_estimated_sample_time_midpoint_error_s) {
+            return reject(
+                RealSensorDataFault::EstimatedSampleTimeMidpointMismatch,
+                label + "_estimated_sample_time_not_midpoint");
+        }
+        if (options_.reject_future_sensor_time &&
+            timing.estimated_sample_time_s - now_s >
+                options_.max_future_timestamp_skew_s) {
+            return reject(RealSensorDataFault::FutureTimestamp,
+                          label + "_estimated_sample_time_in_future");
         }
         if (now_s - timing.estimated_sample_time_s > options_.max_packet_age_s) {
             return reject(RealSensorDataFault::StaleTimestamp,

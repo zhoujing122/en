@@ -37,3 +37,7 @@
 - Reserve real data capture window.
 - Assign acceptance owner.
 - Confirm M3-B1 acceptance before lifted tests.
+
+## M3-B2 Log Fields
+
+Future capture tooling must record ToF/Wheel request start, response receipt, midpoint estimate, and request latency. A single timestamp is insufficient for replay.

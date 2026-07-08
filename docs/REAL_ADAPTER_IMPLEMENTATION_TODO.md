@@ -37,3 +37,7 @@
 ## M3-B1 Sensor Field Mapping
 
 The sensor owner must map ToF and Wheel request-window timing fields before live work. Use `docs/REAL_SENSOR_FIELD_MAPPING_TODO.md` for the required field checklist.
+
+## M3-B2 Sensor Replay TODO
+
+Before live integration, real capture tooling should emit the M3-B2 replay log format so sensor, SLAM, and policy regressions can run offline.

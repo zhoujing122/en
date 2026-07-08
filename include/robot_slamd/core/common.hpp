@@ -632,6 +632,20 @@ struct Config {
     std::string real_sensor_adapter_data_contract_default_imu_frame_id = "imu_frame";
     std::string real_sensor_adapter_data_contract_default_wheel_frame_id = "wheel_frame";
     bool real_sensor_adapter_data_contract_run_acceptance_on_startup = false;
+    double real_sensor_adapter_data_contract_max_request_latency_mismatch_s = 0.001;
+    double real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s = 0.005;
+    double real_sensor_adapter_data_contract_max_future_timestamp_skew_s = 0.05;
+    double real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s = 0.20;
+    bool real_sensor_adapter_data_contract_reject_request_latency_mismatch = true;
+    bool real_sensor_adapter_data_contract_require_estimated_sample_time_in_window = true;
+    bool real_sensor_adapter_data_contract_require_estimated_sample_time_midpoint = true;
+    bool real_sensor_adapter_data_contract_reject_future_sensor_time = true;
+    bool real_sensor_replay_enabled = false;
+    bool real_sensor_replay_loop = false;
+    bool real_sensor_replay_fail_on_contract_error = true;
+    bool real_sensor_replay_require_non_empty_log = true;
+    bool real_sensor_replay_run_acceptance_on_startup = false;
+    double real_sensor_replay_start_time_s = 100.0;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1186,6 +1200,20 @@ struct AutonomousSlamRunStats {
     double real_sensor_adapter_wheel_estimated_sample_time_s_last = 0.0;
     uint64_t real_sensor_adapter_failed_case_count_last = 0;
     uint64_t real_sensor_adapter_warning_count_last = 0;
+    bool real_sensor_replay_enabled_last = false;
+    uint64_t real_sensor_replay_acceptance_run_count = 0;
+    bool real_sensor_replay_acceptance_ok_last = false;
+    int real_sensor_replay_status_last = 0;
+    int real_sensor_replay_fault_last = 0;
+    int real_sensor_replay_parsed_record_count_last = 0;
+    int real_sensor_replay_accepted_packet_count_last = 0;
+    int real_sensor_replay_rejected_packet_count_last = 0;
+    uint64_t real_sensor_replay_failed_case_count_last = 0;
+    uint64_t real_sensor_replay_warning_count_last = 0;
+    double real_sensor_adapter_request_latency_mismatch_s_last = 0.0;
+    double real_sensor_adapter_estimated_midpoint_error_s_last = 0.0;
+    double real_sensor_adapter_packet_sensor_time_dt_s_last = 0.0;
+    double real_sensor_adapter_future_timestamp_skew_s_last = 0.0;
 };
 
 struct RunMetrics {

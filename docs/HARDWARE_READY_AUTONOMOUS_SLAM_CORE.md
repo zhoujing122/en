@@ -75,3 +75,7 @@ The hardware-ready core now has explicit real adapter stub files for sensor inpu
 ## M3-B1 Request-Based Sensor Timing
 
 The hardware-ready autonomy layer now has a raw sensor packet contract. ToF and Wheel timestamps are request-window estimates, and multi-sensor sync uses those estimated sample times.
+
+## M3-B2 Sensor Replay
+
+M3-B2 adds an offline real sensor replay/log pipeline. It preserves ToF/Wheel request-window estimates and does not read hardware or command motion.

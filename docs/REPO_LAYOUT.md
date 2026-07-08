@@ -119,3 +119,7 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 - `docs/REAL_SENSOR_ADAPTER_DATA_CONTRACT.md`: request-based ToF/Wheel timing and raw packet rules.
 - `docs/REAL_SENSOR_ADAPTER_ACCEPTANCE_TESTS.md`: M3-B1 acceptance checklist.
 - `docs/REAL_SENSOR_FIELD_MAPPING_TODO.md`: future real sensor field mapping TODOs.
+
+## M3-B2 Sensor Replay Layout
+
+`include/robot_slamd/autonomy/real_adapters/sensor_replay/` contains offline replay/log contract headers for request-window sensor data regression.

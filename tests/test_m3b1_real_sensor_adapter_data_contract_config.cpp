@@ -46,6 +46,14 @@ int main() {
            "default require imu or wheel");
     expect(cfg.real_sensor_adapter_data_contract_require_request_timing,
            "default request timing");
+    expect(cfg.real_sensor_adapter_data_contract_reject_request_latency_mismatch,
+           "default reject latency mismatch");
+    expect(cfg.real_sensor_adapter_data_contract_require_estimated_sample_time_in_window,
+           "default require sample in window");
+    expect(cfg.real_sensor_adapter_data_contract_require_estimated_sample_time_midpoint,
+           "default require midpoint");
+    expect(cfg.real_sensor_adapter_data_contract_reject_future_sensor_time,
+           "default reject future sensor time");
 
     Config invalid = cfg;
     invalid.real_sensor_adapter_data_contract_max_packet_age_s = 0.0;
@@ -81,6 +89,27 @@ int main() {
     invalid = cfg;
     invalid.real_sensor_adapter_data_contract_run_acceptance_on_startup = true;
     expect_throw([&] { validate_config(invalid); }, "startup acceptance fatal");
+    invalid = cfg;
+    invalid.real_sensor_adapter_data_contract_max_request_latency_mismatch_s = 0.0;
+    expect_throw([&] { validate_config(invalid); }, "latency mismatch <=0");
+    invalid = cfg;
+    invalid.real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s = 0.0;
+    expect_throw([&] { validate_config(invalid); }, "midpoint error <=0");
+    invalid = cfg;
+    invalid.real_sensor_adapter_data_contract_max_future_timestamp_skew_s = -0.1;
+    expect_throw([&] { validate_config(invalid); }, "future skew <0");
+    invalid = cfg;
+    invalid.real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s = 0.0;
+    expect_throw([&] { validate_config(invalid); }, "packet sensor dt <=0");
+    invalid = cfg;
+    invalid.real_sensor_adapter_data_contract_require_estimated_sample_time_in_window = false;
+    expect_throw([&] { validate_config(invalid); }, "sample window fatal");
+    invalid = cfg;
+    invalid.real_sensor_adapter_data_contract_require_estimated_sample_time_midpoint = false;
+    expect_throw([&] { validate_config(invalid); }, "midpoint fatal");
+    invalid = cfg;
+    invalid.real_sensor_adapter_data_contract_reject_future_sensor_time = false;
+    expect_throw([&] { validate_config(invalid); }, "future reject fatal");
 
     invalid = cfg;
     invalid.motion_execution_writer_backend = "software_direction_speed_test_only";
@@ -106,6 +135,9 @@ int main() {
     expect(text.find("real_sensor_adapter_data_contract:") !=
                std::string::npos,
            "resolved block");
+    expect(text.find("max_request_latency_mismatch_s") !=
+               std::string::npos,
+           "resolved hardening field");
 
     RunMetrics metrics;
     Localizer loc(cfg);

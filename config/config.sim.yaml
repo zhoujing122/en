@@ -538,3 +538,19 @@ real_sensor_adapter_data_contract:
   default_imu_frame_id: imu_frame
   default_wheel_frame_id: wheel_frame
   run_acceptance_on_startup: false
+  max_request_latency_mismatch_s: 0.001
+  max_estimated_sample_time_midpoint_error_s: 0.005
+  max_future_timestamp_skew_s: 0.05
+  max_packet_sensor_time_dt_s: 0.20
+  reject_request_latency_mismatch: true
+  require_estimated_sample_time_in_window: true
+  require_estimated_sample_time_midpoint: true
+  reject_future_sensor_time: true
+
+real_sensor_replay:
+  enabled: false
+  loop: false
+  fail_on_contract_error: true
+  require_non_empty_log: true
+  run_acceptance_on_startup: false
+  start_time_s: 100.0

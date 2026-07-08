@@ -50,12 +50,41 @@ int main() {
                    "real_sensor_tof_estimated_sample_time_non_finite");
 
     tof = RealSensorSampleData::valid_packet(100.0).tof;
-    tof.timing.request_latency_s = 0.25;
+    tof.timing.request_latency_s = -0.01;
+    expect_message(checker.check_tof_frame(tof, 100.0),
+                   "real_sensor_tof_request_latency_negative");
+
+    tof = RealSensorSampleData::valid_packet(100.0).tof;
+    tof.timing.request_latency_s += 0.01;
+    expect_message(checker.check_tof_frame(tof, 100.0),
+                   "real_sensor_tof_request_latency_mismatch");
+
+    tof = RealSensorSampleData::valid_packet(100.0).tof;
+    tof.timing = make_request_timing(99.70, 100.0);
     expect_message(checker.check_tof_frame(tof, 100.0),
                    "real_sensor_tof_request_latency_too_high");
 
     tof = RealSensorSampleData::valid_packet(100.0).tof;
-    tof.timing.estimated_sample_time_s = 99.0;
+    tof.timing.estimated_sample_time_s =
+        tof.timing.request_start_s - 0.01;
+    expect_message(checker.check_tof_frame(tof, 100.0),
+                   "real_sensor_tof_estimated_sample_time_outside_request_window");
+
+    tof = RealSensorSampleData::valid_packet(100.0).tof;
+    tof.timing.request_start_s = 99.98;
+    tof.timing.response_received_s = 100.04;
+    tof.timing.request_latency_s = 0.06;
+    tof.timing.estimated_sample_time_s = 100.03;
+    expect_message(checker.check_tof_frame(tof, 100.0),
+                   "real_sensor_tof_estimated_sample_time_not_midpoint");
+
+    tof = RealSensorSampleData::valid_packet(100.0).tof;
+    tof.timing = make_request_timing(100.06, 100.08);
+    expect_message(checker.check_tof_frame(tof, 100.0),
+                   "real_sensor_tof_estimated_sample_time_in_future");
+
+    tof = RealSensorSampleData::valid_packet(100.0).tof;
+    tof.timing = make_request_timing(98.99, 99.01);
     expect_message(checker.check_tof_frame(tof, 100.0),
                    "real_sensor_tof_estimated_sample_time_stale");
 

@@ -19,3 +19,7 @@ M3-B1 acceptance covers the data contract skeleton only.
 
 ToF and Wheel timestamps are request-window estimates, not hardware capture
 timestamps.
+
+## M3-B2 Replay Coverage
+
+M3-B2 adds offline replay acceptance for valid logs, request latency failures, and sync failures while preserving ToF/Wheel request-window fields. See `REAL_SENSOR_REPLAY_ACCEPTANCE_TESTS.md`.

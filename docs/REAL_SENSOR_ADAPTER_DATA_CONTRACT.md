@@ -35,3 +35,7 @@ ToF and Wheel sync uses `estimated_sample_time_s`.
 should call the builder rather than bypassing the contract.
 
 Passing this acceptance does not prove real sensor readiness.
+
+## M3-B2 Timing Hardening
+
+M3-B2 rejects negative or mismatched request latency, estimated sample times outside the request window, estimated times that are not close to the midpoint, future sensor times, and packet-to-sensor time mismatches. ToF/Wheel remain request-window estimates, not hardware capture timestamps. See `REAL_SENSOR_REPLAY_LOG_FORMAT.md`.

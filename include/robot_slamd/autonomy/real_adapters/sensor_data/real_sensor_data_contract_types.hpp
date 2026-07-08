@@ -40,6 +40,11 @@ enum class RealSensorDataFault {
     InvalidWheelVelocity,
     InvalidRequestTiming,
     RequestLatencyTooHigh,
+    RequestLatencyMismatch,
+    EstimatedSampleTimeOutsideWindow,
+    EstimatedSampleTimeMidpointMismatch,
+    FutureTimestamp,
+    PacketSensorTimeMismatch,
     SensorSyncTooLarge,
     SnapshotBuildFailed
 };
@@ -116,6 +121,14 @@ struct RealSensorDataContractOptions {
     std::string default_tof_frame_id = "tof_frame";
     std::string default_imu_frame_id = "imu_frame";
     std::string default_wheel_frame_id = "wheel_frame";
+    double max_request_latency_mismatch_s = 0.001;
+    double max_estimated_sample_time_midpoint_error_s = 0.005;
+    double max_future_timestamp_skew_s = 0.05;
+    double max_packet_sensor_time_dt_s = 0.20;
+    bool reject_request_latency_mismatch = true;
+    bool require_estimated_sample_time_in_window = true;
+    bool require_estimated_sample_time_midpoint = true;
+    bool reject_future_sensor_time = true;
 };
 
 struct RealSensorDataContractResult {
@@ -205,6 +218,16 @@ inline std::string to_string(RealSensorDataFault fault) {
         return "InvalidRequestTiming";
     case RealSensorDataFault::RequestLatencyTooHigh:
         return "RequestLatencyTooHigh";
+    case RealSensorDataFault::RequestLatencyMismatch:
+        return "RequestLatencyMismatch";
+    case RealSensorDataFault::EstimatedSampleTimeOutsideWindow:
+        return "EstimatedSampleTimeOutsideWindow";
+    case RealSensorDataFault::EstimatedSampleTimeMidpointMismatch:
+        return "EstimatedSampleTimeMidpointMismatch";
+    case RealSensorDataFault::FutureTimestamp:
+        return "FutureTimestamp";
+    case RealSensorDataFault::PacketSensorTimeMismatch:
+        return "PacketSensorTimeMismatch";
     case RealSensorDataFault::SensorSyncTooLarge:
         return "SensorSyncTooLarge";
     case RealSensorDataFault::SnapshotBuildFailed:

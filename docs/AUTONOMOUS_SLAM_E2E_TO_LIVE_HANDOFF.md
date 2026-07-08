@@ -9,3 +9,7 @@ M3-B0 adds the fail-closed real adapter stub locations and the live handoff read
 ## M3-B1 Sensor Data Gate
 
 Before live handoff, RealTofImuWheelSensorPort must produce raw packets that pass M3-B1 acceptance. The coordinator remains unchanged because the builder outputs `RobotSlamSensorSnapshot`.
+
+## M3-B2 Replay Gate
+
+Use M3-B2 offline sensor replay before live handoff to validate request-window timing and snapshot conversion with captured data. Replay passing is not live-ready.

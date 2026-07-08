@@ -497,6 +497,20 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.real_sensor_adapter_data_contract_default_imu_frame_id = get_string(kv, "real_sensor_adapter_data_contract.default_imu_frame_id", c.real_sensor_adapter_data_contract_default_imu_frame_id);
     c.real_sensor_adapter_data_contract_default_wheel_frame_id = get_string(kv, "real_sensor_adapter_data_contract.default_wheel_frame_id", c.real_sensor_adapter_data_contract_default_wheel_frame_id);
     c.real_sensor_adapter_data_contract_run_acceptance_on_startup = get_bool(kv, "real_sensor_adapter_data_contract.run_acceptance_on_startup", c.real_sensor_adapter_data_contract_run_acceptance_on_startup);
+    c.real_sensor_adapter_data_contract_max_request_latency_mismatch_s = get_double(kv, "real_sensor_adapter_data_contract.max_request_latency_mismatch_s", c.real_sensor_adapter_data_contract_max_request_latency_mismatch_s);
+    c.real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s = get_double(kv, "real_sensor_adapter_data_contract.max_estimated_sample_time_midpoint_error_s", c.real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s);
+    c.real_sensor_adapter_data_contract_max_future_timestamp_skew_s = get_double(kv, "real_sensor_adapter_data_contract.max_future_timestamp_skew_s", c.real_sensor_adapter_data_contract_max_future_timestamp_skew_s);
+    c.real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s = get_double(kv, "real_sensor_adapter_data_contract.max_packet_sensor_time_dt_s", c.real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s);
+    c.real_sensor_adapter_data_contract_reject_request_latency_mismatch = get_bool(kv, "real_sensor_adapter_data_contract.reject_request_latency_mismatch", c.real_sensor_adapter_data_contract_reject_request_latency_mismatch);
+    c.real_sensor_adapter_data_contract_require_estimated_sample_time_in_window = get_bool(kv, "real_sensor_adapter_data_contract.require_estimated_sample_time_in_window", c.real_sensor_adapter_data_contract_require_estimated_sample_time_in_window);
+    c.real_sensor_adapter_data_contract_require_estimated_sample_time_midpoint = get_bool(kv, "real_sensor_adapter_data_contract.require_estimated_sample_time_midpoint", c.real_sensor_adapter_data_contract_require_estimated_sample_time_midpoint);
+    c.real_sensor_adapter_data_contract_reject_future_sensor_time = get_bool(kv, "real_sensor_adapter_data_contract.reject_future_sensor_time", c.real_sensor_adapter_data_contract_reject_future_sensor_time);
+    c.real_sensor_replay_enabled = get_bool(kv, "real_sensor_replay.enabled", c.real_sensor_replay_enabled);
+    c.real_sensor_replay_loop = get_bool(kv, "real_sensor_replay.loop", c.real_sensor_replay_loop);
+    c.real_sensor_replay_fail_on_contract_error = get_bool(kv, "real_sensor_replay.fail_on_contract_error", c.real_sensor_replay_fail_on_contract_error);
+    c.real_sensor_replay_require_non_empty_log = get_bool(kv, "real_sensor_replay.require_non_empty_log", c.real_sensor_replay_require_non_empty_log);
+    c.real_sensor_replay_run_acceptance_on_startup = get_bool(kv, "real_sensor_replay.run_acceptance_on_startup", c.real_sensor_replay_run_acceptance_on_startup);
+    c.real_sensor_replay_start_time_s = get_double(kv, "real_sensor_replay.start_time_s", c.real_sensor_replay_start_time_s);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1056,12 +1070,61 @@ void validate_config(const Config &c) {
     if (c.real_sensor_adapter_data_contract_run_acceptance_on_startup) {
         errors.push_back("real_sensor_adapter_data_contract.run_acceptance_on_startup must remain false");
     }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_request_latency_mismatch_s) ||
+        c.real_sensor_adapter_data_contract_max_request_latency_mismatch_s <= 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_request_latency_mismatch_s must be > 0");
+    } else if (c.real_sensor_adapter_data_contract_max_request_latency_mismatch_s > 0.1) {
+        errors.push_back("real_sensor_adapter_data_contract.max_request_latency_mismatch_s must be <= 0.1");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s) ||
+        c.real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s <= 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_estimated_sample_time_midpoint_error_s must be > 0");
+    } else if (c.real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s > 0.1) {
+        errors.push_back("real_sensor_adapter_data_contract.max_estimated_sample_time_midpoint_error_s must be <= 0.1");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_future_timestamp_skew_s) ||
+        c.real_sensor_adapter_data_contract_max_future_timestamp_skew_s < 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_future_timestamp_skew_s must be >= 0");
+    } else if (c.real_sensor_adapter_data_contract_max_future_timestamp_skew_s > 1.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_future_timestamp_skew_s must be <= 1.0");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s) ||
+        c.real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s <= 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_packet_sensor_time_dt_s must be > 0");
+    } else if (c.real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s > 2.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_packet_sensor_time_dt_s must be <= 2.0");
+    }
+    if (!c.real_sensor_adapter_data_contract_reject_request_latency_mismatch) {
+        errors.push_back("real_sensor_adapter_data_contract.reject_request_latency_mismatch must remain true");
+    }
+    if (!c.real_sensor_adapter_data_contract_require_estimated_sample_time_in_window) {
+        errors.push_back("real_sensor_adapter_data_contract.require_estimated_sample_time_in_window must remain true");
+    }
+    if (!c.real_sensor_adapter_data_contract_require_estimated_sample_time_midpoint) {
+        errors.push_back("real_sensor_adapter_data_contract.require_estimated_sample_time_midpoint must remain true");
+    }
+    if (!c.real_sensor_adapter_data_contract_reject_future_sensor_time) {
+        errors.push_back("real_sensor_adapter_data_contract.reject_future_sensor_time must remain true");
+    }
     if (c.real_sensor_adapter_data_contract_enabled && c.motion_execution_hardware_write_enabled) {
         errors.push_back("real_sensor_adapter_data_contract.enabled=true requires motion_execution.hardware_write_enabled=false");
     }
     if (c.real_sensor_adapter_data_contract_enabled &&
         c.motion_execution_software_motion_production_interface_enabled) {
         errors.push_back("real_sensor_adapter_data_contract.enabled=true requires production_interface_enabled=false");
+    }
+    if (!std::isfinite(c.real_sensor_replay_start_time_s)) {
+        errors.push_back("real_sensor_replay.start_time_s must be finite");
+    }
+    if (c.real_sensor_replay_run_acceptance_on_startup) {
+        errors.push_back("real_sensor_replay.run_acceptance_on_startup must remain false");
+    }
+    if (c.real_sensor_replay_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("real_sensor_replay.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.real_sensor_replay_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("real_sensor_replay.enabled=true requires production_interface_enabled=false");
     }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
@@ -1517,7 +1580,22 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  default_tof_frame_id: " << c.real_sensor_adapter_data_contract_default_tof_frame_id << "\n"
       << "  default_imu_frame_id: " << c.real_sensor_adapter_data_contract_default_imu_frame_id << "\n"
       << "  default_wheel_frame_id: " << c.real_sensor_adapter_data_contract_default_wheel_frame_id << "\n"
-      << "  run_acceptance_on_startup: " << bool_yaml(c.real_sensor_adapter_data_contract_run_acceptance_on_startup) << "\n";
+      << "  run_acceptance_on_startup: " << bool_yaml(c.real_sensor_adapter_data_contract_run_acceptance_on_startup) << "\n"
+      << "  max_request_latency_mismatch_s: " << c.real_sensor_adapter_data_contract_max_request_latency_mismatch_s << "\n"
+      << "  max_estimated_sample_time_midpoint_error_s: " << c.real_sensor_adapter_data_contract_max_estimated_sample_time_midpoint_error_s << "\n"
+      << "  max_future_timestamp_skew_s: " << c.real_sensor_adapter_data_contract_max_future_timestamp_skew_s << "\n"
+      << "  max_packet_sensor_time_dt_s: " << c.real_sensor_adapter_data_contract_max_packet_sensor_time_dt_s << "\n"
+      << "  reject_request_latency_mismatch: " << bool_yaml(c.real_sensor_adapter_data_contract_reject_request_latency_mismatch) << "\n"
+      << "  require_estimated_sample_time_in_window: " << bool_yaml(c.real_sensor_adapter_data_contract_require_estimated_sample_time_in_window) << "\n"
+      << "  require_estimated_sample_time_midpoint: " << bool_yaml(c.real_sensor_adapter_data_contract_require_estimated_sample_time_midpoint) << "\n"
+      << "  reject_future_sensor_time: " << bool_yaml(c.real_sensor_adapter_data_contract_reject_future_sensor_time) << "\n";
+    o << "real_sensor_replay:\n"
+      << "  enabled: " << bool_yaml(c.real_sensor_replay_enabled) << "\n"
+      << "  loop: " << bool_yaml(c.real_sensor_replay_loop) << "\n"
+      << "  fail_on_contract_error: " << bool_yaml(c.real_sensor_replay_fail_on_contract_error) << "\n"
+      << "  require_non_empty_log: " << bool_yaml(c.real_sensor_replay_require_non_empty_log) << "\n"
+      << "  run_acceptance_on_startup: " << bool_yaml(c.real_sensor_replay_run_acceptance_on_startup) << "\n"
+      << "  start_time_s: " << c.real_sensor_replay_start_time_s << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"
