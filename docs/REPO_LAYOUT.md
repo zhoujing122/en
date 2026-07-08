@@ -95,3 +95,7 @@ Software-side transport handoff documents live in `docs/SOFTWARE_TRANSPORT_IMPLE
 ## M3-A0 Autonomy Layout
 
 M3-A0 adds `include/robot_slamd/autonomy/` for the hardware-ready autonomous SLAM coordinator, policy, types, and ports. Tests live under `tests/test_autonomous_slam_*` and `tests/test_robot_slam_ports.cpp`. The module has no real robot driver or runtime transport dependency; real robot integration should add adapters without changing the coordinator. See `docs/HARDWARE_READY_AUTONOMOUS_SLAM_CORE.md`.
+
+## M3-A1 Adapter Contract Layout
+
+Real adapter contracts live under `include/robot_slamd/autonomy/contracts/`. Replay-only adapters live under `include/robot_slamd/autonomy/adapters/`. They are contract and test scaffolding only; real driver implementations are intentionally not present in M3-A1.

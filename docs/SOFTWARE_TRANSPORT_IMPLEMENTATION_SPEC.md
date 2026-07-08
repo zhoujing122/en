@@ -65,3 +65,7 @@ No command is permanent. Every command is time-limited. Any abnormal condition m
 ## M3-A0 Port Integration
 
 The future real software transport should be wrapped by a `RobotSlamMotionPort` adapter for autonomous SLAM. The coordinator only emits algorithm-level stop and active-scan rotation commands in M3-A0; real TTL stop, accepted/rejected semantics, and live enable gates remain the responsibility of the software-side chassis layer. See `docs/HARDWARE_READY_AUTONOMOUS_SLAM_CORE.md`.
+
+## M3-A1 Adapter Handoff
+
+Software motion transport remains separate from sensor/map adapter contracts. M3-A1 adds readiness and acceptance checks for the real adapter handoff, while live chassis transport remains disabled until the software-side implementation passes shadow acceptance and lifted testing.

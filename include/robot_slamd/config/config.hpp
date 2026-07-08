@@ -411,6 +411,23 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.autonomous_slam_require_tof = get_bool(kv, "autonomous_slam.require_tof", c.autonomous_slam_require_tof);
     c.autonomous_slam_require_imu_or_wheel = get_bool(kv, "autonomous_slam.require_imu_or_wheel", c.autonomous_slam_require_imu_or_wheel);
     c.autonomous_slam_allow_forward_backward = get_bool(kv, "autonomous_slam.allow_forward_backward", c.autonomous_slam_allow_forward_backward);
+    c.real_adapter_contract_enabled = get_bool(kv, "real_adapter_contract.enabled", c.real_adapter_contract_enabled);
+    c.real_adapter_contract_require_tof = get_bool(kv, "real_adapter_contract.require_tof", c.real_adapter_contract_require_tof);
+    c.real_adapter_contract_require_imu_or_wheel = get_bool(kv, "real_adapter_contract.require_imu_or_wheel", c.real_adapter_contract_require_imu_or_wheel);
+    c.real_adapter_contract_tof_max_frame_age_s = get_double(kv, "real_adapter_contract.tof_max_frame_age_s", c.real_adapter_contract_tof_max_frame_age_s);
+    c.real_adapter_contract_imu_max_frame_age_s = get_double(kv, "real_adapter_contract.imu_max_frame_age_s", c.real_adapter_contract_imu_max_frame_age_s);
+    c.real_adapter_contract_wheel_max_frame_age_s = get_double(kv, "real_adapter_contract.wheel_max_frame_age_s", c.real_adapter_contract_wheel_max_frame_age_s);
+    c.real_adapter_contract_tof_min_range_count = get_int(kv, "real_adapter_contract.tof_min_range_count", c.real_adapter_contract_tof_min_range_count);
+    c.real_adapter_contract_tof_max_range_count = get_int(kv, "real_adapter_contract.tof_max_range_count", c.real_adapter_contract_tof_max_range_count);
+    c.real_adapter_contract_tof_min_range_m = get_double(kv, "real_adapter_contract.tof_min_range_m", c.real_adapter_contract_tof_min_range_m);
+    c.real_adapter_contract_tof_max_range_m = get_double(kv, "real_adapter_contract.tof_max_range_m", c.real_adapter_contract_tof_max_range_m);
+    c.real_adapter_contract_tof_max_allowed_nan_ratio = get_double(kv, "real_adapter_contract.tof_max_allowed_nan_ratio", c.real_adapter_contract_tof_max_allowed_nan_ratio);
+    c.real_adapter_contract_require_tof_frame_id = get_bool(kv, "real_adapter_contract.require_tof_frame_id", c.real_adapter_contract_require_tof_frame_id);
+    c.real_adapter_contract_imu_max_abs_yaw_rate_rad_s = get_double(kv, "real_adapter_contract.imu_max_abs_yaw_rate_rad_s", c.real_adapter_contract_imu_max_abs_yaw_rate_rad_s);
+    c.real_adapter_contract_imu_max_abs_acc_mps2 = get_double(kv, "real_adapter_contract.imu_max_abs_acc_mps2", c.real_adapter_contract_imu_max_abs_acc_mps2);
+    c.real_adapter_contract_wheel_max_abs_linear_mps = get_double(kv, "real_adapter_contract.wheel_max_abs_linear_mps", c.real_adapter_contract_wheel_max_abs_linear_mps);
+    c.real_adapter_contract_wheel_max_abs_angular_rad_s = get_double(kv, "real_adapter_contract.wheel_max_abs_angular_rad_s", c.real_adapter_contract_wheel_max_abs_angular_rad_s);
+    c.real_adapter_contract_require_shadow_before_live = get_bool(kv, "real_adapter_contract.require_shadow_before_live", c.real_adapter_contract_require_shadow_before_live);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -743,6 +760,69 @@ void validate_config(const Config &c) {
     }
     if (c.autonomous_slam_allow_forward_backward) {
         errors.push_back("autonomous_slam.allow_forward_backward=true unsupported before grounded live validation");
+    }
+    if (!std::isfinite(c.real_adapter_contract_tof_max_frame_age_s) ||
+        c.real_adapter_contract_tof_max_frame_age_s <= 0.0) {
+        errors.push_back("real_adapter_contract.tof_max_frame_age_s must be > 0");
+    } else if (c.real_adapter_contract_tof_max_frame_age_s > 5.0) {
+        errors.push_back("real_adapter_contract.tof_max_frame_age_s must be <= 5.0");
+    }
+    if (!std::isfinite(c.real_adapter_contract_imu_max_frame_age_s) ||
+        c.real_adapter_contract_imu_max_frame_age_s <= 0.0) {
+        errors.push_back("real_adapter_contract.imu_max_frame_age_s must be > 0");
+    } else if (c.real_adapter_contract_imu_max_frame_age_s > 5.0) {
+        errors.push_back("real_adapter_contract.imu_max_frame_age_s must be <= 5.0");
+    }
+    if (!std::isfinite(c.real_adapter_contract_wheel_max_frame_age_s) ||
+        c.real_adapter_contract_wheel_max_frame_age_s <= 0.0) {
+        errors.push_back("real_adapter_contract.wheel_max_frame_age_s must be > 0");
+    } else if (c.real_adapter_contract_wheel_max_frame_age_s > 5.0) {
+        errors.push_back("real_adapter_contract.wheel_max_frame_age_s must be <= 5.0");
+    }
+    if (c.real_adapter_contract_tof_min_range_count < 1) {
+        errors.push_back("real_adapter_contract.tof_min_range_count must be >= 1");
+    }
+    if (c.real_adapter_contract_tof_max_range_count < c.real_adapter_contract_tof_min_range_count) {
+        errors.push_back("real_adapter_contract.tof_max_range_count must be >= tof_min_range_count");
+    } else if (c.real_adapter_contract_tof_max_range_count > 65536) {
+        errors.push_back("real_adapter_contract.tof_max_range_count must be <= 65536");
+    }
+    if (!std::isfinite(c.real_adapter_contract_tof_min_range_m) ||
+        !std::isfinite(c.real_adapter_contract_tof_max_range_m) ||
+        c.real_adapter_contract_tof_min_range_m <= 0.0 ||
+        c.real_adapter_contract_tof_min_range_m >= c.real_adapter_contract_tof_max_range_m) {
+        errors.push_back("real_adapter_contract.tof_min_range_m must be > 0 and < tof_max_range_m");
+    } else if (c.real_adapter_contract_tof_max_range_m > 100.0) {
+        errors.push_back("real_adapter_contract.tof_max_range_m must be <= 100.0");
+    }
+    if (!std::isfinite(c.real_adapter_contract_tof_max_allowed_nan_ratio) ||
+        c.real_adapter_contract_tof_max_allowed_nan_ratio < 0.0 ||
+        c.real_adapter_contract_tof_max_allowed_nan_ratio > 1.0) {
+        errors.push_back("real_adapter_contract.tof_max_allowed_nan_ratio must be in [0,1]");
+    }
+    if (!std::isfinite(c.real_adapter_contract_imu_max_abs_yaw_rate_rad_s) ||
+        c.real_adapter_contract_imu_max_abs_yaw_rate_rad_s <= 0.0) {
+        errors.push_back("real_adapter_contract.imu_max_abs_yaw_rate_rad_s must be > 0");
+    } else if (c.real_adapter_contract_imu_max_abs_yaw_rate_rad_s > 100.0) {
+        errors.push_back("real_adapter_contract.imu_max_abs_yaw_rate_rad_s must be <= 100.0");
+    }
+    if (!std::isfinite(c.real_adapter_contract_imu_max_abs_acc_mps2) ||
+        c.real_adapter_contract_imu_max_abs_acc_mps2 <= 0.0) {
+        errors.push_back("real_adapter_contract.imu_max_abs_acc_mps2 must be > 0");
+    } else if (c.real_adapter_contract_imu_max_abs_acc_mps2 > 200.0) {
+        errors.push_back("real_adapter_contract.imu_max_abs_acc_mps2 must be <= 200.0");
+    }
+    if (!std::isfinite(c.real_adapter_contract_wheel_max_abs_linear_mps) ||
+        c.real_adapter_contract_wheel_max_abs_linear_mps <= 0.0) {
+        errors.push_back("real_adapter_contract.wheel_max_abs_linear_mps must be > 0");
+    } else if (c.real_adapter_contract_wheel_max_abs_linear_mps > 10.0) {
+        errors.push_back("real_adapter_contract.wheel_max_abs_linear_mps must be <= 10.0");
+    }
+    if (!std::isfinite(c.real_adapter_contract_wheel_max_abs_angular_rad_s) ||
+        c.real_adapter_contract_wheel_max_abs_angular_rad_s <= 0.0) {
+        errors.push_back("real_adapter_contract.wheel_max_abs_angular_rad_s must be > 0");
+    } else if (c.real_adapter_contract_wheel_max_abs_angular_rad_s > 50.0) {
+        errors.push_back("real_adapter_contract.wheel_max_abs_angular_rad_s must be <= 50.0");
     }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
@@ -1106,6 +1186,24 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_tof: " << bool_yaml(c.autonomous_slam_require_tof) << "\n"
       << "  require_imu_or_wheel: " << bool_yaml(c.autonomous_slam_require_imu_or_wheel) << "\n"
       << "  allow_forward_backward: " << bool_yaml(c.autonomous_slam_allow_forward_backward) << "\n";
+    o << "real_adapter_contract:\n"
+      << "  enabled: " << bool_yaml(c.real_adapter_contract_enabled) << "\n"
+      << "  require_tof: " << bool_yaml(c.real_adapter_contract_require_tof) << "\n"
+      << "  require_imu_or_wheel: " << bool_yaml(c.real_adapter_contract_require_imu_or_wheel) << "\n"
+      << "  tof_max_frame_age_s: " << c.real_adapter_contract_tof_max_frame_age_s << "\n"
+      << "  imu_max_frame_age_s: " << c.real_adapter_contract_imu_max_frame_age_s << "\n"
+      << "  wheel_max_frame_age_s: " << c.real_adapter_contract_wheel_max_frame_age_s << "\n"
+      << "  tof_min_range_count: " << c.real_adapter_contract_tof_min_range_count << "\n"
+      << "  tof_max_range_count: " << c.real_adapter_contract_tof_max_range_count << "\n"
+      << "  tof_min_range_m: " << c.real_adapter_contract_tof_min_range_m << "\n"
+      << "  tof_max_range_m: " << c.real_adapter_contract_tof_max_range_m << "\n"
+      << "  tof_max_allowed_nan_ratio: " << c.real_adapter_contract_tof_max_allowed_nan_ratio << "\n"
+      << "  require_tof_frame_id: " << bool_yaml(c.real_adapter_contract_require_tof_frame_id) << "\n"
+      << "  imu_max_abs_yaw_rate_rad_s: " << c.real_adapter_contract_imu_max_abs_yaw_rate_rad_s << "\n"
+      << "  imu_max_abs_acc_mps2: " << c.real_adapter_contract_imu_max_abs_acc_mps2 << "\n"
+      << "  wheel_max_abs_linear_mps: " << c.real_adapter_contract_wheel_max_abs_linear_mps << "\n"
+      << "  wheel_max_abs_angular_rad_s: " << c.real_adapter_contract_wheel_max_abs_angular_rad_s << "\n"
+      << "  require_shadow_before_live: " << bool_yaml(c.real_adapter_contract_require_shadow_before_live) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

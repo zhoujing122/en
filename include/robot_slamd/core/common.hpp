@@ -546,6 +546,23 @@ struct Config {
     bool autonomous_slam_require_tof = true;
     bool autonomous_slam_require_imu_or_wheel = true;
     bool autonomous_slam_allow_forward_backward = false;
+    bool real_adapter_contract_enabled = false;
+    bool real_adapter_contract_require_tof = true;
+    bool real_adapter_contract_require_imu_or_wheel = true;
+    double real_adapter_contract_tof_max_frame_age_s = 0.50;
+    double real_adapter_contract_imu_max_frame_age_s = 0.50;
+    double real_adapter_contract_wheel_max_frame_age_s = 0.50;
+    int real_adapter_contract_tof_min_range_count = 3;
+    int real_adapter_contract_tof_max_range_count = 4096;
+    double real_adapter_contract_tof_min_range_m = 0.02;
+    double real_adapter_contract_tof_max_range_m = 10.0;
+    double real_adapter_contract_tof_max_allowed_nan_ratio = 0.25;
+    bool real_adapter_contract_require_tof_frame_id = true;
+    double real_adapter_contract_imu_max_abs_yaw_rate_rad_s = 20.0;
+    double real_adapter_contract_imu_max_abs_acc_mps2 = 80.0;
+    double real_adapter_contract_wheel_max_abs_linear_mps = 2.0;
+    double real_adapter_contract_wheel_max_abs_angular_rad_s = 10.0;
+    bool real_adapter_contract_require_shadow_before_live = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1014,6 +1031,19 @@ struct AutonomousSlamRunStats {
     uint64_t map_quality_poor_count = 0;
     uint64_t motion_reject_count = 0;
     uint64_t fault_count = 0;
+    bool real_adapter_contract_enabled_last = false;
+    bool real_adapter_contract_check_ok_last = false;
+    uint64_t real_adapter_contract_error_count = 0;
+    uint64_t real_adapter_contract_warning_count = 0;
+    int real_adapter_readiness_last = 0;
+    uint64_t real_adapter_readiness_error_count = 0;
+    uint64_t real_adapter_acceptance_run_count = 0;
+    uint64_t real_adapter_acceptance_pass_count = 0;
+    uint64_t real_adapter_acceptance_fail_count = 0;
+    bool real_adapter_tof_frame_ok_last = false;
+    bool real_adapter_imu_frame_ok_last = false;
+    bool real_adapter_wheel_frame_ok_last = false;
+    bool real_adapter_map_quality_ok_last = false;
 };
 
 struct RunMetrics {

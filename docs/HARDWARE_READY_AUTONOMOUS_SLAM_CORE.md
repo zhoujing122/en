@@ -58,3 +58,7 @@ M3-A0 cannot prove:
 - real ToF data quality is sufficient
 - real map quality is acceptable
 - the real software layer has implemented TTL stop
+
+## M3-A1 Real Adapter Contracts
+
+M3-A1 adds real adapter contract checkers, readiness checks, replay adapters, and acceptance tests. These define the data quality and readiness rules for future real ToF, IMU, wheel, map, and motion adapters without implementing any real driver. See `docs/REAL_ADAPTER_CONTRACTS.md`, `docs/REAL_ADAPTER_ACCEPTANCE_TESTS.md`, and `docs/REAL_ADAPTER_HANDOFF_CHECKLIST.md`.

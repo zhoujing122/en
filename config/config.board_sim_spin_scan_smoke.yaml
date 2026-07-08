@@ -460,3 +460,21 @@ autonomous_slam:
   require_tof: true
   require_imu_or_wheel: true
   allow_forward_backward: false
+real_adapter_contract:
+  enabled: false
+  require_tof: true
+  require_imu_or_wheel: true
+  tof_max_frame_age_s: 0.50
+  imu_max_frame_age_s: 0.50
+  wheel_max_frame_age_s: 0.50
+  tof_min_range_count: 3
+  tof_max_range_count: 4096
+  tof_min_range_m: 0.02
+  tof_max_range_m: 10.0
+  tof_max_allowed_nan_ratio: 0.25
+  require_tof_frame_id: true
+  imu_max_abs_yaw_rate_rad_s: 20.0
+  imu_max_abs_acc_mps2: 80.0
+  wheel_max_abs_linear_mps: 2.0
+  wheel_max_abs_angular_rad_s: 10.0
+  require_shadow_before_live: true
