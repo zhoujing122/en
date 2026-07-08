@@ -71,3 +71,7 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 ## M3-B0 Real Adapter Stub Layer
 
 The hardware-ready core now has explicit real adapter stub files for sensor input, motion output, and SLAM backend binding. They are disabled by default and preserve the rule that the coordinator and policy stay unchanged when real adapters are implemented later.
+
+## M3-B1 Request-Based Sensor Timing
+
+The hardware-ready autonomy layer now has a raw sensor packet contract. ToF and Wheel timestamps are request-window estimates, and multi-sensor sync uses those estimated sample times.

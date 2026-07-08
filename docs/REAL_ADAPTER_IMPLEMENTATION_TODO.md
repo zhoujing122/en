@@ -33,3 +33,7 @@
 - Reserve vehicle test window.
 - Confirm lifted test conditions.
 - Run acceptance review before live motion.
+
+## M3-B1 Sensor Field Mapping
+
+The sensor owner must map ToF and Wheel request-window timing fields before live work. Use `docs/REAL_SENSOR_FIELD_MAPPING_TODO.md` for the required field checklist.

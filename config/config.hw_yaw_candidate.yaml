@@ -536,3 +536,25 @@ live_handoff_readiness:
   require_stop_estop_ttl: true
   require_hardware_safety: true
   allow_forward_backward: false
+
+real_sensor_adapter_data_contract:
+  enabled: false
+  require_tof: true
+  require_imu_or_wheel: true
+  require_frame_id: true
+  require_request_timing: true
+  allow_nan_ranges: true
+  max_packet_age_s: 0.50
+  max_sensor_sync_dt_s: 0.10
+  max_request_latency_s: 0.20
+  max_tof_nan_ratio: 0.50
+  min_tof_range_m: 0.02
+  max_tof_range_m: 8.00
+  max_abs_yaw_rate_rad_s: 8.00
+  max_accel_norm_mps2: 50.00
+  max_abs_wheel_linear_mps: 2.00
+  max_abs_wheel_angular_rad_s: 6.00
+  default_tof_frame_id: tof_frame
+  default_imu_frame_id: imu_frame
+  default_wheel_frame_id: wheel_frame
+  run_acceptance_on_startup: false

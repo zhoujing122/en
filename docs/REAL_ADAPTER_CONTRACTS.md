@@ -52,3 +52,7 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 ## M3-B0 Stub Handoff
 
 M3-B0 adds the real adapter stub classes that future implementation owners should fill after the M3-A1 contracts are satisfied. The stubs remain not ready and do not validate real hardware.
+
+## M3-B1 Sensor Raw Packet Contract
+
+M3-B1 defines `RealSensorRawPacket` and `RealSensorSnapshotBuilder` for future sensor adapters. ToF and Wheel timing is request-based and must not be treated as hardware capture timestamps.

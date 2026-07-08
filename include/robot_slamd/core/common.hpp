@@ -612,6 +612,26 @@ struct Config {
     bool live_handoff_readiness_require_stop_estop_ttl = true;
     bool live_handoff_readiness_require_hardware_safety = true;
     bool live_handoff_readiness_allow_forward_backward = false;
+    bool real_sensor_adapter_data_contract_enabled = false;
+    bool real_sensor_adapter_data_contract_require_tof = true;
+    bool real_sensor_adapter_data_contract_require_imu_or_wheel = true;
+    bool real_sensor_adapter_data_contract_require_frame_id = true;
+    bool real_sensor_adapter_data_contract_require_request_timing = true;
+    bool real_sensor_adapter_data_contract_allow_nan_ranges = true;
+    double real_sensor_adapter_data_contract_max_packet_age_s = 0.50;
+    double real_sensor_adapter_data_contract_max_sensor_sync_dt_s = 0.10;
+    double real_sensor_adapter_data_contract_max_request_latency_s = 0.20;
+    double real_sensor_adapter_data_contract_max_tof_nan_ratio = 0.50;
+    double real_sensor_adapter_data_contract_min_tof_range_m = 0.02;
+    double real_sensor_adapter_data_contract_max_tof_range_m = 8.00;
+    double real_sensor_adapter_data_contract_max_abs_yaw_rate_rad_s = 8.00;
+    double real_sensor_adapter_data_contract_max_accel_norm_mps2 = 50.00;
+    double real_sensor_adapter_data_contract_max_abs_wheel_linear_mps = 2.00;
+    double real_sensor_adapter_data_contract_max_abs_wheel_angular_rad_s = 6.00;
+    std::string real_sensor_adapter_data_contract_default_tof_frame_id = "tof_frame";
+    std::string real_sensor_adapter_data_contract_default_imu_frame_id = "imu_frame";
+    std::string real_sensor_adapter_data_contract_default_wheel_frame_id = "wheel_frame";
+    bool real_sensor_adapter_data_contract_run_acceptance_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1151,6 +1171,21 @@ struct AutonomousSlamRunStats {
     int live_handoff_block_reason_last = 0;
     uint64_t live_handoff_failed_case_count_last = 0;
     uint64_t live_handoff_warning_count_last = 0;
+    bool real_sensor_adapter_data_contract_enabled_last = false;
+    uint64_t real_sensor_adapter_acceptance_run_count = 0;
+    bool real_sensor_adapter_acceptance_ok_last = false;
+    int real_sensor_adapter_contract_status_last = 0;
+    int real_sensor_adapter_contract_fault_last = 0;
+    bool real_sensor_adapter_valid_packet_ok_last = false;
+    bool real_sensor_adapter_snapshot_build_ok_last = false;
+    int real_sensor_adapter_tof_range_count_last = 0;
+    double real_sensor_adapter_tof_nan_ratio_last = 0.0;
+    double real_sensor_adapter_sync_dt_s_last = 0.0;
+    double real_sensor_adapter_request_latency_s_last = 0.0;
+    double real_sensor_adapter_tof_estimated_sample_time_s_last = 0.0;
+    double real_sensor_adapter_wheel_estimated_sample_time_s_last = 0.0;
+    uint64_t real_sensor_adapter_failed_case_count_last = 0;
+    uint64_t real_sensor_adapter_warning_count_last = 0;
 };
 
 struct RunMetrics {

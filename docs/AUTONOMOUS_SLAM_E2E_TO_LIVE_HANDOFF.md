@@ -5,3 +5,7 @@ Before live transition, RealTofImuWheelSensorPort, RealSoftwareMotionPort, and R
 ## M3-B0 Real Adapter Stubs
 
 M3-B0 adds the fail-closed real adapter stub locations and the live handoff readiness checker. The next live transition still requires replacing the stubs with real sensor, motion, and SLAM backend adapters, then rerunning the M2-B3, M3-A1, M3-A3, and M3-A4 gates.
+
+## M3-B1 Sensor Data Gate
+
+Before live handoff, RealTofImuWheelSensorPort must produce raw packets that pass M3-B1 acceptance. The coordinator remains unchanged because the builder outputs `RobotSlamSensorSnapshot`.

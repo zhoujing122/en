@@ -477,6 +477,26 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.live_handoff_readiness_require_stop_estop_ttl = get_bool(kv, "live_handoff_readiness.require_stop_estop_ttl", c.live_handoff_readiness_require_stop_estop_ttl);
     c.live_handoff_readiness_require_hardware_safety = get_bool(kv, "live_handoff_readiness.require_hardware_safety", c.live_handoff_readiness_require_hardware_safety);
     c.live_handoff_readiness_allow_forward_backward = get_bool(kv, "live_handoff_readiness.allow_forward_backward", c.live_handoff_readiness_allow_forward_backward);
+    c.real_sensor_adapter_data_contract_enabled = get_bool(kv, "real_sensor_adapter_data_contract.enabled", c.real_sensor_adapter_data_contract_enabled);
+    c.real_sensor_adapter_data_contract_require_tof = get_bool(kv, "real_sensor_adapter_data_contract.require_tof", c.real_sensor_adapter_data_contract_require_tof);
+    c.real_sensor_adapter_data_contract_require_imu_or_wheel = get_bool(kv, "real_sensor_adapter_data_contract.require_imu_or_wheel", c.real_sensor_adapter_data_contract_require_imu_or_wheel);
+    c.real_sensor_adapter_data_contract_require_frame_id = get_bool(kv, "real_sensor_adapter_data_contract.require_frame_id", c.real_sensor_adapter_data_contract_require_frame_id);
+    c.real_sensor_adapter_data_contract_require_request_timing = get_bool(kv, "real_sensor_adapter_data_contract.require_request_timing", c.real_sensor_adapter_data_contract_require_request_timing);
+    c.real_sensor_adapter_data_contract_allow_nan_ranges = get_bool(kv, "real_sensor_adapter_data_contract.allow_nan_ranges", c.real_sensor_adapter_data_contract_allow_nan_ranges);
+    c.real_sensor_adapter_data_contract_max_packet_age_s = get_double(kv, "real_sensor_adapter_data_contract.max_packet_age_s", c.real_sensor_adapter_data_contract_max_packet_age_s);
+    c.real_sensor_adapter_data_contract_max_sensor_sync_dt_s = get_double(kv, "real_sensor_adapter_data_contract.max_sensor_sync_dt_s", c.real_sensor_adapter_data_contract_max_sensor_sync_dt_s);
+    c.real_sensor_adapter_data_contract_max_request_latency_s = get_double(kv, "real_sensor_adapter_data_contract.max_request_latency_s", c.real_sensor_adapter_data_contract_max_request_latency_s);
+    c.real_sensor_adapter_data_contract_max_tof_nan_ratio = get_double(kv, "real_sensor_adapter_data_contract.max_tof_nan_ratio", c.real_sensor_adapter_data_contract_max_tof_nan_ratio);
+    c.real_sensor_adapter_data_contract_min_tof_range_m = get_double(kv, "real_sensor_adapter_data_contract.min_tof_range_m", c.real_sensor_adapter_data_contract_min_tof_range_m);
+    c.real_sensor_adapter_data_contract_max_tof_range_m = get_double(kv, "real_sensor_adapter_data_contract.max_tof_range_m", c.real_sensor_adapter_data_contract_max_tof_range_m);
+    c.real_sensor_adapter_data_contract_max_abs_yaw_rate_rad_s = get_double(kv, "real_sensor_adapter_data_contract.max_abs_yaw_rate_rad_s", c.real_sensor_adapter_data_contract_max_abs_yaw_rate_rad_s);
+    c.real_sensor_adapter_data_contract_max_accel_norm_mps2 = get_double(kv, "real_sensor_adapter_data_contract.max_accel_norm_mps2", c.real_sensor_adapter_data_contract_max_accel_norm_mps2);
+    c.real_sensor_adapter_data_contract_max_abs_wheel_linear_mps = get_double(kv, "real_sensor_adapter_data_contract.max_abs_wheel_linear_mps", c.real_sensor_adapter_data_contract_max_abs_wheel_linear_mps);
+    c.real_sensor_adapter_data_contract_max_abs_wheel_angular_rad_s = get_double(kv, "real_sensor_adapter_data_contract.max_abs_wheel_angular_rad_s", c.real_sensor_adapter_data_contract_max_abs_wheel_angular_rad_s);
+    c.real_sensor_adapter_data_contract_default_tof_frame_id = get_string(kv, "real_sensor_adapter_data_contract.default_tof_frame_id", c.real_sensor_adapter_data_contract_default_tof_frame_id);
+    c.real_sensor_adapter_data_contract_default_imu_frame_id = get_string(kv, "real_sensor_adapter_data_contract.default_imu_frame_id", c.real_sensor_adapter_data_contract_default_imu_frame_id);
+    c.real_sensor_adapter_data_contract_default_wheel_frame_id = get_string(kv, "real_sensor_adapter_data_contract.default_wheel_frame_id", c.real_sensor_adapter_data_contract_default_wheel_frame_id);
+    c.real_sensor_adapter_data_contract_run_acceptance_on_startup = get_bool(kv, "real_sensor_adapter_data_contract.run_acceptance_on_startup", c.real_sensor_adapter_data_contract_run_acceptance_on_startup);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -972,6 +992,77 @@ void validate_config(const Config &c) {
         c.motion_execution_software_motion_production_interface_enabled) {
         errors.push_back("live_handoff_readiness.enabled=true requires production_interface_enabled=false");
     }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_packet_age_s) ||
+        c.real_sensor_adapter_data_contract_max_packet_age_s <= 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_packet_age_s must be > 0");
+    } else if (c.real_sensor_adapter_data_contract_max_packet_age_s > 5.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_packet_age_s must be <= 5.0");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_sensor_sync_dt_s) ||
+        c.real_sensor_adapter_data_contract_max_sensor_sync_dt_s <= 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_sensor_sync_dt_s must be > 0");
+    } else if (c.real_sensor_adapter_data_contract_max_sensor_sync_dt_s > 1.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_sensor_sync_dt_s must be <= 1.0");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_request_latency_s) ||
+        c.real_sensor_adapter_data_contract_max_request_latency_s <= 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_request_latency_s must be > 0");
+    } else if (c.real_sensor_adapter_data_contract_max_request_latency_s > 2.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_request_latency_s must be <= 2.0");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_tof_nan_ratio) ||
+        c.real_sensor_adapter_data_contract_max_tof_nan_ratio < 0.0 ||
+        c.real_sensor_adapter_data_contract_max_tof_nan_ratio > 1.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_tof_nan_ratio must be in [0,1]");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_min_tof_range_m) ||
+        c.real_sensor_adapter_data_contract_min_tof_range_m <= 0.0) {
+        errors.push_back("real_sensor_adapter_data_contract.min_tof_range_m must be > 0");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_tof_range_m) ||
+        c.real_sensor_adapter_data_contract_max_tof_range_m <=
+            c.real_sensor_adapter_data_contract_min_tof_range_m) {
+        errors.push_back("real_sensor_adapter_data_contract.max_tof_range_m must be > min_tof_range_m");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_abs_yaw_rate_rad_s) ||
+        c.real_sensor_adapter_data_contract_max_abs_yaw_rate_rad_s <= 0.0 ||
+        c.real_sensor_adapter_data_contract_max_abs_yaw_rate_rad_s > 50.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_abs_yaw_rate_rad_s must be in (0,50]");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_accel_norm_mps2) ||
+        c.real_sensor_adapter_data_contract_max_accel_norm_mps2 <= 0.0 ||
+        c.real_sensor_adapter_data_contract_max_accel_norm_mps2 > 200.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_accel_norm_mps2 must be in (0,200]");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_abs_wheel_linear_mps) ||
+        c.real_sensor_adapter_data_contract_max_abs_wheel_linear_mps <= 0.0 ||
+        c.real_sensor_adapter_data_contract_max_abs_wheel_linear_mps > 10.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_abs_wheel_linear_mps must be in (0,10]");
+    }
+    if (!std::isfinite(c.real_sensor_adapter_data_contract_max_abs_wheel_angular_rad_s) ||
+        c.real_sensor_adapter_data_contract_max_abs_wheel_angular_rad_s <= 0.0 ||
+        c.real_sensor_adapter_data_contract_max_abs_wheel_angular_rad_s > 50.0) {
+        errors.push_back("real_sensor_adapter_data_contract.max_abs_wheel_angular_rad_s must be in (0,50]");
+    }
+    if (c.real_sensor_adapter_data_contract_require_frame_id &&
+        (c.real_sensor_adapter_data_contract_default_tof_frame_id.empty() ||
+         c.real_sensor_adapter_data_contract_default_imu_frame_id.empty() ||
+         c.real_sensor_adapter_data_contract_default_wheel_frame_id.empty())) {
+        errors.push_back("real_sensor_adapter_data_contract default frame ids must be non-empty");
+    }
+    if (!c.real_sensor_adapter_data_contract_require_request_timing) {
+        errors.push_back("real_sensor_adapter_data_contract.require_request_timing must remain true");
+    }
+    if (c.real_sensor_adapter_data_contract_run_acceptance_on_startup) {
+        errors.push_back("real_sensor_adapter_data_contract.run_acceptance_on_startup must remain false");
+    }
+    if (c.real_sensor_adapter_data_contract_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("real_sensor_adapter_data_contract.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.real_sensor_adapter_data_contract_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("real_sensor_adapter_data_contract.enabled=true requires production_interface_enabled=false");
+    }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1406,6 +1497,27 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_stop_estop_ttl: " << bool_yaml(c.live_handoff_readiness_require_stop_estop_ttl) << "\n"
       << "  require_hardware_safety: " << bool_yaml(c.live_handoff_readiness_require_hardware_safety) << "\n"
       << "  allow_forward_backward: " << bool_yaml(c.live_handoff_readiness_allow_forward_backward) << "\n";
+    o << "real_sensor_adapter_data_contract:\n"
+      << "  enabled: " << bool_yaml(c.real_sensor_adapter_data_contract_enabled) << "\n"
+      << "  require_tof: " << bool_yaml(c.real_sensor_adapter_data_contract_require_tof) << "\n"
+      << "  require_imu_or_wheel: " << bool_yaml(c.real_sensor_adapter_data_contract_require_imu_or_wheel) << "\n"
+      << "  require_frame_id: " << bool_yaml(c.real_sensor_adapter_data_contract_require_frame_id) << "\n"
+      << "  require_request_timing: " << bool_yaml(c.real_sensor_adapter_data_contract_require_request_timing) << "\n"
+      << "  allow_nan_ranges: " << bool_yaml(c.real_sensor_adapter_data_contract_allow_nan_ranges) << "\n"
+      << "  max_packet_age_s: " << c.real_sensor_adapter_data_contract_max_packet_age_s << "\n"
+      << "  max_sensor_sync_dt_s: " << c.real_sensor_adapter_data_contract_max_sensor_sync_dt_s << "\n"
+      << "  max_request_latency_s: " << c.real_sensor_adapter_data_contract_max_request_latency_s << "\n"
+      << "  max_tof_nan_ratio: " << c.real_sensor_adapter_data_contract_max_tof_nan_ratio << "\n"
+      << "  min_tof_range_m: " << c.real_sensor_adapter_data_contract_min_tof_range_m << "\n"
+      << "  max_tof_range_m: " << c.real_sensor_adapter_data_contract_max_tof_range_m << "\n"
+      << "  max_abs_yaw_rate_rad_s: " << c.real_sensor_adapter_data_contract_max_abs_yaw_rate_rad_s << "\n"
+      << "  max_accel_norm_mps2: " << c.real_sensor_adapter_data_contract_max_accel_norm_mps2 << "\n"
+      << "  max_abs_wheel_linear_mps: " << c.real_sensor_adapter_data_contract_max_abs_wheel_linear_mps << "\n"
+      << "  max_abs_wheel_angular_rad_s: " << c.real_sensor_adapter_data_contract_max_abs_wheel_angular_rad_s << "\n"
+      << "  default_tof_frame_id: " << c.real_sensor_adapter_data_contract_default_tof_frame_id << "\n"
+      << "  default_imu_frame_id: " << c.real_sensor_adapter_data_contract_default_imu_frame_id << "\n"
+      << "  default_wheel_frame_id: " << c.real_sensor_adapter_data_contract_default_wheel_frame_id << "\n"
+      << "  run_acceptance_on_startup: " << bool_yaml(c.real_sensor_adapter_data_contract_run_acceptance_on_startup) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

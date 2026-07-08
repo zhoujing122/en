@@ -112,3 +112,10 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 - `docs/REAL_ADAPTER_STUBS.md`: M3-B0 stub overview.
 - `docs/LIVE_HANDOFF_READINESS_CHECKLIST.md`: gates before lifted live preparation.
 - `docs/REAL_ADAPTER_IMPLEMENTATION_TODO.md`: owner TODO list for future real adapters.
+
+## M3-B1 Sensor Data Contract Layout
+
+- `include/robot_slamd/autonomy/real_adapters/sensor_data/`: raw sensor packet contract, checker, builder, acceptance runner, report writer, and sample data.
+- `docs/REAL_SENSOR_ADAPTER_DATA_CONTRACT.md`: request-based ToF/Wheel timing and raw packet rules.
+- `docs/REAL_SENSOR_ADAPTER_ACCEPTANCE_TESTS.md`: M3-B1 acceptance checklist.
+- `docs/REAL_SENSOR_FIELD_MAPPING_TODO.md`: future real sensor field mapping TODOs.

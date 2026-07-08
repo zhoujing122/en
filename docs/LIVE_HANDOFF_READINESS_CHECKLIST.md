@@ -18,3 +18,7 @@ Live handoff is blocked until all required evidence exists.
 
 M3-B0 cannot return LiveReady. It can only report blocked or stub-only
 handoff states until real hardware verification exists.
+
+## M3-B1 Before Handoff
+
+Real sensor handoff must pass the M3-B1 data contract acceptance. ToF and Wheel synchronization must use request-window estimated sample times.
