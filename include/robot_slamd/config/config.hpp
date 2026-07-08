@@ -439,6 +439,17 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.prelive_autonomous_slam_require_active_scan_command_seen = get_bool(kv, "prelive_autonomous_slam.require_active_scan_command_seen", c.prelive_autonomous_slam_require_active_scan_command_seen);
     c.prelive_autonomous_slam_require_map_quality_good = get_bool(kv, "prelive_autonomous_slam.require_map_quality_good", c.prelive_autonomous_slam_require_map_quality_good);
     c.prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow = get_bool(kv, "prelive_autonomous_slam.allow_coordinator_incomplete_for_shadow", c.prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow);
+    c.slam_backend_binding_enabled = get_bool(kv, "slam_backend_binding.enabled", c.slam_backend_binding_enabled);
+    c.slam_backend_binding_require_tof = get_bool(kv, "slam_backend_binding.require_tof", c.slam_backend_binding_require_tof);
+    c.slam_backend_binding_require_imu_or_wheel = get_bool(kv, "slam_backend_binding.require_imu_or_wheel", c.slam_backend_binding_require_imu_or_wheel);
+    c.slam_backend_binding_allow_predicted_pose_missing = get_bool(kv, "slam_backend_binding.allow_predicted_pose_missing", c.slam_backend_binding_allow_predicted_pose_missing);
+    c.slam_backend_binding_max_input_age_s = get_double(kv, "slam_backend_binding.max_input_age_s", c.slam_backend_binding_max_input_age_s);
+    c.slam_backend_binding_max_update_latency_s = get_double(kv, "slam_backend_binding.max_update_latency_s", c.slam_backend_binding_max_update_latency_s);
+    c.slam_backend_binding_min_integrated_scan_count_for_quality = get_int(kv, "slam_backend_binding.min_integrated_scan_count_for_quality", c.slam_backend_binding_min_integrated_scan_count_for_quality);
+    c.slam_backend_binding_require_ready_for_acceptance = get_bool(kv, "slam_backend_binding.require_ready_for_acceptance", c.slam_backend_binding_require_ready_for_acceptance);
+    c.slam_backend_binding_require_update_accepted = get_bool(kv, "slam_backend_binding.require_update_accepted", c.slam_backend_binding_require_update_accepted);
+    c.slam_backend_binding_require_quality_valid = get_bool(kv, "slam_backend_binding.require_quality_valid", c.slam_backend_binding_require_quality_valid);
+    c.slam_backend_binding_require_save_map = get_bool(kv, "slam_backend_binding.require_save_map", c.slam_backend_binding_require_save_map);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -856,6 +867,28 @@ void validate_config(const Config &c) {
         c.motion_execution_software_motion_production_interface_enabled) {
         errors.push_back("prelive_autonomous_slam.enabled=true requires production_interface_enabled=false");
     }
+    if (!std::isfinite(c.slam_backend_binding_max_input_age_s) ||
+        c.slam_backend_binding_max_input_age_s <= 0.0) {
+        errors.push_back("slam_backend_binding.max_input_age_s must be > 0");
+    } else if (c.slam_backend_binding_max_input_age_s > 5.0) {
+        errors.push_back("slam_backend_binding.max_input_age_s must be <= 5.0");
+    }
+    if (!std::isfinite(c.slam_backend_binding_max_update_latency_s) ||
+        c.slam_backend_binding_max_update_latency_s <= 0.0) {
+        errors.push_back("slam_backend_binding.max_update_latency_s must be > 0");
+    } else if (c.slam_backend_binding_max_update_latency_s > 10.0) {
+        errors.push_back("slam_backend_binding.max_update_latency_s must be <= 10.0");
+    }
+    if (c.slam_backend_binding_min_integrated_scan_count_for_quality < 0) {
+        errors.push_back("slam_backend_binding.min_integrated_scan_count_for_quality must be >= 0");
+    }
+    if (c.slam_backend_binding_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("slam_backend_binding.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.slam_backend_binding_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("slam_backend_binding.enabled=true requires production_interface_enabled=false");
+    }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1248,6 +1281,18 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_active_scan_command_seen: " << bool_yaml(c.prelive_autonomous_slam_require_active_scan_command_seen) << "\n"
       << "  require_map_quality_good: " << bool_yaml(c.prelive_autonomous_slam_require_map_quality_good) << "\n"
       << "  allow_coordinator_incomplete_for_shadow: " << bool_yaml(c.prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow) << "\n";
+    o << "slam_backend_binding:\n"
+      << "  enabled: " << bool_yaml(c.slam_backend_binding_enabled) << "\n"
+      << "  require_tof: " << bool_yaml(c.slam_backend_binding_require_tof) << "\n"
+      << "  require_imu_or_wheel: " << bool_yaml(c.slam_backend_binding_require_imu_or_wheel) << "\n"
+      << "  allow_predicted_pose_missing: " << bool_yaml(c.slam_backend_binding_allow_predicted_pose_missing) << "\n"
+      << "  max_input_age_s: " << c.slam_backend_binding_max_input_age_s << "\n"
+      << "  max_update_latency_s: " << c.slam_backend_binding_max_update_latency_s << "\n"
+      << "  min_integrated_scan_count_for_quality: " << c.slam_backend_binding_min_integrated_scan_count_for_quality << "\n"
+      << "  require_ready_for_acceptance: " << bool_yaml(c.slam_backend_binding_require_ready_for_acceptance) << "\n"
+      << "  require_update_accepted: " << bool_yaml(c.slam_backend_binding_require_update_accepted) << "\n"
+      << "  require_quality_valid: " << bool_yaml(c.slam_backend_binding_require_quality_valid) << "\n"
+      << "  require_save_map: " << bool_yaml(c.slam_backend_binding_require_save_map) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

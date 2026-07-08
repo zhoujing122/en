@@ -574,6 +574,17 @@ struct Config {
     bool prelive_autonomous_slam_require_active_scan_command_seen = false;
     bool prelive_autonomous_slam_require_map_quality_good = false;
     bool prelive_autonomous_slam_allow_coordinator_incomplete_for_shadow = true;
+    bool slam_backend_binding_enabled = false;
+    bool slam_backend_binding_require_tof = true;
+    bool slam_backend_binding_require_imu_or_wheel = true;
+    bool slam_backend_binding_allow_predicted_pose_missing = true;
+    double slam_backend_binding_max_input_age_s = 0.50;
+    double slam_backend_binding_max_update_latency_s = 1.00;
+    int slam_backend_binding_min_integrated_scan_count_for_quality = 0;
+    bool slam_backend_binding_require_ready_for_acceptance = true;
+    bool slam_backend_binding_require_update_accepted = true;
+    bool slam_backend_binding_require_quality_valid = true;
+    bool slam_backend_binding_require_save_map = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1072,6 +1083,20 @@ struct AutonomousSlamRunStats {
     uint64_t prelive_autonomous_slam_active_scan_command_count = 0;
     uint64_t prelive_autonomous_slam_motion_reject_count = 0;
     uint64_t prelive_autonomous_slam_coordinator_fault_count = 0;
+    bool slam_backend_binding_enabled_last = false;
+    int slam_backend_stage_last = 0;
+    int slam_backend_fault_last = 0;
+    int slam_backend_update_status_last = 0;
+    bool slam_backend_input_check_ok_last = false;
+    bool slam_backend_update_check_ok_last = false;
+    bool slam_backend_quality_check_ok_last = false;
+    uint64_t slam_backend_acceptance_run_count = 0;
+    uint64_t slam_backend_acceptance_pass_count = 0;
+    uint64_t slam_backend_acceptance_fail_count = 0;
+    int slam_backend_integrated_scan_count_last = 0;
+    double slam_backend_update_latency_s_last = 0.0;
+    bool slam_backend_map_updated_last = false;
+    bool slam_backend_keyframe_added_last = false;
 };
 
 struct RunMetrics {

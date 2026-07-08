@@ -328,6 +328,19 @@ prelive_autonomous_slam:
   require_map_quality_good: false
   allow_coordinator_incomplete_for_shadow: true
 
+slam_backend_binding:
+  enabled: false
+  require_tof: true
+  require_imu_or_wheel: true
+  allow_predicted_pose_missing: true
+  max_input_age_s: 0.50
+  max_update_latency_s: 1.00
+  min_integrated_scan_count_for_quality: 0
+  require_ready_for_acceptance: true
+  require_update_accepted: true
+  require_quality_valid: true
+  require_save_map: false
+
 motion_execution:
   enabled: true
   mode: dry_run

@@ -16,3 +16,5 @@ The flow is:
 8. Emit PreLiveIntegrationReport text.
 
 Future live integration should replace ports/adapters only: RealTofImuWheelSensorPort, RealSoftwareMotionPort, and RealMapPort. AutonomousSlamCoordinator and AutonomousSlamPolicy should remain unchanged unless the contract itself changes.
+
+M3-A3 adds the SLAM backend map-port binding contract used by future RealMapPort or RealSlamBackendBinding implementations.

@@ -45,3 +45,5 @@ Real adapters should pass `RealAdapterContractChecker` before their data reaches
 network senders, SDKs, or real map backends.
 
 M3-A2 consumes these contracts through docs/PRELIVE_AUTONOMOUS_SLAM_INTEGRATION.md before any lifted low-speed direction probe work.
+
+M3-A3 separates real sensor adapter contracts from the SLAM backend binding contract in docs/SLAM_BACKEND_MAP_PORT_BINDING.md.
