@@ -535,6 +535,17 @@ struct Config {
     bool motion_execution_manual_arm_enable_live_motion = false;
     std::string motion_execution_manual_arm_confirmation_phrase = "";
     bool motion_execution_apply_log_enabled = true;
+    bool autonomous_slam_enabled = false;
+    int autonomous_slam_max_iterations = 100;
+    double autonomous_slam_sensor_timeout_s = 0.50;
+    double autonomous_slam_motion_settle_timeout_s = 1.00;
+    double autonomous_slam_active_scan_speed = 0.05;
+    double autonomous_slam_active_scan_duration_s = 0.50;
+    int autonomous_slam_max_active_scan_commands = 24;
+    bool autonomous_slam_prefer_left_turn = true;
+    bool autonomous_slam_require_tof = true;
+    bool autonomous_slam_require_imu_or_wheel = true;
+    bool autonomous_slam_allow_forward_backward = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -990,6 +1001,21 @@ struct SoftwareMotionRunStats {
     uint64_t software_transport_acceptance_fail_count = 0;
 };
 
+struct AutonomousSlamRunStats {
+    bool enabled_last = false;
+    int state_last = 0;
+    int fault_last = 0;
+    int iteration_count_last = 0;
+    uint64_t command_sent_count = 0;
+    uint64_t stop_sent_count = 0;
+    uint64_t active_scan_command_count = 0;
+    uint64_t sensor_not_ready_count = 0;
+    uint64_t map_quality_good_count = 0;
+    uint64_t map_quality_poor_count = 0;
+    uint64_t motion_reject_count = 0;
+    uint64_t fault_count = 0;
+};
+
 struct RunMetrics {
     uint64_t localization_updates = 0;
     uint64_t tof_samples = 0;
@@ -1039,6 +1065,7 @@ struct RunMetrics {
     MotionSafetyExecutorRunStats motion;
     MotionWriterDispatchRunStats motion_writer;
     SoftwareMotionRunStats software_motion;
+    AutonomousSlamRunStats autonomous_slam;
 };
 
 bool one_of(const std::string &v, std::initializer_list<const char *> allowed) {

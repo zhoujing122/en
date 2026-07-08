@@ -95,3 +95,7 @@ fail-closed. No real transport is enabled and Xiao En must not move in this stag
 ## M2-B3 Software Transport Handoff
 
 M2-B3 adds `SOFTWARE_TRANSPORT_IMPLEMENTATION_SPEC.md`, `SOFTWARE_TRANSPORT_ACCEPTANCE_TESTS.md`, and `SOFTWARE_TRANSPORT_GOLDEN_COMMANDS.md`. Software-side live transport must implement the direction + speed + duration + ttl contract; the algorithm layer still does not output BL4820 register writes, UART speed commands, PWM/FR, or socket/ROS/LCM motion sends.
+
+## M3-A0 Autonomous SLAM Usage
+
+M3-A0 adds `AutonomousSlamCoordinator` as the hardware-ready autonomous SLAM state machine. It uses the algorithm motion API through `RobotSlamMotionPort`, so autonomous mapping logic can request stop or active-scan rotation without knowing the software-side chassis implementation. The app still does not enable live motion by default. See `docs/HARDWARE_READY_AUTONOMOUS_SLAM_CORE.md`.

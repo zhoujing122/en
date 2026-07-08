@@ -213,6 +213,18 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "motion_writer_last_right_rpm," << m.motion_writer.last_right_rpm << "\n";
     o << "motion_writer_last_error," << m.motion_writer.last_error << "\n";
     write_software_motion_metrics(o, m, cfg);
+    o << "autonomous_slam_enabled_last," << (cfg.autonomous_slam_enabled ? 1 : 0) << "\n";
+    o << "autonomous_slam_state_last," << m.autonomous_slam.state_last << "\n";
+    o << "autonomous_slam_fault_last," << m.autonomous_slam.fault_last << "\n";
+    o << "autonomous_slam_iteration_count_last," << m.autonomous_slam.iteration_count_last << "\n";
+    o << "autonomous_slam_command_sent_count," << m.autonomous_slam.command_sent_count << "\n";
+    o << "autonomous_slam_stop_sent_count," << m.autonomous_slam.stop_sent_count << "\n";
+    o << "autonomous_slam_active_scan_command_count," << m.autonomous_slam.active_scan_command_count << "\n";
+    o << "autonomous_slam_sensor_not_ready_count," << m.autonomous_slam.sensor_not_ready_count << "\n";
+    o << "autonomous_slam_map_quality_good_count," << m.autonomous_slam.map_quality_good_count << "\n";
+    o << "autonomous_slam_map_quality_poor_count," << m.autonomous_slam.map_quality_poor_count << "\n";
+    o << "autonomous_slam_motion_reject_count," << m.autonomous_slam.motion_reject_count << "\n";
+    o << "autonomous_slam_fault_count," << m.autonomous_slam.fault_count << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

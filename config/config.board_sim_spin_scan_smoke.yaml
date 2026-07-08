@@ -448,3 +448,15 @@ spin_scan_localization:
   multimodal_residual_window: 0.001
   min_reliability: 0.3
   debug_curve: true
+autonomous_slam:
+  enabled: false
+  max_iterations: 100
+  sensor_timeout_s: 0.50
+  motion_settle_timeout_s: 1.00
+  active_scan_speed: 0.05
+  active_scan_duration_s: 0.50
+  max_active_scan_commands: 24
+  prefer_left_turn: true
+  require_tof: true
+  require_imu_or_wheel: true
+  allow_forward_backward: false

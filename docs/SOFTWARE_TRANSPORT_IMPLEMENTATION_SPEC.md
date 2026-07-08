@@ -61,3 +61,7 @@ The software side must reject invalid speed, invalid ttl, old timestamp, disable
 The software side must provide a shadow/dry-run mode that records commands and does not move hardware. It must also provide a real motion enable switch, default false. Shadow acceptance tests must pass before live testing. Lifted direction probe must pass before any grounded motion.
 
 No command is permanent. Every command is time-limited. Any abnormal condition must result in STOP.
+
+## M3-A0 Port Integration
+
+The future real software transport should be wrapped by a `RobotSlamMotionPort` adapter for autonomous SLAM. The coordinator only emits algorithm-level stop and active-scan rotation commands in M3-A0; real TTL stop, accepted/rejected semantics, and live enable gates remain the responsibility of the software-side chassis layer. See `docs/HARDWARE_READY_AUTONOMOUS_SLAM_CORE.md`.

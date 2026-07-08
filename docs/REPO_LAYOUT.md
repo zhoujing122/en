@@ -91,3 +91,7 @@ M2-B2 adds `include/robot_slamd/motion/algorithm_motion_command*.hpp` and `inclu
 ## M2-B3 Software Transport Spec Files
 
 Software-side transport handoff documents live in `docs/SOFTWARE_TRANSPORT_IMPLEMENTATION_SPEC.md`, `docs/SOFTWARE_TRANSPORT_ACCEPTANCE_TESTS.md`, and `docs/SOFTWARE_TRANSPORT_GOLDEN_COMMANDS.md`. Shadow-only contract helpers live under `include/robot_slamd/software_motion/`.
+
+## M3-A0 Autonomy Layout
+
+M3-A0 adds `include/robot_slamd/autonomy/` for the hardware-ready autonomous SLAM coordinator, policy, types, and ports. Tests live under `tests/test_autonomous_slam_*` and `tests/test_robot_slam_ports.cpp`. The module has no real robot driver or runtime transport dependency; real robot integration should add adapters without changing the coordinator. See `docs/HARDWARE_READY_AUTONOMOUS_SLAM_CORE.md`.

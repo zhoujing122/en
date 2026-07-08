@@ -400,6 +400,17 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.recovery_write_candidate_log = get_bool(kv, "recovery.write_candidate_log", c.recovery_write_candidate_log);
     c.recovery_write_event_log = get_bool(kv, "recovery.write_event_log", c.recovery_write_event_log);
     parse_motion_execution_config(c, kv);
+    c.autonomous_slam_enabled = get_bool(kv, "autonomous_slam.enabled", c.autonomous_slam_enabled);
+    c.autonomous_slam_max_iterations = get_int(kv, "autonomous_slam.max_iterations", c.autonomous_slam_max_iterations);
+    c.autonomous_slam_sensor_timeout_s = get_double(kv, "autonomous_slam.sensor_timeout_s", c.autonomous_slam_sensor_timeout_s);
+    c.autonomous_slam_motion_settle_timeout_s = get_double(kv, "autonomous_slam.motion_settle_timeout_s", c.autonomous_slam_motion_settle_timeout_s);
+    c.autonomous_slam_active_scan_speed = get_double(kv, "autonomous_slam.active_scan_speed", c.autonomous_slam_active_scan_speed);
+    c.autonomous_slam_active_scan_duration_s = get_double(kv, "autonomous_slam.active_scan_duration_s", c.autonomous_slam_active_scan_duration_s);
+    c.autonomous_slam_max_active_scan_commands = get_int(kv, "autonomous_slam.max_active_scan_commands", c.autonomous_slam_max_active_scan_commands);
+    c.autonomous_slam_prefer_left_turn = get_bool(kv, "autonomous_slam.prefer_left_turn", c.autonomous_slam_prefer_left_turn);
+    c.autonomous_slam_require_tof = get_bool(kv, "autonomous_slam.require_tof", c.autonomous_slam_require_tof);
+    c.autonomous_slam_require_imu_or_wheel = get_bool(kv, "autonomous_slam.require_imu_or_wheel", c.autonomous_slam_require_imu_or_wheel);
+    c.autonomous_slam_allow_forward_backward = get_bool(kv, "autonomous_slam.allow_forward_backward", c.autonomous_slam_allow_forward_backward);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -696,6 +707,43 @@ void validate_config(const Config &c) {
     if (c.recovery_max_recent_yaw_apply_count < 0) errors.push_back("recovery.max_recent_yaw_apply_count must be >= 0");
     if (c.recovery_min_post_apply_validated_count < 0) errors.push_back("recovery.min_post_apply_validated_count must be >= 0");
     validate_motion_execution_config(c, errors);
+    if (c.autonomous_slam_max_iterations <= 0) {
+        errors.push_back("autonomous_slam.max_iterations must be > 0");
+    } else if (c.autonomous_slam_max_iterations > 1000) {
+        errors.push_back("autonomous_slam.max_iterations must be <= 1000");
+    }
+    if (!std::isfinite(c.autonomous_slam_sensor_timeout_s) ||
+        c.autonomous_slam_sensor_timeout_s <= 0.0) {
+        errors.push_back("autonomous_slam.sensor_timeout_s must be > 0");
+    } else if (c.autonomous_slam_sensor_timeout_s > 5.0) {
+        errors.push_back("autonomous_slam.sensor_timeout_s must be <= 5.0");
+    }
+    if (!std::isfinite(c.autonomous_slam_motion_settle_timeout_s) ||
+        c.autonomous_slam_motion_settle_timeout_s <= 0.0) {
+        errors.push_back("autonomous_slam.motion_settle_timeout_s must be > 0");
+    } else if (c.autonomous_slam_motion_settle_timeout_s > 10.0) {
+        errors.push_back("autonomous_slam.motion_settle_timeout_s must be <= 10.0");
+    }
+    if (!std::isfinite(c.autonomous_slam_active_scan_speed) ||
+        c.autonomous_slam_active_scan_speed <= 0.0) {
+        errors.push_back("autonomous_slam.active_scan_speed must be > 0");
+    } else if (c.autonomous_slam_active_scan_speed > 0.05) {
+        errors.push_back("autonomous_slam.active_scan_speed must be <= 0.05");
+    }
+    if (!std::isfinite(c.autonomous_slam_active_scan_duration_s) ||
+        c.autonomous_slam_active_scan_duration_s <= 0.0) {
+        errors.push_back("autonomous_slam.active_scan_duration_s must be > 0");
+    } else if (c.autonomous_slam_active_scan_duration_s > 0.50) {
+        errors.push_back("autonomous_slam.active_scan_duration_s must be <= 0.50");
+    }
+    if (c.autonomous_slam_max_active_scan_commands <= 0) {
+        errors.push_back("autonomous_slam.max_active_scan_commands must be > 0");
+    } else if (c.autonomous_slam_max_active_scan_commands > 100) {
+        errors.push_back("autonomous_slam.max_active_scan_commands must be <= 100");
+    }
+    if (c.autonomous_slam_allow_forward_backward) {
+        errors.push_back("autonomous_slam.allow_forward_backward=true unsupported before grounded live validation");
+    }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
@@ -1046,6 +1094,18 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  block_if_post_apply_failed_recent: " << bool_yaml(c.recovery_block_if_post_apply_failed_recent) << "\n"
       << "  write_candidate_log: " << bool_yaml(c.recovery_write_candidate_log) << "\n"
       << "  write_event_log: " << bool_yaml(c.recovery_write_event_log) << "\n";
+    o << "autonomous_slam:\n"
+      << "  enabled: " << bool_yaml(c.autonomous_slam_enabled) << "\n"
+      << "  max_iterations: " << c.autonomous_slam_max_iterations << "\n"
+      << "  sensor_timeout_s: " << c.autonomous_slam_sensor_timeout_s << "\n"
+      << "  motion_settle_timeout_s: " << c.autonomous_slam_motion_settle_timeout_s << "\n"
+      << "  active_scan_speed: " << c.autonomous_slam_active_scan_speed << "\n"
+      << "  active_scan_duration_s: " << c.autonomous_slam_active_scan_duration_s << "\n"
+      << "  max_active_scan_commands: " << c.autonomous_slam_max_active_scan_commands << "\n"
+      << "  prefer_left_turn: " << bool_yaml(c.autonomous_slam_prefer_left_turn) << "\n"
+      << "  require_tof: " << bool_yaml(c.autonomous_slam_require_tof) << "\n"
+      << "  require_imu_or_wheel: " << bool_yaml(c.autonomous_slam_require_imu_or_wheel) << "\n"
+      << "  allow_forward_backward: " << bool_yaml(c.autonomous_slam_allow_forward_backward) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"
