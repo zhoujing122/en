@@ -700,6 +700,21 @@ struct Config {
     bool fake_map_artifact_require_quality_good = true;
     bool fake_map_artifact_require_completed_pipeline = true;
     bool fake_map_artifact_load_enabled = false;
+    bool fake_relocalization_enabled = false;
+    bool fake_relocalization_allow_pose_writeback = false;
+    bool fake_relocalization_require_map_quality_good = true;
+    bool fake_relocalization_require_tof = true;
+    int fake_relocalization_min_valid_ranges = 3;
+    double fake_relocalization_min_confidence = 0.70;
+    double fake_relocalization_high_confidence_threshold = 0.85;
+    double fake_relocalization_min_map_coverage_ratio = 0.60;
+    double fake_relocalization_min_map_yaw_coverage_ratio = 0.30;
+    bool fake_relocalization_run_on_startup = false;
+    bool fake_map_relocalization_runner_enabled = false;
+    bool fake_map_relocalization_runner_require_pipeline_map_artifact = true;
+    bool fake_map_relocalization_runner_require_relocalization_success = true;
+    bool fake_map_relocalization_runner_require_no_pose_writeback = true;
+    bool fake_map_relocalization_runner_run_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1325,6 +1340,20 @@ struct AutonomousSlamRunStats {
     int full_autonomous_slam_fake_pipeline_trace_event_count_last = 0;
     bool full_autonomous_slam_fake_pipeline_fake_map_built_last = false;
     bool full_autonomous_slam_fake_pipeline_fake_map_saved_last = false;
+    bool fake_relocalization_enabled_last = false;
+    uint64_t fake_relocalization_run_count = 0;
+    bool fake_relocalization_ok_last = false;
+    int fake_relocalization_status_last = 0;
+    int fake_relocalization_fault_last = 0;
+    double fake_relocalization_confidence_last = 0.0;
+    int fake_relocalization_confidence_band_last = 0;
+    int fake_relocalization_valid_range_count_last = 0;
+    bool fake_relocalization_pose_valid_last = false;
+    bool fake_relocalization_pose_writeback_attempted_last = false;
+    bool fake_map_relocalization_runner_enabled_last = false;
+    uint64_t fake_map_relocalization_runner_run_count = 0;
+    bool fake_map_relocalization_runner_ok_last = false;
+    bool fake_map_relocalization_runner_map_loaded_last = false;
 };
 
 struct RunMetrics {

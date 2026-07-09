@@ -51,3 +51,7 @@ M3-B4 replacement points: RealSensorReplayPort -> RealTofImuWheelSensorPort, Ful
 ## M3-B5 Follow-Up
 
 Future real adapters should preserve the phase-aware replay lessons: motion command and settle phases must not silently consume unrelated sensor records, and real map storage must replace fake metadata only after explicit readiness review.
+
+## M3-B6 Relocalization TODO
+
+Future real adapters must keep fake relocalization separate from real pose writeback until a real map backend, scan matcher, confidence policy, and safety gate are available.

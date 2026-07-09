@@ -23,3 +23,7 @@ Before live handoff, offline replay logs should pass the M3-B2.1 robust parser a
 M3-B3 adds an offline deterministic backend skeleton and replay-to-backend regression. It is useful before live handoff, but it is not a live SLAM backend and does not prove real map quality.
 
 M3-B4 adds a full fake/replay autonomous SLAM pipeline before live handoff. It still does not enable hardware or production SLAM.
+
+## M3-B6 Note
+
+Fake relocalization validates only the fake map-to-current-scan contract. It is not connected to startup or lost recovery writeback and does not call Localizer.

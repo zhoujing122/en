@@ -7,3 +7,7 @@ Fake map save remains disabled until real map storage is implemented. Real reloc
 ## M3-B5 Fake Map Replacement
 
 The in-memory fake map artifact is the placeholder for future map storage. Real storage should replace FakeMapStorage while preserving the completed-pipeline contract and without changing AutonomousSlamCoordinator or AutonomousSlamPolicy.
+
+## M3-B6 Fake Relocalization Replacement
+
+FakeRelocalizationBinding is the placeholder for future real relocalization. A real backend may replace it only after map format, scan matcher, confidence thresholds, and pose writeback gates are reviewed.

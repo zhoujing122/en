@@ -9,3 +9,7 @@ Real hardware integration should replace only the sensor, motion, and SLAM backe
 ## M3-B5 Trace And Fake Map
 
 M3-B5 adds phase-aware replay consumption, a structured per-step trace, and an in-memory fake map artifact built after successful completion. The fake map is metadata only; no real map file is written.
+
+## M3-B6 Relocalization Loop
+
+After a successful fake pipeline run, M3-B6 can load the fake map metadata and evaluate one replay scan through FakeRelocalizationBinding. The result is report-only and never writes pose.

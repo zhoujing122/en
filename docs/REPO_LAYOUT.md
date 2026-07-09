@@ -145,3 +145,7 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 
 - `include/robot_slamd/autonomy/fake_map/`: in-memory fake map artifact contract.
 - `include/robot_slamd/autonomy/full_pipeline/trace/`: full fake pipeline step trace types.
+
+## M3-B6 Additions
+
+- `include/robot_slamd/autonomy/fake_relocalization/`: fake map artifact to report-only relocalization contract and runner.

@@ -616,3 +616,22 @@ fake_map_artifact:
   require_quality_good: true
   require_completed_pipeline: true
   load_enabled: false
+
+fake_relocalization:
+  enabled: false
+  allow_pose_writeback: false
+  require_map_quality_good: true
+  require_tof: true
+  min_valid_ranges: 3
+  min_confidence: 0.70
+  high_confidence_threshold: 0.85
+  min_map_coverage_ratio: 0.60
+  min_map_yaw_coverage_ratio: 0.30
+  run_on_startup: false
+
+fake_map_relocalization_runner:
+  enabled: false
+  require_pipeline_map_artifact: true
+  require_relocalization_success: true
+  require_no_pose_writeback: true
+  run_on_startup: false
