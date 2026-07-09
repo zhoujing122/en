@@ -554,6 +554,17 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.full_autonomous_slam_fake_pipeline_require_no_forward_backward = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_no_forward_backward", c.full_autonomous_slam_fake_pipeline_require_no_forward_backward);
     c.full_autonomous_slam_fake_pipeline_require_map_quality_good = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_map_quality_good", c.full_autonomous_slam_fake_pipeline_require_map_quality_good);
     c.full_autonomous_slam_fake_pipeline_motion_settle_s = get_double(kv, "full_autonomous_slam_fake_pipeline.motion_settle_s", c.full_autonomous_slam_fake_pipeline_motion_settle_s);
+    c.full_autonomous_slam_fake_pipeline_build_fake_map_on_completed = get_bool(kv, "full_autonomous_slam_fake_pipeline.build_fake_map_on_completed", c.full_autonomous_slam_fake_pipeline_build_fake_map_on_completed);
+    c.full_autonomous_slam_fake_pipeline_save_fake_map_on_completed = get_bool(kv, "full_autonomous_slam_fake_pipeline.save_fake_map_on_completed", c.full_autonomous_slam_fake_pipeline_save_fake_map_on_completed);
+    c.full_autonomous_slam_fake_pipeline_require_fake_map_saved = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_fake_map_saved", c.full_autonomous_slam_fake_pipeline_require_fake_map_saved);
+    c.full_autonomous_slam_fake_pipeline_fake_map_id_prefix = get_string(kv, "full_autonomous_slam_fake_pipeline.fake_map_id_prefix", c.full_autonomous_slam_fake_pipeline_fake_map_id_prefix);
+    c.full_autonomous_slam_fake_pipeline_phase_aware_sensor_consumption = get_bool(kv, "full_autonomous_slam_fake_pipeline.phase_aware_sensor_consumption", c.full_autonomous_slam_fake_pipeline_phase_aware_sensor_consumption);
+    c.full_autonomous_slam_fake_pipeline_require_phase_aware_sensor_consumption = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_phase_aware_sensor_consumption", c.full_autonomous_slam_fake_pipeline_require_phase_aware_sensor_consumption);
+    c.fake_map_artifact_enabled = get_bool(kv, "fake_map_artifact.enabled", c.fake_map_artifact_enabled);
+    c.fake_map_artifact_allow_overwrite = get_bool(kv, "fake_map_artifact.allow_overwrite", c.fake_map_artifact_allow_overwrite);
+    c.fake_map_artifact_require_quality_good = get_bool(kv, "fake_map_artifact.require_quality_good", c.fake_map_artifact_require_quality_good);
+    c.fake_map_artifact_require_completed_pipeline = get_bool(kv, "fake_map_artifact.require_completed_pipeline", c.fake_map_artifact_require_completed_pipeline);
+    c.fake_map_artifact_load_enabled = get_bool(kv, "fake_map_artifact.load_enabled", c.fake_map_artifact_load_enabled);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1280,6 +1291,24 @@ void validate_config(const Config &c) {
         !std::isfinite(c.full_autonomous_slam_fake_pipeline_motion_settle_s)) {
         errors.push_back("full_autonomous_slam_fake_pipeline.motion_settle_s must be in [0,10]");
     }
+    if (!c.full_autonomous_slam_fake_pipeline_phase_aware_sensor_consumption) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.phase_aware_sensor_consumption must remain true");
+    }
+    if (!c.full_autonomous_slam_fake_pipeline_require_phase_aware_sensor_consumption) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.require_phase_aware_sensor_consumption must remain true");
+    }
+    if (!c.full_autonomous_slam_fake_pipeline_build_fake_map_on_completed) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.build_fake_map_on_completed must remain true");
+    }
+    if (!c.full_autonomous_slam_fake_pipeline_save_fake_map_on_completed) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.save_fake_map_on_completed must remain true");
+    }
+    if (!c.full_autonomous_slam_fake_pipeline_require_fake_map_saved) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.require_fake_map_saved must remain true");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_fake_map_id_prefix.empty()) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.fake_map_id_prefix must be non-empty");
+    }
     if (c.full_autonomous_slam_fake_pipeline_enabled &&
         c.motion_execution_hardware_write_enabled) {
         errors.push_back("full_autonomous_slam_fake_pipeline.enabled=true requires motion_execution.hardware_write_enabled=false");
@@ -1291,6 +1320,18 @@ void validate_config(const Config &c) {
     if (c.full_autonomous_slam_fake_pipeline_enabled &&
         c.motion_execution_allow_writer_dispatch) {
         errors.push_back("full_autonomous_slam_fake_pipeline.enabled=true requires allow_writer_dispatch=false");
+    }
+    if (c.fake_map_artifact_enabled &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("fake_map_artifact.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.fake_map_artifact_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("fake_map_artifact.enabled=true requires production_interface_enabled=false");
+    }
+    if (c.fake_map_artifact_enabled &&
+        c.motion_execution_allow_writer_dispatch) {
+        errors.push_back("fake_map_artifact.enabled=true requires allow_writer_dispatch=false");
     }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
@@ -1808,7 +1849,19 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_shadow_motion_only: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_shadow_motion_only) << "\n"
       << "  require_no_forward_backward: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_no_forward_backward) << "\n"
       << "  require_map_quality_good: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_map_quality_good) << "\n"
-      << "  motion_settle_s: " << c.full_autonomous_slam_fake_pipeline_motion_settle_s << "\n";
+      << "  motion_settle_s: " << c.full_autonomous_slam_fake_pipeline_motion_settle_s << "\n"
+      << "  build_fake_map_on_completed: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_build_fake_map_on_completed) << "\n"
+      << "  save_fake_map_on_completed: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_save_fake_map_on_completed) << "\n"
+      << "  require_fake_map_saved: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_fake_map_saved) << "\n"
+      << "  fake_map_id_prefix: " << c.full_autonomous_slam_fake_pipeline_fake_map_id_prefix << "\n"
+      << "  phase_aware_sensor_consumption: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_phase_aware_sensor_consumption) << "\n"
+      << "  require_phase_aware_sensor_consumption: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_phase_aware_sensor_consumption) << "\n";
+    o << "fake_map_artifact:\n"
+      << "  enabled: " << bool_yaml(c.fake_map_artifact_enabled) << "\n"
+      << "  allow_overwrite: " << bool_yaml(c.fake_map_artifact_allow_overwrite) << "\n"
+      << "  require_quality_good: " << bool_yaml(c.fake_map_artifact_require_quality_good) << "\n"
+      << "  require_completed_pipeline: " << bool_yaml(c.fake_map_artifact_require_completed_pipeline) << "\n"
+      << "  load_enabled: " << bool_yaml(c.fake_map_artifact_load_enabled) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

@@ -603,3 +603,16 @@ full_autonomous_slam_fake_pipeline:
   require_no_forward_backward: true
   require_map_quality_good: true
   motion_settle_s: 0.20
+  build_fake_map_on_completed: true
+  save_fake_map_on_completed: true
+  require_fake_map_saved: true
+  fake_map_id_prefix: fake_map
+  phase_aware_sensor_consumption: true
+  require_phase_aware_sensor_consumption: true
+
+fake_map_artifact:
+  enabled: false
+  allow_overwrite: false
+  require_quality_good: true
+  require_completed_pipeline: true
+  load_enabled: false

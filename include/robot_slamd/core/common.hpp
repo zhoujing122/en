@@ -689,6 +689,17 @@ struct Config {
     bool full_autonomous_slam_fake_pipeline_require_no_forward_backward = true;
     bool full_autonomous_slam_fake_pipeline_require_map_quality_good = true;
     double full_autonomous_slam_fake_pipeline_motion_settle_s = 0.20;
+    bool full_autonomous_slam_fake_pipeline_build_fake_map_on_completed = true;
+    bool full_autonomous_slam_fake_pipeline_save_fake_map_on_completed = true;
+    bool full_autonomous_slam_fake_pipeline_require_fake_map_saved = true;
+    std::string full_autonomous_slam_fake_pipeline_fake_map_id_prefix = "fake_map";
+    bool full_autonomous_slam_fake_pipeline_phase_aware_sensor_consumption = true;
+    bool full_autonomous_slam_fake_pipeline_require_phase_aware_sensor_consumption = true;
+    bool fake_map_artifact_enabled = false;
+    bool fake_map_artifact_allow_overwrite = false;
+    bool fake_map_artifact_require_quality_good = true;
+    bool fake_map_artifact_require_completed_pipeline = true;
+    bool fake_map_artifact_load_enabled = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1303,6 +1314,17 @@ struct AutonomousSlamRunStats {
     double full_autonomous_slam_fake_pipeline_final_coverage_ratio_last = 0.0;
     double full_autonomous_slam_fake_pipeline_final_yaw_coverage_ratio_last = 0.0;
     int full_autonomous_slam_fake_pipeline_final_valid_scan_count_last = 0;
+    bool fake_map_artifact_enabled_last = false;
+    bool fake_map_artifact_built_last = false;
+    bool fake_map_artifact_saved_last = false;
+    int fake_map_artifact_status_last = 0;
+    int fake_map_artifact_fault_last = 0;
+    int fake_map_artifact_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_sensor_consumed_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_sensor_skipped_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_trace_event_count_last = 0;
+    bool full_autonomous_slam_fake_pipeline_fake_map_built_last = false;
+    bool full_autonomous_slam_fake_pipeline_fake_map_saved_last = false;
 };
 
 struct RunMetrics {

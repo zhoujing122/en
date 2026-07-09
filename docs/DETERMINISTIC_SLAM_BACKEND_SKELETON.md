@@ -11,3 +11,7 @@ This backend does not write map files. `save_map` remains disabled by default an
 Passing M3-B3 proves the replay-to-backend interface chain can run deterministically. It does not prove real SLAM readiness, real map quality, real localization, or live robot readiness.
 
 M3-B4 uses this deterministic backend inside a full fake/replay autonomous SLAM pipeline. It remains a skeleton, not production mapping.
+
+## M3-B5 Artifact Note
+
+The deterministic backend still does not save maps. M3-B5 fake map artifacts are pipeline metadata only and are not occupancy grids.

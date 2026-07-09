@@ -47,3 +47,7 @@ Before live integration, real capture tooling should emit the M3-B2 replay log f
 Future real backend work should replace `DeterministicSlamBackendBinding` with a production `SlamBackendBinding` implementation after replay-to-backend regression and map quality acceptance pass.
 
 M3-B4 replacement points: RealSensorReplayPort -> RealTofImuWheelSensorPort, FullAutonomousSlamFakeMotionPort -> RealSoftwareMotionPort, DeterministicSlamBackendBinding -> RealSlamBackendBinding.
+
+## M3-B5 Follow-Up
+
+Future real adapters should preserve the phase-aware replay lessons: motion command and settle phases must not silently consume unrelated sensor records, and real map storage must replace fake metadata only after explicit readiness review.

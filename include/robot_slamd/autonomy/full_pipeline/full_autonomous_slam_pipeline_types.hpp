@@ -1,6 +1,8 @@
 #pragma once
 
 #include "robot_slamd/autonomy/autonomous_slam_types.hpp"
+#include "robot_slamd/autonomy/fake_map/fake_map_artifact_types.hpp"
+#include "robot_slamd/autonomy/full_pipeline/trace/full_autonomous_slam_pipeline_trace.hpp"
 
 #include <string>
 #include <vector>
@@ -39,7 +41,9 @@ enum class FullAutonomousSlamPipelineFault {
     MotionRejected,
     MapQualityStuck,
     MaxStepsExceeded,
-    CompletedButQualityNotGood
+    CompletedButQualityNotGood,
+    FakeMapBuildFailed,
+    FakeMapSaveFailed
 };
 
 struct FullAutonomousSlamPipelineOptions {
@@ -53,6 +57,12 @@ struct FullAutonomousSlamPipelineOptions {
     bool require_no_forward_backward = true;
     bool require_map_quality_good = true;
     double motion_settle_s = 0.20;
+    bool build_fake_map_on_completed = true;
+    bool save_fake_map_on_completed = true;
+    bool require_fake_map_saved = true;
+    std::string fake_map_id_prefix = "fake_map";
+    bool phase_aware_sensor_consumption = true;
+    bool require_phase_aware_sensor_consumption = true;
 };
 
 struct FullAutonomousSlamPipelineReport {
@@ -78,6 +88,12 @@ struct FullAutonomousSlamPipelineReport {
     std::vector<std::string> failed;
     std::vector<std::string> warnings;
     std::string summary;
+    FullAutonomousSlamPipelineTrace trace;
+    bool fake_map_built = false;
+    bool fake_map_saved = false;
+    FakeMapArtifact fake_map_artifact;
+    int sensor_consumed_count = 0;
+    int sensor_skipped_count = 0;
 };
 
 inline std::string to_string(FullAutonomousSlamPipelineStage stage) {
@@ -146,6 +162,10 @@ inline std::string to_string(FullAutonomousSlamPipelineFault fault) {
         return "max_steps_exceeded";
     case FullAutonomousSlamPipelineFault::CompletedButQualityNotGood:
         return "completed_but_quality_not_good";
+    case FullAutonomousSlamPipelineFault::FakeMapBuildFailed:
+        return "fake_map_build_failed";
+    case FullAutonomousSlamPipelineFault::FakeMapSaveFailed:
+        return "fake_map_save_failed";
     }
     return "unknown";
 }

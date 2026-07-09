@@ -371,6 +371,17 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "full_autonomous_slam_fake_pipeline_final_coverage_ratio_last," << m.autonomous_slam.full_autonomous_slam_fake_pipeline_final_coverage_ratio_last << "\n";
     o << "full_autonomous_slam_fake_pipeline_final_yaw_coverage_ratio_last," << m.autonomous_slam.full_autonomous_slam_fake_pipeline_final_yaw_coverage_ratio_last << "\n";
     o << "full_autonomous_slam_fake_pipeline_final_valid_scan_count_last," << m.autonomous_slam.full_autonomous_slam_fake_pipeline_final_valid_scan_count_last << "\n";
+    o << "fake_map_artifact_enabled_last," << (cfg.fake_map_artifact_enabled ? 1 : 0) << "\n";
+    o << "fake_map_artifact_built_last," << (m.autonomous_slam.fake_map_artifact_built_last ? 1 : 0) << "\n";
+    o << "fake_map_artifact_saved_last," << (m.autonomous_slam.fake_map_artifact_saved_last ? 1 : 0) << "\n";
+    o << "fake_map_artifact_status_last," << m.autonomous_slam.fake_map_artifact_status_last << "\n";
+    o << "fake_map_artifact_fault_last," << m.autonomous_slam.fake_map_artifact_fault_last << "\n";
+    o << "fake_map_artifact_count_last," << m.autonomous_slam.fake_map_artifact_count_last << "\n";
+    o << "full_autonomous_slam_fake_pipeline_sensor_consumed_count_last," << m.autonomous_slam.full_autonomous_slam_fake_pipeline_sensor_consumed_count_last << "\n";
+    o << "full_autonomous_slam_fake_pipeline_sensor_skipped_count_last," << m.autonomous_slam.full_autonomous_slam_fake_pipeline_sensor_skipped_count_last << "\n";
+    o << "full_autonomous_slam_fake_pipeline_trace_event_count_last," << m.autonomous_slam.full_autonomous_slam_fake_pipeline_trace_event_count_last << "\n";
+    o << "full_autonomous_slam_fake_pipeline_fake_map_built_last," << (m.autonomous_slam.full_autonomous_slam_fake_pipeline_fake_map_built_last ? 1 : 0) << "\n";
+    o << "full_autonomous_slam_fake_pipeline_fake_map_saved_last," << (m.autonomous_slam.full_autonomous_slam_fake_pipeline_fake_map_saved_last ? 1 : 0) << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

@@ -140,3 +140,8 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 - `docs/REAL_SLAM_BACKEND_IMPLEMENTATION_TODO.md`: future production backend TODO.
 
 - `include/robot_slamd/autonomy/full_pipeline/`: M3-B4 full autonomous SLAM fake/replay pipeline runner, scenario builder, fake motion port, and report writer.
+
+## M3-B5 Additions
+
+- `include/robot_slamd/autonomy/fake_map/`: in-memory fake map artifact contract.
+- `include/robot_slamd/autonomy/full_pipeline/trace/`: full fake pipeline step trace types.
