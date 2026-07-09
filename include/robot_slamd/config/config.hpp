@@ -544,6 +544,16 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.replay_to_slam_backend_regression_require_invalid_replay_rejected = get_bool(kv, "replay_to_slam_backend_regression.require_invalid_replay_rejected", c.replay_to_slam_backend_regression_require_invalid_replay_rejected);
     c.replay_to_slam_backend_regression_min_accepted_updates = get_int(kv, "replay_to_slam_backend_regression.min_accepted_updates", c.replay_to_slam_backend_regression_min_accepted_updates);
     c.replay_to_slam_backend_regression_run_on_startup = get_bool(kv, "replay_to_slam_backend_regression.run_on_startup", c.replay_to_slam_backend_regression_run_on_startup);
+    c.full_autonomous_slam_fake_pipeline_enabled = get_bool(kv, "full_autonomous_slam_fake_pipeline.enabled", c.full_autonomous_slam_fake_pipeline_enabled);
+    c.full_autonomous_slam_fake_pipeline_run_on_startup = get_bool(kv, "full_autonomous_slam_fake_pipeline.run_on_startup", c.full_autonomous_slam_fake_pipeline_run_on_startup);
+    c.full_autonomous_slam_fake_pipeline_max_steps = get_int(kv, "full_autonomous_slam_fake_pipeline.max_steps", c.full_autonomous_slam_fake_pipeline_max_steps);
+    c.full_autonomous_slam_fake_pipeline_max_active_scan_commands = get_int(kv, "full_autonomous_slam_fake_pipeline.max_active_scan_commands", c.full_autonomous_slam_fake_pipeline_max_active_scan_commands);
+    c.full_autonomous_slam_fake_pipeline_min_backend_accepted_updates = get_int(kv, "full_autonomous_slam_fake_pipeline.min_backend_accepted_updates", c.full_autonomous_slam_fake_pipeline_min_backend_accepted_updates);
+    c.full_autonomous_slam_fake_pipeline_require_completion = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_completion", c.full_autonomous_slam_fake_pipeline_require_completion);
+    c.full_autonomous_slam_fake_pipeline_require_shadow_motion_only = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_shadow_motion_only", c.full_autonomous_slam_fake_pipeline_require_shadow_motion_only);
+    c.full_autonomous_slam_fake_pipeline_require_no_forward_backward = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_no_forward_backward", c.full_autonomous_slam_fake_pipeline_require_no_forward_backward);
+    c.full_autonomous_slam_fake_pipeline_require_map_quality_good = get_bool(kv, "full_autonomous_slam_fake_pipeline.require_map_quality_good", c.full_autonomous_slam_fake_pipeline_require_map_quality_good);
+    c.full_autonomous_slam_fake_pipeline_motion_settle_s = get_double(kv, "full_autonomous_slam_fake_pipeline.motion_settle_s", c.full_autonomous_slam_fake_pipeline_motion_settle_s);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1245,6 +1255,44 @@ void validate_config(const Config &c) {
         errors.push_back("deterministic slam backend requires production_interface_enabled=false");
     }
 
+    if (c.full_autonomous_slam_fake_pipeline_run_on_startup) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.run_on_startup must remain false");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_max_steps <= 0 ||
+        c.full_autonomous_slam_fake_pipeline_max_steps > 1000) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.max_steps must be in (0,1000]");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_max_active_scan_commands < 0 ||
+        c.full_autonomous_slam_fake_pipeline_max_active_scan_commands > 100) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.max_active_scan_commands must be in [0,100]");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_min_backend_accepted_updates <= 0) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.min_backend_accepted_updates must be > 0");
+    }
+    if (!c.full_autonomous_slam_fake_pipeline_require_shadow_motion_only) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.require_shadow_motion_only must remain true");
+    }
+    if (!c.full_autonomous_slam_fake_pipeline_require_no_forward_backward) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.require_no_forward_backward must remain true");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_motion_settle_s < 0.0 ||
+        c.full_autonomous_slam_fake_pipeline_motion_settle_s > 10.0 ||
+        !std::isfinite(c.full_autonomous_slam_fake_pipeline_motion_settle_s)) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.motion_settle_s must be in [0,10]");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_enabled &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.enabled=true requires production_interface_enabled=false");
+    }
+    if (c.full_autonomous_slam_fake_pipeline_enabled &&
+        c.motion_execution_allow_writer_dispatch) {
+        errors.push_back("full_autonomous_slam_fake_pipeline.enabled=true requires allow_writer_dispatch=false");
+    }
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -1750,6 +1798,17 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_invalid_replay_rejected: " << bool_yaml(c.replay_to_slam_backend_regression_require_invalid_replay_rejected) << "\n"
       << "  min_accepted_updates: " << c.replay_to_slam_backend_regression_min_accepted_updates << "\n"
       << "  run_on_startup: " << bool_yaml(c.replay_to_slam_backend_regression_run_on_startup) << "\n";
+    o << "full_autonomous_slam_fake_pipeline:\n"
+      << "  enabled: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_enabled) << "\n"
+      << "  run_on_startup: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_run_on_startup) << "\n"
+      << "  max_steps: " << c.full_autonomous_slam_fake_pipeline_max_steps << "\n"
+      << "  max_active_scan_commands: " << c.full_autonomous_slam_fake_pipeline_max_active_scan_commands << "\n"
+      << "  min_backend_accepted_updates: " << c.full_autonomous_slam_fake_pipeline_min_backend_accepted_updates << "\n"
+      << "  require_completion: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_completion) << "\n"
+      << "  require_shadow_motion_only: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_shadow_motion_only) << "\n"
+      << "  require_no_forward_backward: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_no_forward_backward) << "\n"
+      << "  require_map_quality_good: " << bool_yaml(c.full_autonomous_slam_fake_pipeline_require_map_quality_good) << "\n"
+      << "  motion_settle_s: " << c.full_autonomous_slam_fake_pipeline_motion_settle_s << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

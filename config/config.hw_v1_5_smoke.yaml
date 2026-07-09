@@ -580,3 +580,14 @@ replay_to_slam_backend_regression:
   require_invalid_replay_rejected: true
   min_accepted_updates: 3
   run_on_startup: false
+full_autonomous_slam_fake_pipeline:
+  enabled: false
+  run_on_startup: false
+  max_steps: 20
+  max_active_scan_commands: 6
+  min_backend_accepted_updates: 3
+  require_completion: true
+  require_shadow_motion_only: true
+  require_no_forward_backward: true
+  require_map_quality_good: true
+  motion_settle_s: 0.20

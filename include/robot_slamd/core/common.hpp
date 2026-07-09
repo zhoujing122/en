@@ -679,6 +679,16 @@ struct Config {
     bool replay_to_slam_backend_regression_require_invalid_replay_rejected = true;
     int replay_to_slam_backend_regression_min_accepted_updates = 3;
     bool replay_to_slam_backend_regression_run_on_startup = false;
+    bool full_autonomous_slam_fake_pipeline_enabled = false;
+    bool full_autonomous_slam_fake_pipeline_run_on_startup = false;
+    int full_autonomous_slam_fake_pipeline_max_steps = 20;
+    int full_autonomous_slam_fake_pipeline_max_active_scan_commands = 6;
+    int full_autonomous_slam_fake_pipeline_min_backend_accepted_updates = 3;
+    bool full_autonomous_slam_fake_pipeline_require_completion = true;
+    bool full_autonomous_slam_fake_pipeline_require_shadow_motion_only = true;
+    bool full_autonomous_slam_fake_pipeline_require_no_forward_backward = true;
+    bool full_autonomous_slam_fake_pipeline_require_map_quality_good = true;
+    double full_autonomous_slam_fake_pipeline_motion_settle_s = 0.20;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1279,6 +1289,20 @@ struct AutonomousSlamRunStats {
     int replay_to_slam_backend_regression_rejected_update_count_last = 0;
     double replay_to_slam_backend_regression_final_coverage_ratio_last = 0.0;
     double replay_to_slam_backend_regression_final_yaw_coverage_ratio_last = 0.0;
+    bool full_autonomous_slam_fake_pipeline_enabled_last = false;
+    uint64_t full_autonomous_slam_fake_pipeline_run_count = 0;
+    bool full_autonomous_slam_fake_pipeline_ok_last = false;
+    int full_autonomous_slam_fake_pipeline_stage_last = 0;
+    int full_autonomous_slam_fake_pipeline_fault_last = 0;
+    int full_autonomous_slam_fake_pipeline_step_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_backend_accepted_update_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_backend_rejected_update_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_motion_command_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_active_scan_command_count_last = 0;
+    int full_autonomous_slam_fake_pipeline_stop_command_count_last = 0;
+    double full_autonomous_slam_fake_pipeline_final_coverage_ratio_last = 0.0;
+    double full_autonomous_slam_fake_pipeline_final_yaw_coverage_ratio_last = 0.0;
+    int full_autonomous_slam_fake_pipeline_final_valid_scan_count_last = 0;
 };
 
 struct RunMetrics {

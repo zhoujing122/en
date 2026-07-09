@@ -9,3 +9,5 @@ The valid replay log must produce accepted backend updates and increase determin
 This runner uses inline deterministic replay data. It does not read replay files by default, does not access hardware, does not connect to a production SLAM backend, and does not send motion commands.
 
 The runner is a preparation point for future real SLAM backend regression. Once real golden logs exist, they can be replayed through the same binding contract before any live robot use.
+
+M3-B4 extends replay-to-backend wiring into the AutonomousSlamCoordinator and fake/shadow motion loop.

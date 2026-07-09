@@ -9,3 +9,5 @@ The reported `coverage_ratio` is a skeleton proxy based on accepted scan count. 
 This backend does not write map files. `save_map` remains disabled by default and returns a stable failure message. The app runtime does not create this backend by default.
 
 Passing M3-B3 proves the replay-to-backend interface chain can run deterministically. It does not prove real SLAM readiness, real map quality, real localization, or live robot readiness.
+
+M3-B4 uses this deterministic backend inside a full fake/replay autonomous SLAM pipeline. It remains a skeleton, not production mapping.

@@ -45,3 +45,5 @@ Before live integration, real capture tooling should emit the M3-B2 replay log f
 ## M3-B3 SLAM Backend TODO
 
 Future real backend work should replace `DeterministicSlamBackendBinding` with a production `SlamBackendBinding` implementation after replay-to-backend regression and map quality acceptance pass.
+
+M3-B4 replacement points: RealSensorReplayPort -> RealTofImuWheelSensorPort, FullAutonomousSlamFakeMotionPort -> RealSoftwareMotionPort, DeterministicSlamBackendBinding -> RealSlamBackendBinding.
