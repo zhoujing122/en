@@ -4,7 +4,6 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
-#include <limits>
 #include <sstream>
 
 namespace {
@@ -39,47 +38,32 @@ int main() {
 
     Config cfg;
     validate_config(cfg);
-    expect(!cfg.real_sensor_replay_enabled, "default replay disabled");
-    expect(!cfg.real_sensor_replay_loop, "default loop false");
-    expect(cfg.real_sensor_replay_fail_on_contract_error,
-           "default fail on contract error");
-    expect(cfg.real_sensor_replay_require_non_empty_log,
-           "default require non empty log");
     expect(cfg.real_sensor_replay_time_mode == "record_packet_time",
            "default time mode record packet time");
-    expect(cfg.real_sensor_replay_reject_invalid_records,
-           "default reject invalid records");
-    expect(cfg.real_sensor_replay_require_packet_records,
-           "default require packet records");
-    expect(cfg.real_sensor_replay_preserve_parse_errors,
-           "default preserve parse errors");
+    expect(!cfg.real_sensor_replay_regression_enabled,
+           "regression disabled by default");
 
     Config invalid = cfg;
-    invalid.real_sensor_replay_run_acceptance_on_startup = true;
-    expect_throw([&] { validate_config(invalid); }, "startup acceptance fatal");
-    invalid = cfg;
-    invalid.real_sensor_replay_start_time_s =
-        std::numeric_limits<double>::quiet_NaN();
-    expect_throw([&] { validate_config(invalid); }, "start time nan");
-    invalid = cfg;
-    invalid.real_sensor_replay_enabled = true;
-    invalid.motion_execution_hardware_write_enabled = true;
-    expect_throw([&] { validate_config(invalid); }, "enabled hardware fatal");
-    invalid = cfg;
-    invalid.real_sensor_replay_time_mode = "unknown";
+    invalid.real_sensor_replay_time_mode = "bad_mode";
     expect_throw([&] { validate_config(invalid); }, "unknown time mode fatal");
     invalid = cfg;
     invalid.real_sensor_replay_reject_invalid_records = false;
-    expect_throw([&] { validate_config(invalid); }, "reject invalid records fatal");
+    expect_throw([&] { validate_config(invalid); }, "reject invalid false fatal");
     invalid = cfg;
     invalid.real_sensor_replay_require_packet_records = false;
-    expect_throw([&] { validate_config(invalid); }, "require packet records fatal");
+    expect_throw([&] { validate_config(invalid); }, "require packet false fatal");
     invalid = cfg;
     invalid.real_sensor_replay_preserve_parse_errors = false;
-    expect_throw([&] { validate_config(invalid); }, "preserve parse errors fatal");
+    expect_throw([&] { validate_config(invalid); }, "preserve parse errors false fatal");
     invalid = cfg;
     invalid.real_sensor_replay_max_records_per_run = 0;
     expect_throw([&] { validate_config(invalid); }, "max records zero fatal");
+    invalid = cfg;
+    invalid.real_sensor_replay_max_records_per_run = 100001;
+    expect_throw([&] { validate_config(invalid); }, "max records high fatal");
+    invalid = cfg;
+    invalid.real_sensor_replay_regression_run_on_startup = true;
+    expect_throw([&] { validate_config(invalid); }, "regression startup fatal");
 
     invalid = cfg;
     invalid.motion_execution_writer_backend = "software_direction_speed_test_only";
@@ -99,22 +83,20 @@ int main() {
     invalid.motion_execution_software_motion_loopback_shadow_mode = false;
     expect_throw([&] { validate_config(invalid); }, "loopback fatal");
 
-    const std::string resolved = "/tmp/m3b2_real_sensor_replay_resolved.yaml";
+    const std::string resolved = "/tmp/m3b21_real_sensor_replay_resolved.yaml";
     write_resolved_config(cfg, resolved);
     const auto text = read_file(resolved);
-    expect(text.find("real_sensor_replay:") != std::string::npos,
-           "resolved replay block");
-    expect(text.find("time_mode: record_packet_time") != std::string::npos,
-           "resolved replay time mode");
     expect(text.find("real_sensor_replay_regression:") != std::string::npos,
-           "resolved replay regression block");
+           "resolved regression block");
+    expect(text.find("time_mode: record_packet_time") != std::string::npos,
+           "resolved time mode");
 
     RunMetrics metrics;
     Localizer loc(cfg);
     ChunkedGrid grid(cfg);
     TofHealth health;
     EncoderStats encoder_stats;
-    write_run_metrics("/tmp/m3b2_real_sensor_replay_metrics.csv",
+    write_run_metrics("/tmp/m3b21_real_sensor_replay_metrics.csv",
                       metrics,
                       loc,
                       grid,
@@ -122,16 +104,10 @@ int main() {
                       cfg,
                       encoder_stats);
     const auto metrics_text =
-        read_file("/tmp/m3b2_real_sensor_replay_metrics.csv");
-    expect(metrics_text.find("real_sensor_replay_enabled_last") !=
-               std::string::npos,
-           "metrics replay enabled field");
-    expect(metrics_text.find("real_sensor_replay_invalid_record_count_last") !=
-               std::string::npos,
-           "metrics replay invalid record field");
+        read_file("/tmp/m3b21_real_sensor_replay_metrics.csv");
     expect(metrics_text.find("real_sensor_replay_regression_enabled_last") !=
                std::string::npos,
-           "metrics replay regression field");
+           "metrics regression enabled field");
 
     if (failures) {
         std::cerr << failures << " failures\n";

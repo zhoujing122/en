@@ -41,3 +41,7 @@
 ## M3-B2 Log Fields
 
 Future capture tooling must record ToF/Wheel request start, response receipt, midpoint estimate, and request latency. A single timestamp is insufficient for replay.
+
+## M3-B2.1 Replay Field Mapping Notes
+
+When field owners provide real captures, the replay log must include ToF/Wheel request_start_s, response_received_s, estimated_sample_time_s, and request_latency_s. A log with only packet timestamp is incomplete for this project.

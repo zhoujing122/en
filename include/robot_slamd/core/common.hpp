@@ -646,6 +646,17 @@ struct Config {
     bool real_sensor_replay_require_non_empty_log = true;
     bool real_sensor_replay_run_acceptance_on_startup = false;
     double real_sensor_replay_start_time_s = 100.0;
+    std::string real_sensor_replay_time_mode = "record_packet_time";
+    bool real_sensor_replay_reject_invalid_records = true;
+    bool real_sensor_replay_require_packet_records = true;
+    bool real_sensor_replay_preserve_parse_errors = true;
+    int real_sensor_replay_max_records_per_run = 10000;
+    bool real_sensor_replay_regression_enabled = false;
+    bool real_sensor_replay_regression_require_valid_log_pass = true;
+    bool real_sensor_replay_regression_require_invalid_logs_fail = true;
+    bool real_sensor_replay_regression_require_parse_errors_detected = true;
+    bool real_sensor_replay_regression_require_comment_only_log_rejected = true;
+    bool real_sensor_replay_regression_run_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1214,6 +1225,20 @@ struct AutonomousSlamRunStats {
     double real_sensor_adapter_estimated_midpoint_error_s_last = 0.0;
     double real_sensor_adapter_packet_sensor_time_dt_s_last = 0.0;
     double real_sensor_adapter_future_timestamp_skew_s_last = 0.0;
+    int real_sensor_replay_invalid_record_count_last = 0;
+    int real_sensor_replay_comment_record_count_last = 0;
+    int real_sensor_replay_packet_record_count_last = 0;
+    double real_sensor_replay_last_validation_now_s = 0.0;
+    double real_sensor_replay_last_packet_time_s = 0.0;
+    double real_sensor_replay_last_effective_sensor_time_s = 0.0;
+    bool real_sensor_replay_regression_enabled_last = false;
+    uint64_t real_sensor_replay_regression_run_count = 0;
+    bool real_sensor_replay_regression_ok_last = false;
+    int real_sensor_replay_regression_status_last = 0;
+    int real_sensor_replay_regression_block_reason_last = 0;
+    int real_sensor_replay_regression_case_count_last = 0;
+    int real_sensor_replay_regression_pass_count_last = 0;
+    int real_sensor_replay_regression_fail_count_last = 0;
 };
 
 struct RunMetrics {

@@ -554,3 +554,16 @@ real_sensor_replay:
   require_non_empty_log: true
   run_acceptance_on_startup: false
   start_time_s: 100.0
+  time_mode: record_packet_time
+  reject_invalid_records: true
+  require_packet_records: true
+  preserve_parse_errors: true
+  max_records_per_run: 10000
+
+real_sensor_replay_regression:
+  enabled: false
+  require_valid_log_pass: true
+  require_invalid_logs_fail: true
+  require_parse_errors_detected: true
+  require_comment_only_log_rejected: true
+  run_on_startup: false

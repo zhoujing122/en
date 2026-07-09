@@ -39,3 +39,7 @@ Passing this acceptance does not prove real sensor readiness.
 ## M3-B2 Timing Hardening
 
 M3-B2 rejects negative or mismatched request latency, estimated sample times outside the request window, estimated times that are not close to the midpoint, future sensor times, and packet-to-sensor time mismatches. ToF/Wheel remain request-window estimates, not hardware capture timestamps. See `REAL_SENSOR_REPLAY_LOG_FORMAT.md`.
+
+## M3-B2.1 Replay Robustness Link
+
+The replay layer now validates logs using record time by default and preserves parse errors as InvalidRecord. This keeps the request-window ToF/Wheel contract visible during offline regression and prevents malformed logs from being silently skipped.

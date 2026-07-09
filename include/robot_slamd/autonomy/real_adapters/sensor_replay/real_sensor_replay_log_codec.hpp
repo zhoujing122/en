@@ -3,8 +3,9 @@
 #include "robot_slamd/autonomy/real_adapters/sensor_replay/real_sensor_replay_types.hpp"
 
 #include <algorithm>
-#include <cmath>
 #include <cctype>
+#include <cerrno>
+#include <cmath>
 #include <cstdlib>
 #include <limits>
 #include <map>
@@ -23,7 +24,8 @@ public:
         log.source_name = source_name;
         int line_number = 1;
         for (const auto &line : lines) {
-            if (trim(line).empty() || trim(line).front() == '#') {
+            const auto stripped = trim(line);
+            if (stripped.empty() || stripped.front() == '#') {
                 RealSensorReplayRecord record;
                 record.kind = RealSensorReplayRecordKind::Comment;
                 record.line_number = line_number;
@@ -47,40 +49,15 @@ public:
                                                         : record.raw_line);
                 continue;
             }
+            if (record.kind == RealSensorReplayRecordKind::InvalidRecord) {
+                lines.push_back("# invalid: " + record.raw_line);
+                continue;
+            }
             if (record.kind == RealSensorReplayRecordKind::EndOfLog) {
                 lines.push_back("# end_of_log");
                 continue;
             }
-            const auto &p = record.packet;
-            std::ostringstream o;
-            o << "kind=packet"
-              << ",packet_time=" << p.packet_timestamp_s
-              << ",tof_req_start=" << p.tof.timing.request_start_s
-              << ",tof_resp=" << p.tof.timing.response_received_s
-              << ",tof_est=" << p.tof.timing.estimated_sample_time_s
-              << ",tof_latency=" << p.tof.timing.request_latency_s
-              << ",tof_frame=" << p.tof.frame_id
-              << ",tof_ranges=" << join_ranges(p.tof.ranges_m)
-              << ",tof_angle_min=" << p.tof.angle_min_rad
-              << ",tof_angle_max=" << p.tof.angle_max_rad
-              << ",tof_angle_inc=" << p.tof.angle_increment_rad
-              << ",tof_range_min=" << p.tof.range_min_m
-              << ",tof_range_max=" << p.tof.range_max_m
-              << ",imu_time=" << p.imu.timestamp_s
-              << ",imu_frame=" << p.imu.frame_id
-              << ",imu_yaw_rate=" << p.imu.yaw_rate_rad_s
-              << ",imu_ax=" << p.imu.accel_x_mps2
-              << ",imu_ay=" << p.imu.accel_y_mps2
-              << ",imu_az=" << p.imu.accel_z_mps2
-              << ",wheel_req_start=" << p.wheel.timing.request_start_s
-              << ",wheel_resp=" << p.wheel.timing.response_received_s
-              << ",wheel_est=" << p.wheel.timing.estimated_sample_time_s
-              << ",wheel_latency=" << p.wheel.timing.request_latency_s
-              << ",wheel_frame=" << p.wheel.frame_id
-              << ",wheel_valid=" << (p.wheel.valid ? "true" : "false")
-              << ",wheel_linear=" << p.wheel.linear_velocity_mps
-              << ",wheel_angular=" << p.wheel.angular_velocity_rad_s;
-            lines.push_back(o.str());
+            lines.push_back(write_packet_line(record.packet));
         }
         return lines;
     }
@@ -94,19 +71,59 @@ public:
         return o.str();
     }
 
+    bool is_valid_packet_line(const std::string &line) const {
+        return parse_packet_line(line, 1).kind ==
+               RealSensorReplayRecordKind::Packet;
+    }
+
+    RealSensorReplayResult validate_log(
+        const RealSensorReplayLog &log) const {
+        RealSensorReplayResult result;
+        result.status = RealSensorReplayStatus::Parsed;
+        result.parsed_record_count = static_cast<int>(log.records.size());
+        for (const auto &record : log.records) {
+            if (record.kind == RealSensorReplayRecordKind::Packet) {
+                result.packet_record_count++;
+            } else if (record.kind == RealSensorReplayRecordKind::Comment) {
+                result.comment_record_count++;
+            } else if (record.kind == RealSensorReplayRecordKind::InvalidRecord) {
+                result.invalid_record_count++;
+            }
+        }
+        if (log.records.empty()) {
+            result.fault = RealSensorReplayFault::EmptyLog;
+            result.summary = "real_sensor_replay_empty_log";
+        } else if (result.invalid_record_count > 0) {
+            result.fault = RealSensorReplayFault::InvalidRecord;
+            result.summary = "real_sensor_replay_invalid_records_present";
+        } else if (result.packet_record_count == 0) {
+            result.fault = RealSensorReplayFault::NoPacketRecords;
+            result.summary = "real_sensor_replay_no_packet_records";
+        } else {
+            result.ok = true;
+            result.fault = RealSensorReplayFault::None;
+            result.summary = "real_sensor_replay_log_valid";
+        }
+        return result;
+    }
+
 private:
     RealSensorReplayRecord parse_packet_line(
         const std::string &line,
         int line_number) const {
         RealSensorReplayRecord record;
-        record.kind = RealSensorReplayRecordKind::Comment;
+        record.kind = RealSensorReplayRecordKind::InvalidRecord;
         record.line_number = line_number;
         record.raw_line = line;
         record.message = "parse_error";
 
         const auto kv = parse_kv(line);
-        if (value(kv, "kind") != "packet") {
+        if (!kv.count("kind")) {
             record.message = "parse_error_missing_packet_kind";
+            return record;
+        }
+        if (value(kv, "kind") != "packet") {
+            record.message = "parse_error_invalid_kind";
             return record;
         }
         const char *required[] = {
@@ -124,54 +141,125 @@ private:
             }
         }
 
+        auto packet_time = parse_double_field(kv, "packet_time", record);
+        auto tof_req_start = parse_double_field(kv, "tof_req_start", record);
+        auto tof_resp = parse_double_field(kv, "tof_resp", record);
+        auto tof_est = parse_double_field(kv, "tof_est", record);
+        auto tof_latency = parse_double_field(kv, "tof_latency", record);
+        auto tof_angle_min = parse_double_field(kv, "tof_angle_min", record);
+        auto tof_angle_max = parse_double_field(kv, "tof_angle_max", record);
+        auto tof_angle_inc = parse_double_field(kv, "tof_angle_inc", record);
+        auto tof_range_min = parse_double_field(kv, "tof_range_min", record);
+        auto tof_range_max = parse_double_field(kv, "tof_range_max", record);
+        auto imu_time = parse_double_field(kv, "imu_time", record);
+        auto imu_yaw_rate = parse_double_field(kv, "imu_yaw_rate", record);
+        auto imu_ax = parse_double_field(kv, "imu_ax", record);
+        auto imu_ay = parse_double_field(kv, "imu_ay", record);
+        auto imu_az = parse_double_field(kv, "imu_az", record);
+        auto wheel_req_start = parse_double_field(kv, "wheel_req_start", record);
+        auto wheel_resp = parse_double_field(kv, "wheel_resp", record);
+        auto wheel_est = parse_double_field(kv, "wheel_est", record);
+        auto wheel_latency = parse_double_field(kv, "wheel_latency", record);
+        auto wheel_linear = parse_double_field(kv, "wheel_linear", record);
+        auto wheel_angular = parse_double_field(kv, "wheel_angular", record);
+        if (record.message.rfind("parse_error_invalid_number_", 0) == 0) {
+            return record;
+        }
+
+        bool bool_ok = false;
+        const bool wheel_valid = parse_bool(value(kv, "wheel_valid"), bool_ok);
+        if (!bool_ok) {
+            record.message = "parse_error_invalid_bool_wheel_valid";
+            return record;
+        }
+        const auto ranges = parse_ranges(value(kv, "tof_ranges"), record);
+        if (record.kind == RealSensorReplayRecordKind::InvalidRecord &&
+            record.message != "parse_error") {
+            return record;
+        }
+
         record.kind = RealSensorReplayRecordKind::Packet;
         record.message = "packet";
         auto &p = record.packet;
         p.has_tof = true;
         p.has_imu = true;
         p.has_wheel = true;
-        p.packet_timestamp_s = parse_double(value(kv, "packet_time"));
+        p.packet_timestamp_s = packet_time;
         p.packet_source = "sensor_replay";
-        p.tof.timing.request_start_s = parse_double(value(kv, "tof_req_start"));
-        p.tof.timing.response_received_s = parse_double(value(kv, "tof_resp"));
-        p.tof.timing.estimated_sample_time_s = parse_double(value(kv, "tof_est"));
-        p.tof.timing.request_latency_s = parse_double(value(kv, "tof_latency"));
+        p.tof.timing.request_start_s = tof_req_start;
+        p.tof.timing.response_received_s = tof_resp;
+        p.tof.timing.estimated_sample_time_s = tof_est;
+        p.tof.timing.request_latency_s = tof_latency;
         p.tof.timing.timing_source = "replay_request_window";
         p.tof.frame_id = value(kv, "tof_frame");
-        p.tof.ranges_m = parse_ranges(value(kv, "tof_ranges"));
-        p.tof.angle_min_rad = parse_double(value(kv, "tof_angle_min"));
-        p.tof.angle_max_rad = parse_double(value(kv, "tof_angle_max"));
-        p.tof.angle_increment_rad = parse_double(value(kv, "tof_angle_inc"));
-        p.tof.range_min_m = parse_double(value(kv, "tof_range_min"));
-        p.tof.range_max_m = parse_double(value(kv, "tof_range_max"));
+        p.tof.ranges_m = ranges;
+        p.tof.angle_min_rad = tof_angle_min;
+        p.tof.angle_max_rad = tof_angle_max;
+        p.tof.angle_increment_rad = tof_angle_inc;
+        p.tof.range_min_m = tof_range_min;
+        p.tof.range_max_m = tof_range_max;
         p.tof.source = "sensor_replay_tof";
-        p.imu.timestamp_s = parse_double(value(kv, "imu_time"));
+        p.imu.timestamp_s = imu_time;
         p.imu.frame_id = value(kv, "imu_frame");
-        p.imu.yaw_rate_rad_s = parse_double(value(kv, "imu_yaw_rate"));
-        p.imu.accel_x_mps2 = parse_double(value(kv, "imu_ax"));
-        p.imu.accel_y_mps2 = parse_double(value(kv, "imu_ay"));
-        p.imu.accel_z_mps2 = parse_double(value(kv, "imu_az"));
+        p.imu.yaw_rate_rad_s = imu_yaw_rate;
+        p.imu.accel_x_mps2 = imu_ax;
+        p.imu.accel_y_mps2 = imu_ay;
+        p.imu.accel_z_mps2 = imu_az;
         p.imu.source = "sensor_replay_imu";
-        p.wheel.timing.request_start_s = parse_double(value(kv, "wheel_req_start"));
-        p.wheel.timing.response_received_s = parse_double(value(kv, "wheel_resp"));
-        p.wheel.timing.estimated_sample_time_s = parse_double(value(kv, "wheel_est"));
-        p.wheel.timing.request_latency_s = parse_double(value(kv, "wheel_latency"));
+        p.wheel.timing.request_start_s = wheel_req_start;
+        p.wheel.timing.response_received_s = wheel_resp;
+        p.wheel.timing.estimated_sample_time_s = wheel_est;
+        p.wheel.timing.request_latency_s = wheel_latency;
         p.wheel.timing.timing_source = "replay_request_window";
         p.wheel.frame_id = value(kv, "wheel_frame");
-        p.wheel.valid = parse_bool(value(kv, "wheel_valid"));
-        p.wheel.linear_velocity_mps = parse_double(value(kv, "wheel_linear"));
-        p.wheel.angular_velocity_rad_s = parse_double(value(kv, "wheel_angular"));
+        p.wheel.valid = wheel_valid;
+        p.wheel.linear_velocity_mps = wheel_linear;
+        p.wheel.angular_velocity_rad_s = wheel_angular;
         p.wheel.source = "sensor_replay_wheel";
         return record;
     }
 
+    static std::string write_packet_line(const RealSensorRawPacket &p) {
+        std::ostringstream o;
+        o << "kind=packet"
+          << ",packet_time=" << p.packet_timestamp_s
+          << ",tof_req_start=" << p.tof.timing.request_start_s
+          << ",tof_resp=" << p.tof.timing.response_received_s
+          << ",tof_est=" << p.tof.timing.estimated_sample_time_s
+          << ",tof_latency=" << p.tof.timing.request_latency_s
+          << ",tof_frame=" << p.tof.frame_id
+          << ",tof_ranges=" << join_ranges(p.tof.ranges_m)
+          << ",tof_angle_min=" << p.tof.angle_min_rad
+          << ",tof_angle_max=" << p.tof.angle_max_rad
+          << ",tof_angle_inc=" << p.tof.angle_increment_rad
+          << ",tof_range_min=" << p.tof.range_min_m
+          << ",tof_range_max=" << p.tof.range_max_m
+          << ",imu_time=" << p.imu.timestamp_s
+          << ",imu_frame=" << p.imu.frame_id
+          << ",imu_yaw_rate=" << p.imu.yaw_rate_rad_s
+          << ",imu_ax=" << p.imu.accel_x_mps2
+          << ",imu_ay=" << p.imu.accel_y_mps2
+          << ",imu_az=" << p.imu.accel_z_mps2
+          << ",wheel_req_start=" << p.wheel.timing.request_start_s
+          << ",wheel_resp=" << p.wheel.timing.response_received_s
+          << ",wheel_est=" << p.wheel.timing.estimated_sample_time_s
+          << ",wheel_latency=" << p.wheel.timing.request_latency_s
+          << ",wheel_frame=" << p.wheel.frame_id
+          << ",wheel_valid=" << (p.wheel.valid ? "true" : "false")
+          << ",wheel_linear=" << p.wheel.linear_velocity_mps
+          << ",wheel_angular=" << p.wheel.angular_velocity_rad_s;
+        return o.str();
+    }
+
     static std::string trim(const std::string &s) {
         auto begin = s.begin();
-        while (begin != s.end() && std::isspace(static_cast<unsigned char>(*begin))) {
+        while (begin != s.end() &&
+               std::isspace(static_cast<unsigned char>(*begin))) {
             ++begin;
         }
         auto end = s.end();
-        while (end != begin && std::isspace(static_cast<unsigned char>(*(end - 1)))) {
+        while (end != begin &&
+               std::isspace(static_cast<unsigned char>(*(end - 1)))) {
             --end;
         }
         return std::string(begin, end);
@@ -205,29 +293,86 @@ private:
         return it == kv.end() ? std::string() : it->second;
     }
 
-    static double parse_double(const std::string &text) {
-        std::string lower = text;
+    static double parse_double_field(
+        const std::map<std::string, std::string> &kv,
+        const std::string &key,
+        RealSensorReplayRecord &record) {
+        bool ok = false;
+        const double parsed = parse_double(value(kv, key), ok, false);
+        if (!ok) {
+            record.message = "parse_error_invalid_number_" + key;
+        }
+        return parsed;
+    }
+
+    static double parse_double(
+        const std::string &text,
+        bool &ok,
+        bool allow_nan) {
+        ok = false;
+        const auto stripped = trim(text);
+        std::string lower = stripped;
         std::transform(lower.begin(), lower.end(), lower.begin(), [](char c) {
             return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
         });
-        if (lower == "nan") {
+        if (allow_nan && lower == "nan") {
+            ok = true;
             return std::numeric_limits<double>::quiet_NaN();
         }
-        return std::strtod(text.c_str(), nullptr);
+        if (lower == "inf" || lower == "+inf" || lower == "-inf" ||
+            lower == "infinity" || lower == "+infinity" ||
+            lower == "-infinity" || lower.empty()) {
+            return 0.0;
+        }
+        char *end = nullptr;
+        errno = 0;
+        const double parsed = std::strtod(stripped.c_str(), &end);
+        if (end == stripped.c_str() || *end != '\0' || errno == ERANGE ||
+            !std::isfinite(parsed)) {
+            return 0.0;
+        }
+        ok = true;
+        return parsed;
     }
 
-    static bool parse_bool(const std::string &text) {
-        return text == "true" || text == "1" || text == "yes";
+    static bool parse_bool(const std::string &text, bool &ok) {
+        std::string lower = trim(text);
+        std::transform(lower.begin(), lower.end(), lower.begin(), [](char c) {
+            return static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        });
+        ok = true;
+        if (lower == "true" || lower == "1" || lower == "yes") {
+            return true;
+        }
+        if (lower == "false" || lower == "0" || lower == "no") {
+            return false;
+        }
+        ok = false;
+        return false;
     }
 
-    static std::vector<double> parse_ranges(const std::string &text) {
+    static std::vector<double> parse_ranges(
+        const std::string &text,
+        RealSensorReplayRecord &record) {
         std::vector<double> ranges;
+        if (trim(text).empty()) {
+            record.message = "parse_error_empty_tof_ranges";
+            return ranges;
+        }
         std::size_t start = 0;
         while (start <= text.size()) {
             const std::size_t sep = text.find(';', start);
-            ranges.push_back(parse_double(text.substr(
+            const std::string token = text.substr(
                 start,
-                sep == std::string::npos ? std::string::npos : sep - start)));
+                sep == std::string::npos ? std::string::npos : sep - start);
+            bool ok = false;
+            const double parsed = parse_double(token, ok, true);
+            if (!ok) {
+                record.message = "parse_error_invalid_tof_range";
+                ranges.clear();
+                return ranges;
+            }
+            ranges.push_back(parsed);
             if (sep == std::string::npos) {
                 break;
             }

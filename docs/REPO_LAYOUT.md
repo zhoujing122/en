@@ -123,3 +123,10 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 ## M3-B2 Sensor Replay Layout
 
 `include/robot_slamd/autonomy/real_adapters/sensor_replay/` contains offline replay/log contract headers for request-window sensor data regression.
+
+## M3-B2.1 Replay Robustness Files
+
+- `include/robot_slamd/autonomy/real_adapters/sensor_replay/`: strict offline real sensor replay codec, port, acceptance, and report utilities.
+- `include/robot_slamd/autonomy/real_adapters/sensor_replay/regression/`: golden replay regression harness skeleton.
+- `docs/REAL_SENSOR_REPLAY_ROBUSTNESS.md`: replay robustness notes.
+- `docs/REAL_SENSOR_REPLAY_GOLDEN_REGRESSION.md`: golden regression harness notes.

@@ -511,6 +511,17 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.real_sensor_replay_require_non_empty_log = get_bool(kv, "real_sensor_replay.require_non_empty_log", c.real_sensor_replay_require_non_empty_log);
     c.real_sensor_replay_run_acceptance_on_startup = get_bool(kv, "real_sensor_replay.run_acceptance_on_startup", c.real_sensor_replay_run_acceptance_on_startup);
     c.real_sensor_replay_start_time_s = get_double(kv, "real_sensor_replay.start_time_s", c.real_sensor_replay_start_time_s);
+    c.real_sensor_replay_time_mode = get_string(kv, "real_sensor_replay.time_mode", c.real_sensor_replay_time_mode);
+    c.real_sensor_replay_reject_invalid_records = get_bool(kv, "real_sensor_replay.reject_invalid_records", c.real_sensor_replay_reject_invalid_records);
+    c.real_sensor_replay_require_packet_records = get_bool(kv, "real_sensor_replay.require_packet_records", c.real_sensor_replay_require_packet_records);
+    c.real_sensor_replay_preserve_parse_errors = get_bool(kv, "real_sensor_replay.preserve_parse_errors", c.real_sensor_replay_preserve_parse_errors);
+    c.real_sensor_replay_max_records_per_run = get_int(kv, "real_sensor_replay.max_records_per_run", c.real_sensor_replay_max_records_per_run);
+    c.real_sensor_replay_regression_enabled = get_bool(kv, "real_sensor_replay_regression.enabled", c.real_sensor_replay_regression_enabled);
+    c.real_sensor_replay_regression_require_valid_log_pass = get_bool(kv, "real_sensor_replay_regression.require_valid_log_pass", c.real_sensor_replay_regression_require_valid_log_pass);
+    c.real_sensor_replay_regression_require_invalid_logs_fail = get_bool(kv, "real_sensor_replay_regression.require_invalid_logs_fail", c.real_sensor_replay_regression_require_invalid_logs_fail);
+    c.real_sensor_replay_regression_require_parse_errors_detected = get_bool(kv, "real_sensor_replay_regression.require_parse_errors_detected", c.real_sensor_replay_regression_require_parse_errors_detected);
+    c.real_sensor_replay_regression_require_comment_only_log_rejected = get_bool(kv, "real_sensor_replay_regression.require_comment_only_log_rejected", c.real_sensor_replay_regression_require_comment_only_log_rejected);
+    c.real_sensor_replay_regression_run_on_startup = get_bool(kv, "real_sensor_replay_regression.run_on_startup", c.real_sensor_replay_regression_run_on_startup);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1119,12 +1130,43 @@ void validate_config(const Config &c) {
     if (c.real_sensor_replay_run_acceptance_on_startup) {
         errors.push_back("real_sensor_replay.run_acceptance_on_startup must remain false");
     }
+    if (c.real_sensor_replay_time_mode != "external_now" &&
+        c.real_sensor_replay_time_mode != "record_packet_time" &&
+        c.real_sensor_replay_time_mode != "record_sensor_max_time") {
+        errors.push_back("real_sensor_replay.time_mode must be external_now, record_packet_time, or record_sensor_max_time");
+    }
+    if (c.real_sensor_replay_time_mode != "record_packet_time") {
+        errors.push_back("real_sensor_replay.time_mode must default to record_packet_time");
+    }
+    if (!c.real_sensor_replay_reject_invalid_records) {
+        errors.push_back("real_sensor_replay.reject_invalid_records must remain true");
+    }
+    if (!c.real_sensor_replay_require_packet_records) {
+        errors.push_back("real_sensor_replay.require_packet_records must remain true");
+    }
+    if (!c.real_sensor_replay_preserve_parse_errors) {
+        errors.push_back("real_sensor_replay.preserve_parse_errors must remain true");
+    }
+    if (c.real_sensor_replay_max_records_per_run <= 0 ||
+        c.real_sensor_replay_max_records_per_run > 100000) {
+        errors.push_back("real_sensor_replay.max_records_per_run must be in (0,100000]");
+    }
+    if (c.real_sensor_replay_regression_run_on_startup) {
+        errors.push_back("real_sensor_replay_regression.run_on_startup must remain false");
+    }
     if (c.real_sensor_replay_enabled && c.motion_execution_hardware_write_enabled) {
         errors.push_back("real_sensor_replay.enabled=true requires motion_execution.hardware_write_enabled=false");
     }
     if (c.real_sensor_replay_enabled &&
         c.motion_execution_software_motion_production_interface_enabled) {
         errors.push_back("real_sensor_replay.enabled=true requires production_interface_enabled=false");
+    }
+    if (c.real_sensor_replay_regression_enabled && c.motion_execution_hardware_write_enabled) {
+        errors.push_back("real_sensor_replay_regression.enabled=true requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.real_sensor_replay_regression_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("real_sensor_replay_regression.enabled=true requires production_interface_enabled=false");
     }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
@@ -1595,7 +1637,19 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  fail_on_contract_error: " << bool_yaml(c.real_sensor_replay_fail_on_contract_error) << "\n"
       << "  require_non_empty_log: " << bool_yaml(c.real_sensor_replay_require_non_empty_log) << "\n"
       << "  run_acceptance_on_startup: " << bool_yaml(c.real_sensor_replay_run_acceptance_on_startup) << "\n"
-      << "  start_time_s: " << c.real_sensor_replay_start_time_s << "\n";
+      << "  start_time_s: " << c.real_sensor_replay_start_time_s << "\n"
+      << "  time_mode: " << c.real_sensor_replay_time_mode << "\n"
+      << "  reject_invalid_records: " << bool_yaml(c.real_sensor_replay_reject_invalid_records) << "\n"
+      << "  require_packet_records: " << bool_yaml(c.real_sensor_replay_require_packet_records) << "\n"
+      << "  preserve_parse_errors: " << bool_yaml(c.real_sensor_replay_preserve_parse_errors) << "\n"
+      << "  max_records_per_run: " << c.real_sensor_replay_max_records_per_run << "\n";
+    o << "real_sensor_replay_regression:\n"
+      << "  enabled: " << bool_yaml(c.real_sensor_replay_regression_enabled) << "\n"
+      << "  require_valid_log_pass: " << bool_yaml(c.real_sensor_replay_regression_require_valid_log_pass) << "\n"
+      << "  require_invalid_logs_fail: " << bool_yaml(c.real_sensor_replay_regression_require_invalid_logs_fail) << "\n"
+      << "  require_parse_errors_detected: " << bool_yaml(c.real_sensor_replay_regression_require_parse_errors_detected) << "\n"
+      << "  require_comment_only_log_rejected: " << bool_yaml(c.real_sensor_replay_regression_require_comment_only_log_rejected) << "\n"
+      << "  run_on_startup: " << bool_yaml(c.real_sensor_replay_regression_run_on_startup) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

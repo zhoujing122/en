@@ -13,3 +13,7 @@ Before live handoff, RealTofImuWheelSensorPort must produce raw packets that pas
 ## M3-B2 Replay Gate
 
 Use M3-B2 offline sensor replay before live handoff to validate request-window timing and snapshot conversion with captured data. Replay passing is not live-ready.
+
+## M3-B2.1 Replay Robustness Gate
+
+Before live handoff, offline replay logs should pass the M3-B2.1 robust parser and golden regression harness. This gate improves replay reliability but still does not prove live hardware readiness.

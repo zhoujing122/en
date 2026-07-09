@@ -22,12 +22,24 @@ int main() {
            "status string");
     expect(to_string(RealSensorReplayFault::ParseError) == "ParseError",
            "fault string");
+    expect(to_string(RealSensorReplayRecordKind::InvalidRecord) == "InvalidRecord",
+           "invalid record kind string");
+    expect(to_string(RealSensorReplayTimeMode::RecordPacketTime) == "RecordPacketTime",
+           "time mode string");
     expect(real_sensor_replay_record_kind_id(RealSensorReplayRecordKind::Packet) == 0,
            "record kind id");
     expect(real_sensor_replay_status_id(RealSensorReplayStatus::Parsed) == 1,
            "status id");
     expect(real_sensor_replay_fault_id(RealSensorReplayFault::ParseError) == 2,
            "fault id");
+    expect(real_sensor_replay_time_mode_id(RealSensorReplayTimeMode::RecordPacketTime) == 1,
+           "time mode id");
+
+    RealSensorReplayOptions options;
+    expect(options.time_mode == RealSensorReplayTimeMode::RecordPacketTime,
+           "default time mode record packet time");
+    expect(options.reject_invalid_records, "default reject invalid records");
+    expect(options.require_packet_records, "default require packet records");
 
     RealSensorReplayResult result;
     expect(!result.ok, "default result not ok");

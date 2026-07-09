@@ -38,6 +38,8 @@ int main() {
     expect(std::isnan(log.records[1].packet.tof.ranges_m[2]),
            "tof ranges supports nan");
     auto invalid = codec.parse_lines({"not_a_packet"});
+    expect(invalid.records.front().kind == RealSensorReplayRecordKind::InvalidRecord,
+           "invalid line invalid record");
     expect(invalid.records.front().message.find("parse_error") != std::string::npos,
            "invalid line parse error");
 
