@@ -35,7 +35,8 @@ public:
         if (kind == FullAutonomousSlamPipelineScenarioKind::CompletesWithoutActiveScan) {
             scenario.backend_options.min_valid_scan_count_for_good = 1;
             scenario.backend_options.min_coverage_ratio_for_good = 0.5;
-            scenario.backend_options.min_yaw_coverage_ratio_for_good = 0.0;
+            scenario.backend_options.min_yaw_coverage_ratio_for_good = 0.30;
+            scenario.backend_options.yaw_bin_size_rad = 3.20;
             scenario.pipeline_options.min_backend_accepted_updates = 1;
             return scenario;
         }
@@ -43,7 +44,8 @@ public:
         if (kind == FullAutonomousSlamPipelineScenarioKind::RequiresActiveScanThenCompletes) {
             scenario.backend_options.min_valid_scan_count_for_good = 2;
             scenario.backend_options.min_coverage_ratio_for_good = 0.75;
-            scenario.backend_options.min_yaw_coverage_ratio_for_good = 0.0;
+            scenario.backend_options.min_yaw_coverage_ratio_for_good = 0.30;
+            scenario.backend_options.yaw_bin_size_rad = 2.10;
             scenario.pipeline_options.min_backend_accepted_updates = 2;
             return scenario;
         }
@@ -63,7 +65,8 @@ public:
         if (kind == FullAutonomousSlamPipelineScenarioKind::MotionRejected) {
             scenario.backend_options.min_valid_scan_count_for_good = 2;
             scenario.backend_options.min_coverage_ratio_for_good = 0.75;
-            scenario.backend_options.min_yaw_coverage_ratio_for_good = 0.0;
+            scenario.backend_options.min_yaw_coverage_ratio_for_good = 0.30;
+            scenario.backend_options.yaw_bin_size_rad = 2.10;
             scenario.pipeline_options.min_backend_accepted_updates = 2;
             scenario.reject_motion = true;
             return scenario;
@@ -94,13 +97,13 @@ private:
         options.min_valid_scan_count_for_good = 2;
         options.min_valid_range_ratio = 0.30;
         options.min_coverage_ratio_for_good = 0.75;
-        options.min_yaw_coverage_ratio_for_good = 0.0;
+        options.min_yaw_coverage_ratio_for_good = 0.30;
         options.keyframe_yaw_delta_rad = 0.15;
         options.min_range_m = 0.02;
         options.max_range_m = 8.0;
         options.max_update_latency_s = 0.50;
         options.assumed_scan_yaw_span_rad = 0.52;
-        options.yaw_bin_size_rad = 0.26;
+        options.yaw_bin_size_rad = 2.10;
         return options;
     }
 

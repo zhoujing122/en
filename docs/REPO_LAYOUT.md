@@ -149,3 +149,5 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 ## M3-B6 Additions
 
 - `include/robot_slamd/autonomy/fake_relocalization/`: fake map artifact to report-only relocalization contract and runner.
+
+M3-B7 adds autonomy/product_acceptance for fake autonomous SLAM product acceptance and adapter replacement manifest headers.

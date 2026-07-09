@@ -13,3 +13,5 @@ M3-B5 adds phase-aware replay consumption, a structured per-step trace, and an i
 ## M3-B6 Relocalization Loop
 
 After a successful fake pipeline run, M3-B6 can load the fake map metadata and evaluate one replay scan through FakeRelocalizationBinding. The result is report-only and never writes pose.
+
+M3-B7 product acceptance composes this fake pipeline with fake map load and strict fake relocalization, still without live hardware or production SLAM claims.

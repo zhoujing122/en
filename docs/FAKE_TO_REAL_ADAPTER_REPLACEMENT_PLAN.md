@@ -11,3 +11,5 @@ The in-memory fake map artifact is the placeholder for future map storage. Real 
 ## M3-B6 Fake Relocalization Replacement
 
 FakeRelocalizationBinding is the placeholder for future real relocalization. A real backend may replace it only after map format, scan matcher, confidence thresholds, and pose writeback gates are reviewed.
+
+M3-B7 adds a structured fake-to-real adapter replacement manifest for sensor, motion, SLAM backend, map storage, relocalization, map artifact, and pose candidate replacement.

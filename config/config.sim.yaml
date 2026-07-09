@@ -635,3 +635,23 @@ fake_map_relocalization_runner:
   require_relocalization_success: true
   require_no_pose_writeback: true
   run_on_startup: false
+
+fake_relocalization_readiness_gate:
+  enabled: false
+  require_binding_ready: true
+  require_no_pose_writeback: true
+  require_map_quality_good: true
+  min_confidence: 0.70
+  min_map_coverage_ratio: 0.60
+  min_map_yaw_coverage_ratio: 0.30
+
+fake_autonomous_slam_product_acceptance:
+  enabled: false
+  run_on_startup: false
+  require_mapping_pipeline_success: true
+  require_fake_map_saved: true
+  require_relocalization_success: true
+  require_relocalization_readiness: true
+  require_no_pose_writeback: true
+  require_no_forward_backward: true
+  require_adapter_manifest: true

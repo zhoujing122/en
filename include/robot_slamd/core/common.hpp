@@ -715,6 +715,22 @@ struct Config {
     bool fake_map_relocalization_runner_require_relocalization_success = true;
     bool fake_map_relocalization_runner_require_no_pose_writeback = true;
     bool fake_map_relocalization_runner_run_on_startup = false;
+    bool fake_relocalization_readiness_gate_enabled = false;
+    bool fake_relocalization_readiness_gate_require_binding_ready = true;
+    bool fake_relocalization_readiness_gate_require_no_pose_writeback = true;
+    bool fake_relocalization_readiness_gate_require_map_quality_good = true;
+    double fake_relocalization_readiness_gate_min_confidence = 0.70;
+    double fake_relocalization_readiness_gate_min_map_coverage_ratio = 0.60;
+    double fake_relocalization_readiness_gate_min_map_yaw_coverage_ratio = 0.30;
+    bool fake_autonomous_slam_product_acceptance_enabled = false;
+    bool fake_autonomous_slam_product_acceptance_run_on_startup = false;
+    bool fake_autonomous_slam_product_acceptance_require_mapping_pipeline_success = true;
+    bool fake_autonomous_slam_product_acceptance_require_fake_map_saved = true;
+    bool fake_autonomous_slam_product_acceptance_require_relocalization_success = true;
+    bool fake_autonomous_slam_product_acceptance_require_relocalization_readiness = true;
+    bool fake_autonomous_slam_product_acceptance_require_no_pose_writeback = true;
+    bool fake_autonomous_slam_product_acceptance_require_no_forward_backward = true;
+    bool fake_autonomous_slam_product_acceptance_require_adapter_manifest = true;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1354,6 +1370,18 @@ struct AutonomousSlamRunStats {
     uint64_t fake_map_relocalization_runner_run_count = 0;
     bool fake_map_relocalization_runner_ok_last = false;
     bool fake_map_relocalization_runner_map_loaded_last = false;
+    bool fake_relocalization_readiness_gate_enabled_last = false;
+    bool fake_relocalization_readiness_gate_ok_last = false;
+    int fake_relocalization_readiness_gate_status_last = 0;
+    int fake_relocalization_readiness_gate_block_reason_last = 0;
+    bool fake_autonomous_slam_product_acceptance_enabled_last = false;
+    uint64_t fake_autonomous_slam_product_acceptance_run_count = 0;
+    bool fake_autonomous_slam_product_acceptance_ok_last = false;
+    int fake_autonomous_slam_product_acceptance_status_last = 0;
+    int fake_autonomous_slam_product_acceptance_block_reason_last = 0;
+    bool fake_autonomous_slam_product_acceptance_mapping_ok_last = false;
+    bool fake_autonomous_slam_product_acceptance_relocalization_ok_last = false;
+    bool fake_autonomous_slam_product_acceptance_manifest_valid_last = false;
 };
 
 struct RunMetrics {

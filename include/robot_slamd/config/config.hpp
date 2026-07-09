@@ -580,6 +580,22 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.fake_map_relocalization_runner_require_relocalization_success = get_bool(kv, "fake_map_relocalization_runner.require_relocalization_success", c.fake_map_relocalization_runner_require_relocalization_success);
     c.fake_map_relocalization_runner_require_no_pose_writeback = get_bool(kv, "fake_map_relocalization_runner.require_no_pose_writeback", c.fake_map_relocalization_runner_require_no_pose_writeback);
     c.fake_map_relocalization_runner_run_on_startup = get_bool(kv, "fake_map_relocalization_runner.run_on_startup", c.fake_map_relocalization_runner_run_on_startup);
+    c.fake_relocalization_readiness_gate_enabled = get_bool(kv, "fake_relocalization_readiness_gate.enabled", c.fake_relocalization_readiness_gate_enabled);
+    c.fake_relocalization_readiness_gate_require_binding_ready = get_bool(kv, "fake_relocalization_readiness_gate.require_binding_ready", c.fake_relocalization_readiness_gate_require_binding_ready);
+    c.fake_relocalization_readiness_gate_require_no_pose_writeback = get_bool(kv, "fake_relocalization_readiness_gate.require_no_pose_writeback", c.fake_relocalization_readiness_gate_require_no_pose_writeback);
+    c.fake_relocalization_readiness_gate_require_map_quality_good = get_bool(kv, "fake_relocalization_readiness_gate.require_map_quality_good", c.fake_relocalization_readiness_gate_require_map_quality_good);
+    c.fake_relocalization_readiness_gate_min_confidence = get_double(kv, "fake_relocalization_readiness_gate.min_confidence", c.fake_relocalization_readiness_gate_min_confidence);
+    c.fake_relocalization_readiness_gate_min_map_coverage_ratio = get_double(kv, "fake_relocalization_readiness_gate.min_map_coverage_ratio", c.fake_relocalization_readiness_gate_min_map_coverage_ratio);
+    c.fake_relocalization_readiness_gate_min_map_yaw_coverage_ratio = get_double(kv, "fake_relocalization_readiness_gate.min_map_yaw_coverage_ratio", c.fake_relocalization_readiness_gate_min_map_yaw_coverage_ratio);
+    c.fake_autonomous_slam_product_acceptance_enabled = get_bool(kv, "fake_autonomous_slam_product_acceptance.enabled", c.fake_autonomous_slam_product_acceptance_enabled);
+    c.fake_autonomous_slam_product_acceptance_run_on_startup = get_bool(kv, "fake_autonomous_slam_product_acceptance.run_on_startup", c.fake_autonomous_slam_product_acceptance_run_on_startup);
+    c.fake_autonomous_slam_product_acceptance_require_mapping_pipeline_success = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_mapping_pipeline_success", c.fake_autonomous_slam_product_acceptance_require_mapping_pipeline_success);
+    c.fake_autonomous_slam_product_acceptance_require_fake_map_saved = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_fake_map_saved", c.fake_autonomous_slam_product_acceptance_require_fake_map_saved);
+    c.fake_autonomous_slam_product_acceptance_require_relocalization_success = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_relocalization_success", c.fake_autonomous_slam_product_acceptance_require_relocalization_success);
+    c.fake_autonomous_slam_product_acceptance_require_relocalization_readiness = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_relocalization_readiness", c.fake_autonomous_slam_product_acceptance_require_relocalization_readiness);
+    c.fake_autonomous_slam_product_acceptance_require_no_pose_writeback = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_no_pose_writeback", c.fake_autonomous_slam_product_acceptance_require_no_pose_writeback);
+    c.fake_autonomous_slam_product_acceptance_require_no_forward_backward = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_no_forward_backward", c.fake_autonomous_slam_product_acceptance_require_no_forward_backward);
+    c.fake_autonomous_slam_product_acceptance_require_adapter_manifest = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_adapter_manifest", c.fake_autonomous_slam_product_acceptance_require_adapter_manifest);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1373,10 +1389,10 @@ void validate_config(const Config &c) {
         !std::isfinite(c.fake_relocalization_min_map_coverage_ratio)) {
         errors.push_back("fake_relocalization.min_map_coverage_ratio must be in [0,1]");
     }
-    if (c.fake_relocalization_min_map_yaw_coverage_ratio < 0.0 ||
+    if (c.fake_relocalization_min_map_yaw_coverage_ratio < 0.30 ||
         c.fake_relocalization_min_map_yaw_coverage_ratio > 1.0 ||
         !std::isfinite(c.fake_relocalization_min_map_yaw_coverage_ratio)) {
-        errors.push_back("fake_relocalization.min_map_yaw_coverage_ratio must be in [0,1]");
+        errors.push_back("fake_relocalization.min_map_yaw_coverage_ratio must be in [0.30,1]");
     }
     if (c.fake_map_relocalization_runner_run_on_startup) {
         errors.push_back("fake_map_relocalization_runner.run_on_startup must remain false");
@@ -1395,6 +1411,45 @@ void validate_config(const Config &c) {
     if ((c.fake_relocalization_enabled || c.fake_map_relocalization_runner_enabled) &&
         c.motion_execution_allow_writer_dispatch) {
         errors.push_back("fake relocalization requires allow_writer_dispatch=false");
+    }
+    if (c.fake_relocalization_readiness_gate_min_confidence < 0.0 ||
+        c.fake_relocalization_readiness_gate_min_confidence > 1.0 ||
+        !std::isfinite(c.fake_relocalization_readiness_gate_min_confidence)) {
+        errors.push_back("fake_relocalization_readiness_gate.min_confidence must be in [0,1]");
+    }
+    if (c.fake_relocalization_readiness_gate_min_map_coverage_ratio < 0.0 ||
+        c.fake_relocalization_readiness_gate_min_map_coverage_ratio > 1.0 ||
+        !std::isfinite(c.fake_relocalization_readiness_gate_min_map_coverage_ratio)) {
+        errors.push_back("fake_relocalization_readiness_gate.min_map_coverage_ratio must be in [0,1]");
+    }
+    if (c.fake_relocalization_readiness_gate_min_map_yaw_coverage_ratio < 0.30 ||
+        c.fake_relocalization_readiness_gate_min_map_yaw_coverage_ratio > 1.0 ||
+        !std::isfinite(c.fake_relocalization_readiness_gate_min_map_yaw_coverage_ratio)) {
+        errors.push_back("fake_relocalization_readiness_gate.min_map_yaw_coverage_ratio must be in [0.30,1]");
+    }
+    if (c.fake_autonomous_slam_product_acceptance_run_on_startup) {
+        errors.push_back("fake_autonomous_slam_product_acceptance.run_on_startup must remain false");
+    }
+    if (!c.fake_autonomous_slam_product_acceptance_require_no_pose_writeback) {
+        errors.push_back("fake_autonomous_slam_product_acceptance.require_no_pose_writeback must remain true");
+    }
+    if (!c.fake_autonomous_slam_product_acceptance_require_no_forward_backward) {
+        errors.push_back("fake_autonomous_slam_product_acceptance.require_no_forward_backward must remain true");
+    }
+    if ((c.fake_relocalization_readiness_gate_enabled ||
+         c.fake_autonomous_slam_product_acceptance_enabled) &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("fake product acceptance requires motion_execution.hardware_write_enabled=false");
+    }
+    if ((c.fake_relocalization_readiness_gate_enabled ||
+         c.fake_autonomous_slam_product_acceptance_enabled) &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("fake product acceptance requires production_interface_enabled=false");
+    }
+    if ((c.fake_relocalization_readiness_gate_enabled ||
+         c.fake_autonomous_slam_product_acceptance_enabled) &&
+        c.motion_execution_allow_writer_dispatch) {
+        errors.push_back("fake product acceptance requires allow_writer_dispatch=false");
     }
 
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
@@ -1942,6 +1997,24 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_relocalization_success: " << bool_yaml(c.fake_map_relocalization_runner_require_relocalization_success) << "\n"
       << "  require_no_pose_writeback: " << bool_yaml(c.fake_map_relocalization_runner_require_no_pose_writeback) << "\n"
       << "  run_on_startup: " << bool_yaml(c.fake_map_relocalization_runner_run_on_startup) << "\n";
+    o << "fake_relocalization_readiness_gate:\n"
+      << "  enabled: " << bool_yaml(c.fake_relocalization_readiness_gate_enabled) << "\n"
+      << "  require_binding_ready: " << bool_yaml(c.fake_relocalization_readiness_gate_require_binding_ready) << "\n"
+      << "  require_no_pose_writeback: " << bool_yaml(c.fake_relocalization_readiness_gate_require_no_pose_writeback) << "\n"
+      << "  require_map_quality_good: " << bool_yaml(c.fake_relocalization_readiness_gate_require_map_quality_good) << "\n"
+      << "  min_confidence: " << c.fake_relocalization_readiness_gate_min_confidence << "\n"
+      << "  min_map_coverage_ratio: " << c.fake_relocalization_readiness_gate_min_map_coverage_ratio << "\n"
+      << "  min_map_yaw_coverage_ratio: " << c.fake_relocalization_readiness_gate_min_map_yaw_coverage_ratio << "\n";
+    o << "fake_autonomous_slam_product_acceptance:\n"
+      << "  enabled: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_enabled) << "\n"
+      << "  run_on_startup: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_run_on_startup) << "\n"
+      << "  require_mapping_pipeline_success: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_mapping_pipeline_success) << "\n"
+      << "  require_fake_map_saved: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_fake_map_saved) << "\n"
+      << "  require_relocalization_success: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_relocalization_success) << "\n"
+      << "  require_relocalization_readiness: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_relocalization_readiness) << "\n"
+      << "  require_no_pose_writeback: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_no_pose_writeback) << "\n"
+      << "  require_no_forward_backward: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_no_forward_backward) << "\n"
+      << "  require_adapter_manifest: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_adapter_manifest) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

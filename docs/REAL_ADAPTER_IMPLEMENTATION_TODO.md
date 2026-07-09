@@ -55,3 +55,5 @@ Future real adapters should preserve the phase-aware replay lessons: motion comm
 ## M3-B6 Relocalization TODO
 
 Future real adapters must keep fake relocalization separate from real pose writeback until a real map backend, scan matcher, confidence policy, and safety gate are available.
+
+After M3-B7, real hardware work must replace the manifest-listed adapters before live use; fake product acceptance is not a substitute for real sensor, motion, map, or relocalization implementations.

@@ -27,3 +27,5 @@ M3-B4 adds a full fake/replay autonomous SLAM pipeline before live handoff. It s
 ## M3-B6 Note
 
 Fake relocalization validates only the fake map-to-current-scan contract. It is not connected to startup or lost recovery writeback and does not call Localizer.
+
+M3-B7 adds a pre-real-hardware fake product acceptance gate. Passing it means only fake/replay/shadow flow consistency, not live readiness.

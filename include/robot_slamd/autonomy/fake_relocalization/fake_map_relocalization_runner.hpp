@@ -13,11 +13,29 @@
 
 namespace robot_slamd {
 
+inline FakeRelocalizationOptions strict_fake_map_relocalization_options() {
+    FakeRelocalizationOptions options;
+    options.enabled = true;
+    options.allow_pose_writeback = false;
+    options.require_map_quality_good = true;
+    options.require_tof = true;
+    options.min_valid_ranges = 3;
+    options.min_confidence = 0.70;
+    options.high_confidence_threshold = 0.85;
+    options.min_map_coverage_ratio = 0.60;
+    options.min_map_yaw_coverage_ratio = 0.30;
+    return options;
+}
+
 struct FakeMapRelocalizationRunnerOptions {
     bool enabled = false;
     bool require_pipeline_map_artifact = true;
     bool require_relocalization_success = true;
     bool require_no_pose_writeback = true;
+    FakeRelocalizationOptions relocalization_options =
+        strict_fake_map_relocalization_options();
+    bool use_strict_default_relocalization_options = true;
+    bool reject_yaw_threshold_relaxation = true;
 };
 
 struct FakeMapRelocalizationRunnerReport {
@@ -43,6 +61,11 @@ public:
         FakeMapRelocalizationRunnerReport report;
         if (!options_.enabled) {
             return fail(report, "fake_map_relocalization_runner_disabled");
+        }
+        const auto relocalization_options = effective_relocalization_options();
+        if (options_.reject_yaw_threshold_relaxation &&
+            relocalization_options.min_map_yaw_coverage_ratio < 0.30) {
+            return fail(report, "fake_map_relocalization_yaw_threshold_relaxed");
         }
 
         FullAutonomousSlamScenarioBuilder scenario_builder;
@@ -92,16 +115,6 @@ public:
         }
         report.replay_snapshot_count = 1;
 
-        FakeRelocalizationOptions relocalization_options;
-        relocalization_options.enabled = true;
-        relocalization_options.allow_pose_writeback = false;
-        relocalization_options.require_map_quality_good = true;
-        relocalization_options.require_tof = true;
-        relocalization_options.min_valid_ranges = 3;
-        relocalization_options.min_confidence = 0.70;
-        relocalization_options.high_confidence_threshold = 0.85;
-        relocalization_options.min_map_coverage_ratio = 0.60;
-        relocalization_options.min_map_yaw_coverage_ratio = 0.0;
         FakeRelocalizationBinding binding(relocalization_options);
         report.relocalization_result = binding.relocalize(
             loaded.artifact,
@@ -124,6 +137,16 @@ public:
     }
 
 private:
+    FakeRelocalizationOptions effective_relocalization_options() const {
+        if (options_.use_strict_default_relocalization_options) {
+            return strict_fake_map_relocalization_options();
+        }
+        auto options = options_.relocalization_options;
+        options.enabled = true;
+        options.allow_pose_writeback = false;
+        return options;
+    }
+
     static RealSensorReplayPort make_replay_port() {
         RealSensorReplayOptions replay_options;
         replay_options.enabled = true;

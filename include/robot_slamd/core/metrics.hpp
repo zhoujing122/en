@@ -396,6 +396,18 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "fake_map_relocalization_runner_run_count," << m.autonomous_slam.fake_map_relocalization_runner_run_count << "\n";
     o << "fake_map_relocalization_runner_ok_last," << (m.autonomous_slam.fake_map_relocalization_runner_ok_last ? 1 : 0) << "\n";
     o << "fake_map_relocalization_runner_map_loaded_last," << (m.autonomous_slam.fake_map_relocalization_runner_map_loaded_last ? 1 : 0) << "\n";
+    o << "fake_relocalization_readiness_gate_enabled_last," << (cfg.fake_relocalization_readiness_gate_enabled ? 1 : 0) << "\n";
+    o << "fake_relocalization_readiness_gate_ok_last," << (m.autonomous_slam.fake_relocalization_readiness_gate_ok_last ? 1 : 0) << "\n";
+    o << "fake_relocalization_readiness_gate_status_last," << m.autonomous_slam.fake_relocalization_readiness_gate_status_last << "\n";
+    o << "fake_relocalization_readiness_gate_block_reason_last," << m.autonomous_slam.fake_relocalization_readiness_gate_block_reason_last << "\n";
+    o << "fake_autonomous_slam_product_acceptance_enabled_last," << (cfg.fake_autonomous_slam_product_acceptance_enabled ? 1 : 0) << "\n";
+    o << "fake_autonomous_slam_product_acceptance_run_count," << m.autonomous_slam.fake_autonomous_slam_product_acceptance_run_count << "\n";
+    o << "fake_autonomous_slam_product_acceptance_ok_last," << (m.autonomous_slam.fake_autonomous_slam_product_acceptance_ok_last ? 1 : 0) << "\n";
+    o << "fake_autonomous_slam_product_acceptance_status_last," << m.autonomous_slam.fake_autonomous_slam_product_acceptance_status_last << "\n";
+    o << "fake_autonomous_slam_product_acceptance_block_reason_last," << m.autonomous_slam.fake_autonomous_slam_product_acceptance_block_reason_last << "\n";
+    o << "fake_autonomous_slam_product_acceptance_mapping_ok_last," << (m.autonomous_slam.fake_autonomous_slam_product_acceptance_mapping_ok_last ? 1 : 0) << "\n";
+    o << "fake_autonomous_slam_product_acceptance_relocalization_ok_last," << (m.autonomous_slam.fake_autonomous_slam_product_acceptance_relocalization_ok_last ? 1 : 0) << "\n";
+    o << "fake_autonomous_slam_product_acceptance_manifest_valid_last," << (m.autonomous_slam.fake_autonomous_slam_product_acceptance_manifest_valid_last ? 1 : 0) << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";
