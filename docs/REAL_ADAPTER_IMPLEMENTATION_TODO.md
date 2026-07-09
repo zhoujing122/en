@@ -61,3 +61,7 @@ After M3-B7, real hardware work must replace the manifest-listed adapters before
 ## M3-C0 Three-ToF Raw Contract
 
 Future real adapters must expose `tof_front_frame`, `tof_left_frame`, and `tof_right_frame` with yaw `0/+90/-90` and request-window timing fields. M3-C1 must add sync checks before any snapshot or SLAM consumption.
+
+## Multi-ToF Sync Requirement
+
+A future real three-ToF adapter must pass both the M3-C0 raw contract and the M3-C1 sync contract before any snapshot builder or mapping path consumes it. ToF/Wheel timing remains request-window estimated sample time; IMU uses its sample timestamp.

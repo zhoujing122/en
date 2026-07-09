@@ -11,3 +11,7 @@ The required mounts are:
 Each ToF keeps request-window timing fields: `request_start_s`, `response_received_s`, `estimated_sample_time_s`, and `request_latency_s`. The estimated sample time remains a request-window midpoint estimate, not a hardware capture timestamp.
 
 M3-C0 does not perform three-ToF pairwise sync, IMU/Wheel sync, multi-ToF snapshot building, replay/log conversion, or hardware access. Those are intentionally deferred to M3-C1, M3-C2, and M3-C3.
+
+## M3-C1 Sync Layer
+
+The raw contract is now consumed by the M3-C1 sync checker. Raw validation remains separate: M3-C0 verifies frame/timing/range/mount correctness, while M3-C1 verifies front/left/right pairwise sync plus IMU/Wheel alignment. Snapshot building is still not implemented here.

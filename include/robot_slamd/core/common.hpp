@@ -756,6 +756,18 @@ struct Config {
     std::string multi_tof_raw_data_contract_left_frame_id = "tof_left_frame";
     std::string multi_tof_raw_data_contract_right_frame_id = "tof_right_frame";
     bool multi_tof_raw_data_contract_run_acceptance_on_startup = false;
+    bool multi_tof_sync_enabled = false;
+    bool multi_tof_sync_require_raw_contract_pass = true;
+    bool multi_tof_sync_require_imu = true;
+    bool multi_tof_sync_require_wheel = true;
+    std::string multi_tof_sync_time_reference = "median_present_tof";
+    std::string multi_tof_sync_degradation_mode = "require_all";
+    int multi_tof_sync_min_required_tof_count = 3;
+    double multi_tof_sync_max_pairwise_tof_sync_dt_s = 0.050;
+    double multi_tof_sync_max_multi_tof_imu_sync_dt_s = 0.100;
+    double multi_tof_sync_max_multi_tof_wheel_sync_dt_s = 0.100;
+    double multi_tof_sync_max_effective_time_future_skew_s = 0.050;
+    bool multi_tof_sync_run_acceptance_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1418,6 +1430,20 @@ struct AutonomousSlamRunStats {
     bool multi_tof_raw_data_contract_right_ok_last = false;
     int multi_tof_raw_data_contract_failed_case_count_last = 0;
     int multi_tof_raw_data_contract_warning_count_last = 0;
+    bool multi_tof_sync_enabled_last = false;
+    uint64_t multi_tof_sync_acceptance_run_count = 0;
+    bool multi_tof_sync_acceptance_ok_last = false;
+    int multi_tof_sync_status_last = 0;
+    int multi_tof_sync_fault_last = 0;
+    int multi_tof_sync_valid_tof_count_last = 0;
+    bool multi_tof_sync_degraded_last = false;
+    double multi_tof_sync_front_left_dt_s_last = 0.0;
+    double multi_tof_sync_front_right_dt_s_last = 0.0;
+    double multi_tof_sync_left_right_dt_s_last = 0.0;
+    double multi_tof_sync_multi_tof_imu_dt_s_last = 0.0;
+    double multi_tof_sync_multi_tof_wheel_dt_s_last = 0.0;
+    int multi_tof_sync_failed_case_count_last = 0;
+    int multi_tof_sync_warning_count_last = 0;
 };
 
 struct RunMetrics {

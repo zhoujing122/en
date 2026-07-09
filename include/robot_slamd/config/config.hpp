@@ -621,6 +621,18 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.multi_tof_raw_data_contract_left_frame_id = get_string(kv, "multi_tof_raw_data_contract.left_frame_id", c.multi_tof_raw_data_contract_left_frame_id);
     c.multi_tof_raw_data_contract_right_frame_id = get_string(kv, "multi_tof_raw_data_contract.right_frame_id", c.multi_tof_raw_data_contract_right_frame_id);
     c.multi_tof_raw_data_contract_run_acceptance_on_startup = get_bool(kv, "multi_tof_raw_data_contract.run_acceptance_on_startup", c.multi_tof_raw_data_contract_run_acceptance_on_startup);
+    c.multi_tof_sync_enabled = get_bool(kv, "multi_tof_sync.enabled", c.multi_tof_sync_enabled);
+    c.multi_tof_sync_require_raw_contract_pass = get_bool(kv, "multi_tof_sync.require_raw_contract_pass", c.multi_tof_sync_require_raw_contract_pass);
+    c.multi_tof_sync_require_imu = get_bool(kv, "multi_tof_sync.require_imu", c.multi_tof_sync_require_imu);
+    c.multi_tof_sync_require_wheel = get_bool(kv, "multi_tof_sync.require_wheel", c.multi_tof_sync_require_wheel);
+    c.multi_tof_sync_time_reference = get_string(kv, "multi_tof_sync.time_reference", c.multi_tof_sync_time_reference);
+    c.multi_tof_sync_degradation_mode = get_string(kv, "multi_tof_sync.degradation_mode", c.multi_tof_sync_degradation_mode);
+    c.multi_tof_sync_min_required_tof_count = get_int(kv, "multi_tof_sync.min_required_tof_count", c.multi_tof_sync_min_required_tof_count);
+    c.multi_tof_sync_max_pairwise_tof_sync_dt_s = get_double(kv, "multi_tof_sync.max_pairwise_tof_sync_dt_s", c.multi_tof_sync_max_pairwise_tof_sync_dt_s);
+    c.multi_tof_sync_max_multi_tof_imu_sync_dt_s = get_double(kv, "multi_tof_sync.max_multi_tof_imu_sync_dt_s", c.multi_tof_sync_max_multi_tof_imu_sync_dt_s);
+    c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s = get_double(kv, "multi_tof_sync.max_multi_tof_wheel_sync_dt_s", c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s);
+    c.multi_tof_sync_max_effective_time_future_skew_s = get_double(kv, "multi_tof_sync.max_effective_time_future_skew_s", c.multi_tof_sync_max_effective_time_future_skew_s);
+    c.multi_tof_sync_run_acceptance_on_startup = get_bool(kv, "multi_tof_sync.run_acceptance_on_startup", c.multi_tof_sync_run_acceptance_on_startup);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1535,6 +1547,55 @@ void validate_config(const Config &c) {
         errors.push_back("multi_tof_raw_data_contract requires allow_writer_dispatch=false");
     }
 
+    if (c.multi_tof_sync_run_acceptance_on_startup) {
+        errors.push_back("multi_tof_sync.run_acceptance_on_startup must remain false");
+    }
+    if (!one_of(c.multi_tof_sync_time_reference, {"front", "median_present_tof", "mean_present_tof"})) {
+        errors.push_back("multi_tof_sync.time_reference must be front, median_present_tof, or mean_present_tof");
+    }
+    if (!one_of(c.multi_tof_sync_degradation_mode, {"require_all", "allow_missing_one", "allow_any_two", "allow_front_only"})) {
+        errors.push_back("multi_tof_sync.degradation_mode must be require_all, allow_missing_one, allow_any_two, or allow_front_only");
+    }
+    if (c.multi_tof_sync_min_required_tof_count < 1 ||
+        c.multi_tof_sync_min_required_tof_count > 3) {
+        errors.push_back("multi_tof_sync.min_required_tof_count must be in [1,3]");
+    }
+    if (!c.multi_tof_sync_require_raw_contract_pass) {
+        errors.push_back("multi_tof_sync.require_raw_contract_pass must remain true");
+    }
+    if (!(c.multi_tof_sync_max_pairwise_tof_sync_dt_s > 0.0) ||
+        c.multi_tof_sync_max_pairwise_tof_sync_dt_s > 1.0 ||
+        !std::isfinite(c.multi_tof_sync_max_pairwise_tof_sync_dt_s)) {
+        errors.push_back("multi_tof_sync.max_pairwise_tof_sync_dt_s must be in (0,1]");
+    }
+    if (!(c.multi_tof_sync_max_multi_tof_imu_sync_dt_s > 0.0) ||
+        c.multi_tof_sync_max_multi_tof_imu_sync_dt_s > 1.0 ||
+        !std::isfinite(c.multi_tof_sync_max_multi_tof_imu_sync_dt_s)) {
+        errors.push_back("multi_tof_sync.max_multi_tof_imu_sync_dt_s must be in (0,1]");
+    }
+    if (!(c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s > 0.0) ||
+        c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s > 1.0 ||
+        !std::isfinite(c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s)) {
+        errors.push_back("multi_tof_sync.max_multi_tof_wheel_sync_dt_s must be in (0,1]");
+    }
+    if (!(c.multi_tof_sync_max_effective_time_future_skew_s >= 0.0) ||
+        c.multi_tof_sync_max_effective_time_future_skew_s > 1.0 ||
+        !std::isfinite(c.multi_tof_sync_max_effective_time_future_skew_s)) {
+        errors.push_back("multi_tof_sync.max_effective_time_future_skew_s must be in [0,1]");
+    }
+    if (c.multi_tof_sync_enabled &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("multi_tof_sync requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.multi_tof_sync_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("multi_tof_sync requires production_interface_enabled=false");
+    }
+    if (c.multi_tof_sync_enabled &&
+        c.motion_execution_allow_writer_dispatch) {
+        errors.push_back("multi_tof_sync requires allow_writer_dispatch=false");
+    }
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -2124,6 +2185,19 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  left_frame_id: " << c.multi_tof_raw_data_contract_left_frame_id << "\n"
       << "  right_frame_id: " << c.multi_tof_raw_data_contract_right_frame_id << "\n"
       << "  run_acceptance_on_startup: " << bool_yaml(c.multi_tof_raw_data_contract_run_acceptance_on_startup) << "\n";
+    o << "multi_tof_sync:\n"
+      << "  enabled: " << bool_yaml(c.multi_tof_sync_enabled) << "\n"
+      << "  require_raw_contract_pass: " << bool_yaml(c.multi_tof_sync_require_raw_contract_pass) << "\n"
+      << "  require_imu: " << bool_yaml(c.multi_tof_sync_require_imu) << "\n"
+      << "  require_wheel: " << bool_yaml(c.multi_tof_sync_require_wheel) << "\n"
+      << "  time_reference: " << c.multi_tof_sync_time_reference << "\n"
+      << "  degradation_mode: " << c.multi_tof_sync_degradation_mode << "\n"
+      << "  min_required_tof_count: " << c.multi_tof_sync_min_required_tof_count << "\n"
+      << "  max_pairwise_tof_sync_dt_s: " << c.multi_tof_sync_max_pairwise_tof_sync_dt_s << "\n"
+      << "  max_multi_tof_imu_sync_dt_s: " << c.multi_tof_sync_max_multi_tof_imu_sync_dt_s << "\n"
+      << "  max_multi_tof_wheel_sync_dt_s: " << c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s << "\n"
+      << "  max_effective_time_future_skew_s: " << c.multi_tof_sync_max_effective_time_future_skew_s << "\n"
+      << "  run_acceptance_on_startup: " << bool_yaml(c.multi_tof_sync_run_acceptance_on_startup) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

@@ -703,3 +703,17 @@ multi_tof_raw_data_contract:
   left_frame_id: tof_left_frame
   right_frame_id: tof_right_frame
   run_acceptance_on_startup: false
+
+multi_tof_sync:
+  enabled: false
+  require_raw_contract_pass: true
+  require_imu: true
+  require_wheel: true
+  time_reference: median_present_tof
+  degradation_mode: require_all
+  min_required_tof_count: 3
+  max_pairwise_tof_sync_dt_s: 0.050
+  max_multi_tof_imu_sync_dt_s: 0.100
+  max_multi_tof_wheel_sync_dt_s: 0.100
+  max_effective_time_future_skew_s: 0.050
+  run_acceptance_on_startup: false

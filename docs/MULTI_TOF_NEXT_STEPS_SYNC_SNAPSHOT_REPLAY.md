@@ -9,3 +9,7 @@ M3-C0 stops at raw data contract validation. Planned follow-up stages are:
 - M3-C5: real adapter skeleton, still fail-closed before hardware sign-off.
 
 None of these follow-up behaviors are implemented by M3-C0.
+
+## Current Status After M3-C1
+
+M3-C1 implements the offline three-ToF plus IMU/Wheel synchronization checker. M3-C2 remains the next step for a multi-ToF snapshot builder, and M3-C3 remains the future replay/log stage.
