@@ -13,3 +13,7 @@ The binding flow is:
 
 Future RealSlamBackendBinding can wrap the actual SLAM backend and map quality source. ReplaySlamBackendBinding exists only for tests and pre-live contract verification. Passing M3-A3 acceptance means the binding contract is coherent; it does not prove a real map backend is usable.
 M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre-live shadow scenario across replay sensors, SLAM backend binding, map port, pre-live runner, coordinator, policy, and shadow motion.
+
+## M3-B3 Deterministic Backend Skeleton
+
+M3-B3 adds a deterministic `SlamBackendBinding` implementation used only for offline contract and replay-to-map regression. It proves the binding path can return `SlamBackendUpdateResult` and `RobotSlamMapQuality`; it is not production SLAM and does not write real maps.

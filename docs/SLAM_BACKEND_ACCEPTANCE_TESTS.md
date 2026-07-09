@@ -13,3 +13,7 @@ A SLAM backend binding must pass these contract checks before it is used by pre-
 9. Localizer behavior is not modified.
 
 These tests validate the binding shape, not live mapping performance.
+
+## M3-B3 Acceptance Additions
+
+Deterministic backend acceptance covers ToF scan evaluation, skeleton map quality tracking, backend update success and failure modes, and replay-to-backend regression. Passing these checks does not validate production mapping.

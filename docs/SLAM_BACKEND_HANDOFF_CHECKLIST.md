@@ -18,3 +18,7 @@ The implementation target is to replace the replay binding without changing Auto
 ## M3-B0 Stub Location
 
 The future real SLAM owner should use `RealSlamBackendBindingStub` as the handoff location or replace it with a concrete `SlamBackendBinding`. The M3-A3 backend acceptance must still pass before live handoff.
+
+## M3-B3 Handoff Note
+
+Before replacing the deterministic skeleton with a real backend, the real SLAM owner must provide map update semantics, real map quality computation, and save/load behavior. The deterministic coverage ratio is only a proxy.

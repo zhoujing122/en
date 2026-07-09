@@ -657,6 +657,28 @@ struct Config {
     bool real_sensor_replay_regression_require_parse_errors_detected = true;
     bool real_sensor_replay_regression_require_comment_only_log_rejected = true;
     bool real_sensor_replay_regression_run_on_startup = false;
+    bool deterministic_slam_backend_enabled = false;
+    bool deterministic_slam_backend_ready = false;
+    bool deterministic_slam_backend_require_tof = true;
+    bool deterministic_slam_backend_require_imu_or_wheel = true;
+    bool deterministic_slam_backend_allow_save_map = false;
+    int deterministic_slam_backend_min_valid_ranges = 3;
+    int deterministic_slam_backend_min_valid_scan_count_for_good = 3;
+    double deterministic_slam_backend_min_valid_range_ratio = 0.30;
+    double deterministic_slam_backend_min_coverage_ratio_for_good = 0.60;
+    double deterministic_slam_backend_min_yaw_coverage_ratio_for_good = 0.30;
+    double deterministic_slam_backend_keyframe_yaw_delta_rad = 0.15;
+    double deterministic_slam_backend_min_range_m = 0.02;
+    double deterministic_slam_backend_max_range_m = 8.00;
+    double deterministic_slam_backend_max_update_latency_s = 0.50;
+    double deterministic_slam_backend_assumed_scan_yaw_span_rad = 0.52;
+    double deterministic_slam_backend_yaw_bin_size_rad = 0.26;
+    bool deterministic_slam_backend_run_regression_on_startup = false;
+    bool replay_to_slam_backend_regression_enabled = false;
+    bool replay_to_slam_backend_regression_require_valid_replay_updates_map = true;
+    bool replay_to_slam_backend_regression_require_invalid_replay_rejected = true;
+    int replay_to_slam_backend_regression_min_accepted_updates = 3;
+    bool replay_to_slam_backend_regression_run_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1239,6 +1261,24 @@ struct AutonomousSlamRunStats {
     int real_sensor_replay_regression_case_count_last = 0;
     int real_sensor_replay_regression_pass_count_last = 0;
     int real_sensor_replay_regression_fail_count_last = 0;
+    bool deterministic_slam_backend_enabled_last = false;
+    bool deterministic_slam_backend_ready_last = false;
+    int deterministic_slam_backend_update_call_count_last = 0;
+    int deterministic_slam_backend_accepted_update_count_last = 0;
+    int deterministic_slam_backend_rejected_update_count_last = 0;
+    int deterministic_slam_backend_keyframe_count_last = 0;
+    int deterministic_slam_backend_valid_scan_count_last = 0;
+    double deterministic_slam_backend_coverage_ratio_last = 0.0;
+    double deterministic_slam_backend_yaw_coverage_ratio_last = 0.0;
+    int deterministic_slam_backend_stage_last = 0;
+    int deterministic_slam_backend_fault_last = 0;
+    bool replay_to_slam_backend_regression_enabled_last = false;
+    uint64_t replay_to_slam_backend_regression_run_count = 0;
+    bool replay_to_slam_backend_regression_ok_last = false;
+    int replay_to_slam_backend_regression_accepted_update_count_last = 0;
+    int replay_to_slam_backend_regression_rejected_update_count_last = 0;
+    double replay_to_slam_backend_regression_final_coverage_ratio_last = 0.0;
+    double replay_to_slam_backend_regression_final_yaw_coverage_ratio_last = 0.0;
 };
 
 struct RunMetrics {

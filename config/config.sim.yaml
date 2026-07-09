@@ -567,3 +567,28 @@ real_sensor_replay_regression:
   require_parse_errors_detected: true
   require_comment_only_log_rejected: true
   run_on_startup: false
+deterministic_slam_backend:
+  enabled: false
+  ready: false
+  require_tof: true
+  require_imu_or_wheel: true
+  allow_save_map: false
+  min_valid_ranges: 3
+  min_valid_scan_count_for_good: 3
+  min_valid_range_ratio: 0.30
+  min_coverage_ratio_for_good: 0.60
+  min_yaw_coverage_ratio_for_good: 0.30
+  keyframe_yaw_delta_rad: 0.15
+  min_range_m: 0.02
+  max_range_m: 8.00
+  max_update_latency_s: 0.50
+  assumed_scan_yaw_span_rad: 0.52
+  yaw_bin_size_rad: 0.26
+  run_regression_on_startup: false
+
+replay_to_slam_backend_regression:
+  enabled: false
+  require_valid_replay_updates_map: true
+  require_invalid_replay_rejected: true
+  min_accepted_updates: 3
+  run_on_startup: false

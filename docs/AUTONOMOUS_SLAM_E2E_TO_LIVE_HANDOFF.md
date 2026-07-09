@@ -17,3 +17,7 @@ Use M3-B2 offline sensor replay before live handoff to validate request-window t
 ## M3-B2.1 Replay Robustness Gate
 
 Before live handoff, offline replay logs should pass the M3-B2.1 robust parser and golden regression harness. This gate improves replay reliability but still does not prove live hardware readiness.
+
+## M3-B3 Backend Skeleton Gate
+
+M3-B3 adds an offline deterministic backend skeleton and replay-to-backend regression. It is useful before live handoff, but it is not a live SLAM backend and does not prove real map quality.

@@ -130,3 +130,11 @@ M3-A4 adds `docs/AUTONOMOUS_SLAM_E2E_PRELIVE_SCENARIO.md` for the end-to-end pre
 - `include/robot_slamd/autonomy/real_adapters/sensor_replay/regression/`: golden replay regression harness skeleton.
 - `docs/REAL_SENSOR_REPLAY_ROBUSTNESS.md`: replay robustness notes.
 - `docs/REAL_SENSOR_REPLAY_GOLDEN_REGRESSION.md`: golden regression harness notes.
+
+## M3-B3 Deterministic SLAM Backend Files
+
+- `include/robot_slamd/autonomy/real_adapters/slam_backend/`: deterministic SLAM backend skeleton, ToF evaluator, map quality tracker, binding, and report writer.
+- `include/robot_slamd/autonomy/real_adapters/slam_backend/regression/`: offline replay-to-backend regression runner and report writer.
+- `docs/DETERMINISTIC_SLAM_BACKEND_SKELETON.md`: backend skeleton notes.
+- `docs/REPLAY_TO_SLAM_BACKEND_REGRESSION.md`: replay-to-map regression notes.
+- `docs/REAL_SLAM_BACKEND_IMPLEMENTATION_TODO.md`: future production backend TODO.

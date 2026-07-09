@@ -522,6 +522,28 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.real_sensor_replay_regression_require_parse_errors_detected = get_bool(kv, "real_sensor_replay_regression.require_parse_errors_detected", c.real_sensor_replay_regression_require_parse_errors_detected);
     c.real_sensor_replay_regression_require_comment_only_log_rejected = get_bool(kv, "real_sensor_replay_regression.require_comment_only_log_rejected", c.real_sensor_replay_regression_require_comment_only_log_rejected);
     c.real_sensor_replay_regression_run_on_startup = get_bool(kv, "real_sensor_replay_regression.run_on_startup", c.real_sensor_replay_regression_run_on_startup);
+    c.deterministic_slam_backend_enabled = get_bool(kv, "deterministic_slam_backend.enabled", c.deterministic_slam_backend_enabled);
+    c.deterministic_slam_backend_ready = get_bool(kv, "deterministic_slam_backend.ready", c.deterministic_slam_backend_ready);
+    c.deterministic_slam_backend_require_tof = get_bool(kv, "deterministic_slam_backend.require_tof", c.deterministic_slam_backend_require_tof);
+    c.deterministic_slam_backend_require_imu_or_wheel = get_bool(kv, "deterministic_slam_backend.require_imu_or_wheel", c.deterministic_slam_backend_require_imu_or_wheel);
+    c.deterministic_slam_backend_allow_save_map = get_bool(kv, "deterministic_slam_backend.allow_save_map", c.deterministic_slam_backend_allow_save_map);
+    c.deterministic_slam_backend_min_valid_ranges = get_int(kv, "deterministic_slam_backend.min_valid_ranges", c.deterministic_slam_backend_min_valid_ranges);
+    c.deterministic_slam_backend_min_valid_scan_count_for_good = get_int(kv, "deterministic_slam_backend.min_valid_scan_count_for_good", c.deterministic_slam_backend_min_valid_scan_count_for_good);
+    c.deterministic_slam_backend_min_valid_range_ratio = get_double(kv, "deterministic_slam_backend.min_valid_range_ratio", c.deterministic_slam_backend_min_valid_range_ratio);
+    c.deterministic_slam_backend_min_coverage_ratio_for_good = get_double(kv, "deterministic_slam_backend.min_coverage_ratio_for_good", c.deterministic_slam_backend_min_coverage_ratio_for_good);
+    c.deterministic_slam_backend_min_yaw_coverage_ratio_for_good = get_double(kv, "deterministic_slam_backend.min_yaw_coverage_ratio_for_good", c.deterministic_slam_backend_min_yaw_coverage_ratio_for_good);
+    c.deterministic_slam_backend_keyframe_yaw_delta_rad = get_double(kv, "deterministic_slam_backend.keyframe_yaw_delta_rad", c.deterministic_slam_backend_keyframe_yaw_delta_rad);
+    c.deterministic_slam_backend_min_range_m = get_double(kv, "deterministic_slam_backend.min_range_m", c.deterministic_slam_backend_min_range_m);
+    c.deterministic_slam_backend_max_range_m = get_double(kv, "deterministic_slam_backend.max_range_m", c.deterministic_slam_backend_max_range_m);
+    c.deterministic_slam_backend_max_update_latency_s = get_double(kv, "deterministic_slam_backend.max_update_latency_s", c.deterministic_slam_backend_max_update_latency_s);
+    c.deterministic_slam_backend_assumed_scan_yaw_span_rad = get_double(kv, "deterministic_slam_backend.assumed_scan_yaw_span_rad", c.deterministic_slam_backend_assumed_scan_yaw_span_rad);
+    c.deterministic_slam_backend_yaw_bin_size_rad = get_double(kv, "deterministic_slam_backend.yaw_bin_size_rad", c.deterministic_slam_backend_yaw_bin_size_rad);
+    c.deterministic_slam_backend_run_regression_on_startup = get_bool(kv, "deterministic_slam_backend.run_regression_on_startup", c.deterministic_slam_backend_run_regression_on_startup);
+    c.replay_to_slam_backend_regression_enabled = get_bool(kv, "replay_to_slam_backend_regression.enabled", c.replay_to_slam_backend_regression_enabled);
+    c.replay_to_slam_backend_regression_require_valid_replay_updates_map = get_bool(kv, "replay_to_slam_backend_regression.require_valid_replay_updates_map", c.replay_to_slam_backend_regression_require_valid_replay_updates_map);
+    c.replay_to_slam_backend_regression_require_invalid_replay_rejected = get_bool(kv, "replay_to_slam_backend_regression.require_invalid_replay_rejected", c.replay_to_slam_backend_regression_require_invalid_replay_rejected);
+    c.replay_to_slam_backend_regression_min_accepted_updates = get_int(kv, "replay_to_slam_backend_regression.min_accepted_updates", c.replay_to_slam_backend_regression_min_accepted_updates);
+    c.replay_to_slam_backend_regression_run_on_startup = get_bool(kv, "replay_to_slam_backend_regression.run_on_startup", c.replay_to_slam_backend_regression_run_on_startup);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1169,6 +1191,60 @@ void validate_config(const Config &c) {
         errors.push_back("real_sensor_replay_regression.enabled=true requires production_interface_enabled=false");
     }
 
+    if (c.deterministic_slam_backend_run_regression_on_startup) {
+        errors.push_back("deterministic_slam_backend.run_regression_on_startup must remain false");
+    }
+    if (c.replay_to_slam_backend_regression_run_on_startup) {
+        errors.push_back("replay_to_slam_backend_regression.run_on_startup must remain false");
+    }
+    if (c.deterministic_slam_backend_allow_save_map) {
+        errors.push_back("deterministic_slam_backend.allow_save_map must remain false");
+    }
+    if (c.deterministic_slam_backend_min_valid_ranges <= 0) {
+        errors.push_back("deterministic_slam_backend.min_valid_ranges must be > 0");
+    }
+    if (c.deterministic_slam_backend_min_valid_scan_count_for_good <= 0) {
+        errors.push_back("deterministic_slam_backend.min_valid_scan_count_for_good must be > 0");
+    }
+    if (c.deterministic_slam_backend_min_valid_range_ratio < 0.0 ||
+        c.deterministic_slam_backend_min_valid_range_ratio > 1.0) {
+        errors.push_back("deterministic_slam_backend.min_valid_range_ratio must be in [0,1]");
+    }
+    if (c.deterministic_slam_backend_min_coverage_ratio_for_good < 0.0 ||
+        c.deterministic_slam_backend_min_coverage_ratio_for_good > 1.0) {
+        errors.push_back("deterministic_slam_backend.min_coverage_ratio_for_good must be in [0,1]");
+    }
+    if (c.deterministic_slam_backend_min_yaw_coverage_ratio_for_good < 0.0 ||
+        c.deterministic_slam_backend_min_yaw_coverage_ratio_for_good > 1.0) {
+        errors.push_back("deterministic_slam_backend.min_yaw_coverage_ratio_for_good must be in [0,1]");
+    }
+    if (c.deterministic_slam_backend_keyframe_yaw_delta_rad <= 0.0 ||
+        c.deterministic_slam_backend_keyframe_yaw_delta_rad > 3.14) {
+        errors.push_back("deterministic_slam_backend.keyframe_yaw_delta_rad must be in (0,3.14]");
+    }
+    if (c.deterministic_slam_backend_min_range_m <= 0.0 ||
+        c.deterministic_slam_backend_max_range_m <= c.deterministic_slam_backend_min_range_m) {
+        errors.push_back("deterministic_slam_backend range limits are invalid");
+    }
+    if (c.deterministic_slam_backend_max_update_latency_s <= 0.0) {
+        errors.push_back("deterministic_slam_backend.max_update_latency_s must be > 0");
+    }
+    if (c.deterministic_slam_backend_yaw_bin_size_rad <= 0.0 ||
+        c.deterministic_slam_backend_yaw_bin_size_rad > 3.14) {
+        errors.push_back("deterministic_slam_backend.yaw_bin_size_rad must be in (0,3.14]");
+    }
+    if (c.replay_to_slam_backend_regression_min_accepted_updates <= 0) {
+        errors.push_back("replay_to_slam_backend_regression.min_accepted_updates must be > 0");
+    }
+    if ((c.deterministic_slam_backend_enabled || c.replay_to_slam_backend_regression_enabled) &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("deterministic slam backend requires motion_execution.hardware_write_enabled=false");
+    }
+    if ((c.deterministic_slam_backend_enabled || c.replay_to_slam_backend_regression_enabled) &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("deterministic slam backend requires production_interface_enabled=false");
+    }
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -1650,6 +1726,30 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_parse_errors_detected: " << bool_yaml(c.real_sensor_replay_regression_require_parse_errors_detected) << "\n"
       << "  require_comment_only_log_rejected: " << bool_yaml(c.real_sensor_replay_regression_require_comment_only_log_rejected) << "\n"
       << "  run_on_startup: " << bool_yaml(c.real_sensor_replay_regression_run_on_startup) << "\n";
+    o << "deterministic_slam_backend:\n"
+      << "  enabled: " << bool_yaml(c.deterministic_slam_backend_enabled) << "\n"
+      << "  ready: " << bool_yaml(c.deterministic_slam_backend_ready) << "\n"
+      << "  require_tof: " << bool_yaml(c.deterministic_slam_backend_require_tof) << "\n"
+      << "  require_imu_or_wheel: " << bool_yaml(c.deterministic_slam_backend_require_imu_or_wheel) << "\n"
+      << "  allow_save_map: " << bool_yaml(c.deterministic_slam_backend_allow_save_map) << "\n"
+      << "  min_valid_ranges: " << c.deterministic_slam_backend_min_valid_ranges << "\n"
+      << "  min_valid_scan_count_for_good: " << c.deterministic_slam_backend_min_valid_scan_count_for_good << "\n"
+      << "  min_valid_range_ratio: " << c.deterministic_slam_backend_min_valid_range_ratio << "\n"
+      << "  min_coverage_ratio_for_good: " << c.deterministic_slam_backend_min_coverage_ratio_for_good << "\n"
+      << "  min_yaw_coverage_ratio_for_good: " << c.deterministic_slam_backend_min_yaw_coverage_ratio_for_good << "\n"
+      << "  keyframe_yaw_delta_rad: " << c.deterministic_slam_backend_keyframe_yaw_delta_rad << "\n"
+      << "  min_range_m: " << c.deterministic_slam_backend_min_range_m << "\n"
+      << "  max_range_m: " << c.deterministic_slam_backend_max_range_m << "\n"
+      << "  max_update_latency_s: " << c.deterministic_slam_backend_max_update_latency_s << "\n"
+      << "  assumed_scan_yaw_span_rad: " << c.deterministic_slam_backend_assumed_scan_yaw_span_rad << "\n"
+      << "  yaw_bin_size_rad: " << c.deterministic_slam_backend_yaw_bin_size_rad << "\n"
+      << "  run_regression_on_startup: " << bool_yaml(c.deterministic_slam_backend_run_regression_on_startup) << "\n";
+    o << "replay_to_slam_backend_regression:\n"
+      << "  enabled: " << bool_yaml(c.replay_to_slam_backend_regression_enabled) << "\n"
+      << "  require_valid_replay_updates_map: " << bool_yaml(c.replay_to_slam_backend_regression_require_valid_replay_updates_map) << "\n"
+      << "  require_invalid_replay_rejected: " << bool_yaml(c.replay_to_slam_backend_regression_require_invalid_replay_rejected) << "\n"
+      << "  min_accepted_updates: " << c.replay_to_slam_backend_regression_min_accepted_updates << "\n"
+      << "  run_on_startup: " << bool_yaml(c.replay_to_slam_backend_regression_run_on_startup) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

@@ -41,3 +41,7 @@ The sensor owner must map ToF and Wheel request-window timing fields before live
 ## M3-B2 Sensor Replay TODO
 
 Before live integration, real capture tooling should emit the M3-B2 replay log format so sensor, SLAM, and policy regressions can run offline.
+
+## M3-B3 SLAM Backend TODO
+
+Future real backend work should replace `DeterministicSlamBackendBinding` with a production `SlamBackendBinding` implementation after replay-to-backend regression and map quality acceptance pass.

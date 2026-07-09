@@ -9,3 +9,7 @@ Expected behavior is explicit: valid logs must pass, invalid latency and sync lo
 ToF and Wheel timestamps are request-window estimates. Golden cases must preserve request_start_s, response_received_s, estimated_sample_time_s, and request_latency_s so later map backend regression uses the same timing contract as real captures.
 
 This harness is a skeleton for future real-data regression. When real captures exist, add golden log cases here before connecting RealSlamBackendBinding to live data. Passing this harness does not prove real hardware readiness.
+
+## M3-B3 Replay To Backend Link
+
+Golden replay logs can now feed the deterministic SLAM backend skeleton. This prepares the replay-to-map regression path for future real SLAM backend replacement.
