@@ -731,6 +731,31 @@ struct Config {
     bool fake_autonomous_slam_product_acceptance_require_no_pose_writeback = true;
     bool fake_autonomous_slam_product_acceptance_require_no_forward_backward = true;
     bool fake_autonomous_slam_product_acceptance_require_adapter_manifest = true;
+    bool multi_tof_raw_data_contract_enabled = false;
+    bool multi_tof_raw_data_contract_require_front = true;
+    bool multi_tof_raw_data_contract_require_left = true;
+    bool multi_tof_raw_data_contract_require_right = true;
+    bool multi_tof_raw_data_contract_require_unique_mount_ids = true;
+    bool multi_tof_raw_data_contract_require_unique_frame_ids = true;
+    bool multi_tof_raw_data_contract_require_request_timing = true;
+    bool multi_tof_raw_data_contract_allow_nan_ranges = true;
+    int multi_tof_raw_data_contract_min_required_tof_count = 3;
+    double multi_tof_raw_data_contract_front_mount_yaw_rad = 0.0;
+    double multi_tof_raw_data_contract_left_mount_yaw_rad = 1.5707963267948966;
+    double multi_tof_raw_data_contract_right_mount_yaw_rad = -1.5707963267948966;
+    double multi_tof_raw_data_contract_max_mount_yaw_error_rad = 0.001;
+    double multi_tof_raw_data_contract_max_packet_age_s = 0.50;
+    double multi_tof_raw_data_contract_max_request_latency_s = 0.20;
+    double multi_tof_raw_data_contract_max_request_latency_mismatch_s = 0.001;
+    double multi_tof_raw_data_contract_max_estimated_sample_time_midpoint_error_s = 0.005;
+    double multi_tof_raw_data_contract_max_future_timestamp_skew_s = 0.05;
+    double multi_tof_raw_data_contract_max_nan_ratio = 0.50;
+    double multi_tof_raw_data_contract_min_range_m = 0.02;
+    double multi_tof_raw_data_contract_max_range_m = 8.00;
+    std::string multi_tof_raw_data_contract_front_frame_id = "tof_front_frame";
+    std::string multi_tof_raw_data_contract_left_frame_id = "tof_left_frame";
+    std::string multi_tof_raw_data_contract_right_frame_id = "tof_right_frame";
+    bool multi_tof_raw_data_contract_run_acceptance_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1382,6 +1407,17 @@ struct AutonomousSlamRunStats {
     bool fake_autonomous_slam_product_acceptance_mapping_ok_last = false;
     bool fake_autonomous_slam_product_acceptance_relocalization_ok_last = false;
     bool fake_autonomous_slam_product_acceptance_manifest_valid_last = false;
+    bool multi_tof_raw_data_contract_enabled_last = false;
+    uint64_t multi_tof_raw_data_contract_acceptance_run_count = 0;
+    bool multi_tof_raw_data_contract_acceptance_ok_last = false;
+    int multi_tof_raw_data_contract_status_last = 0;
+    int multi_tof_raw_data_contract_fault_last = 0;
+    int multi_tof_raw_data_contract_valid_tof_count_last = 0;
+    bool multi_tof_raw_data_contract_front_ok_last = false;
+    bool multi_tof_raw_data_contract_left_ok_last = false;
+    bool multi_tof_raw_data_contract_right_ok_last = false;
+    int multi_tof_raw_data_contract_failed_case_count_last = 0;
+    int multi_tof_raw_data_contract_warning_count_last = 0;
 };
 
 struct RunMetrics {

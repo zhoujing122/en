@@ -643,3 +643,30 @@ fake_autonomous_slam_product_acceptance:
   require_no_pose_writeback: true
   require_no_forward_backward: true
   require_adapter_manifest: true
+
+multi_tof_raw_data_contract:
+  enabled: false
+  require_front: true
+  require_left: true
+  require_right: true
+  require_unique_mount_ids: true
+  require_unique_frame_ids: true
+  require_request_timing: true
+  allow_nan_ranges: true
+  min_required_tof_count: 3
+  front_mount_yaw_rad: 0.0
+  left_mount_yaw_rad: 1.5707963267948966
+  right_mount_yaw_rad: -1.5707963267948966
+  max_mount_yaw_error_rad: 0.001
+  max_packet_age_s: 0.50
+  max_request_latency_s: 0.20
+  max_request_latency_mismatch_s: 0.001
+  max_estimated_sample_time_midpoint_error_s: 0.005
+  max_future_timestamp_skew_s: 0.05
+  max_nan_ratio: 0.50
+  min_range_m: 0.02
+  max_range_m: 8.00
+  front_frame_id: tof_front_frame
+  left_frame_id: tof_left_frame
+  right_frame_id: tof_right_frame
+  run_acceptance_on_startup: false

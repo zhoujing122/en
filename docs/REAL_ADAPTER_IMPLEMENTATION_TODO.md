@@ -57,3 +57,7 @@ Future real adapters should preserve the phase-aware replay lessons: motion comm
 Future real adapters must keep fake relocalization separate from real pose writeback until a real map backend, scan matcher, confidence policy, and safety gate are available.
 
 After M3-B7, real hardware work must replace the manifest-listed adapters before live use; fake product acceptance is not a substitute for real sensor, motion, map, or relocalization implementations.
+
+## M3-C0 Three-ToF Raw Contract
+
+Future real adapters must expose `tof_front_frame`, `tof_left_frame`, and `tof_right_frame` with yaw `0/+90/-90` and request-window timing fields. M3-C1 must add sync checks before any snapshot or SLAM consumption.

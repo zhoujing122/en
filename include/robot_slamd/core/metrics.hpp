@@ -408,6 +408,17 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "fake_autonomous_slam_product_acceptance_mapping_ok_last," << (m.autonomous_slam.fake_autonomous_slam_product_acceptance_mapping_ok_last ? 1 : 0) << "\n";
     o << "fake_autonomous_slam_product_acceptance_relocalization_ok_last," << (m.autonomous_slam.fake_autonomous_slam_product_acceptance_relocalization_ok_last ? 1 : 0) << "\n";
     o << "fake_autonomous_slam_product_acceptance_manifest_valid_last," << (m.autonomous_slam.fake_autonomous_slam_product_acceptance_manifest_valid_last ? 1 : 0) << "\n";
+    o << "multi_tof_raw_data_contract_enabled_last," << (cfg.multi_tof_raw_data_contract_enabled ? 1 : 0) << "\n";
+    o << "multi_tof_raw_data_contract_acceptance_run_count," << m.autonomous_slam.multi_tof_raw_data_contract_acceptance_run_count << "\n";
+    o << "multi_tof_raw_data_contract_acceptance_ok_last," << (m.autonomous_slam.multi_tof_raw_data_contract_acceptance_ok_last ? 1 : 0) << "\n";
+    o << "multi_tof_raw_data_contract_status_last," << m.autonomous_slam.multi_tof_raw_data_contract_status_last << "\n";
+    o << "multi_tof_raw_data_contract_fault_last," << m.autonomous_slam.multi_tof_raw_data_contract_fault_last << "\n";
+    o << "multi_tof_raw_data_contract_valid_tof_count_last," << m.autonomous_slam.multi_tof_raw_data_contract_valid_tof_count_last << "\n";
+    o << "multi_tof_raw_data_contract_front_ok_last," << (m.autonomous_slam.multi_tof_raw_data_contract_front_ok_last ? 1 : 0) << "\n";
+    o << "multi_tof_raw_data_contract_left_ok_last," << (m.autonomous_slam.multi_tof_raw_data_contract_left_ok_last ? 1 : 0) << "\n";
+    o << "multi_tof_raw_data_contract_right_ok_last," << (m.autonomous_slam.multi_tof_raw_data_contract_right_ok_last ? 1 : 0) << "\n";
+    o << "multi_tof_raw_data_contract_failed_case_count_last," << m.autonomous_slam.multi_tof_raw_data_contract_failed_case_count_last << "\n";
+    o << "multi_tof_raw_data_contract_warning_count_last," << m.autonomous_slam.multi_tof_raw_data_contract_warning_count_last << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";

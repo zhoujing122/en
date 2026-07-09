@@ -13,3 +13,7 @@ The in-memory fake map artifact is the placeholder for future map storage. Real 
 FakeRelocalizationBinding is the placeholder for future real relocalization. A real backend may replace it only after map format, scan matcher, confidence thresholds, and pose writeback gates are reviewed.
 
 M3-B7 adds a structured fake-to-real adapter replacement manifest for sensor, motion, SLAM backend, map storage, relocalization, map artifact, and pose candidate replacement.
+
+## M3-C0 Multi-ToF Adapter Preparation
+
+Before live replacement, the real sensor adapter must provide front, left, and right ToF raw frames with unique frame IDs and request-window timing. M3-C0 does not read hardware and does not alter the single-ToF fake/replay flow.

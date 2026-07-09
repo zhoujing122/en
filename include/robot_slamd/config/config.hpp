@@ -596,6 +596,31 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.fake_autonomous_slam_product_acceptance_require_no_pose_writeback = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_no_pose_writeback", c.fake_autonomous_slam_product_acceptance_require_no_pose_writeback);
     c.fake_autonomous_slam_product_acceptance_require_no_forward_backward = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_no_forward_backward", c.fake_autonomous_slam_product_acceptance_require_no_forward_backward);
     c.fake_autonomous_slam_product_acceptance_require_adapter_manifest = get_bool(kv, "fake_autonomous_slam_product_acceptance.require_adapter_manifest", c.fake_autonomous_slam_product_acceptance_require_adapter_manifest);
+    c.multi_tof_raw_data_contract_enabled = get_bool(kv, "multi_tof_raw_data_contract.enabled", c.multi_tof_raw_data_contract_enabled);
+    c.multi_tof_raw_data_contract_require_front = get_bool(kv, "multi_tof_raw_data_contract.require_front", c.multi_tof_raw_data_contract_require_front);
+    c.multi_tof_raw_data_contract_require_left = get_bool(kv, "multi_tof_raw_data_contract.require_left", c.multi_tof_raw_data_contract_require_left);
+    c.multi_tof_raw_data_contract_require_right = get_bool(kv, "multi_tof_raw_data_contract.require_right", c.multi_tof_raw_data_contract_require_right);
+    c.multi_tof_raw_data_contract_require_unique_mount_ids = get_bool(kv, "multi_tof_raw_data_contract.require_unique_mount_ids", c.multi_tof_raw_data_contract_require_unique_mount_ids);
+    c.multi_tof_raw_data_contract_require_unique_frame_ids = get_bool(kv, "multi_tof_raw_data_contract.require_unique_frame_ids", c.multi_tof_raw_data_contract_require_unique_frame_ids);
+    c.multi_tof_raw_data_contract_require_request_timing = get_bool(kv, "multi_tof_raw_data_contract.require_request_timing", c.multi_tof_raw_data_contract_require_request_timing);
+    c.multi_tof_raw_data_contract_allow_nan_ranges = get_bool(kv, "multi_tof_raw_data_contract.allow_nan_ranges", c.multi_tof_raw_data_contract_allow_nan_ranges);
+    c.multi_tof_raw_data_contract_min_required_tof_count = get_int(kv, "multi_tof_raw_data_contract.min_required_tof_count", c.multi_tof_raw_data_contract_min_required_tof_count);
+    c.multi_tof_raw_data_contract_front_mount_yaw_rad = get_double(kv, "multi_tof_raw_data_contract.front_mount_yaw_rad", c.multi_tof_raw_data_contract_front_mount_yaw_rad);
+    c.multi_tof_raw_data_contract_left_mount_yaw_rad = get_double(kv, "multi_tof_raw_data_contract.left_mount_yaw_rad", c.multi_tof_raw_data_contract_left_mount_yaw_rad);
+    c.multi_tof_raw_data_contract_right_mount_yaw_rad = get_double(kv, "multi_tof_raw_data_contract.right_mount_yaw_rad", c.multi_tof_raw_data_contract_right_mount_yaw_rad);
+    c.multi_tof_raw_data_contract_max_mount_yaw_error_rad = get_double(kv, "multi_tof_raw_data_contract.max_mount_yaw_error_rad", c.multi_tof_raw_data_contract_max_mount_yaw_error_rad);
+    c.multi_tof_raw_data_contract_max_packet_age_s = get_double(kv, "multi_tof_raw_data_contract.max_packet_age_s", c.multi_tof_raw_data_contract_max_packet_age_s);
+    c.multi_tof_raw_data_contract_max_request_latency_s = get_double(kv, "multi_tof_raw_data_contract.max_request_latency_s", c.multi_tof_raw_data_contract_max_request_latency_s);
+    c.multi_tof_raw_data_contract_max_request_latency_mismatch_s = get_double(kv, "multi_tof_raw_data_contract.max_request_latency_mismatch_s", c.multi_tof_raw_data_contract_max_request_latency_mismatch_s);
+    c.multi_tof_raw_data_contract_max_estimated_sample_time_midpoint_error_s = get_double(kv, "multi_tof_raw_data_contract.max_estimated_sample_time_midpoint_error_s", c.multi_tof_raw_data_contract_max_estimated_sample_time_midpoint_error_s);
+    c.multi_tof_raw_data_contract_max_future_timestamp_skew_s = get_double(kv, "multi_tof_raw_data_contract.max_future_timestamp_skew_s", c.multi_tof_raw_data_contract_max_future_timestamp_skew_s);
+    c.multi_tof_raw_data_contract_max_nan_ratio = get_double(kv, "multi_tof_raw_data_contract.max_nan_ratio", c.multi_tof_raw_data_contract_max_nan_ratio);
+    c.multi_tof_raw_data_contract_min_range_m = get_double(kv, "multi_tof_raw_data_contract.min_range_m", c.multi_tof_raw_data_contract_min_range_m);
+    c.multi_tof_raw_data_contract_max_range_m = get_double(kv, "multi_tof_raw_data_contract.max_range_m", c.multi_tof_raw_data_contract_max_range_m);
+    c.multi_tof_raw_data_contract_front_frame_id = get_string(kv, "multi_tof_raw_data_contract.front_frame_id", c.multi_tof_raw_data_contract_front_frame_id);
+    c.multi_tof_raw_data_contract_left_frame_id = get_string(kv, "multi_tof_raw_data_contract.left_frame_id", c.multi_tof_raw_data_contract_left_frame_id);
+    c.multi_tof_raw_data_contract_right_frame_id = get_string(kv, "multi_tof_raw_data_contract.right_frame_id", c.multi_tof_raw_data_contract_right_frame_id);
+    c.multi_tof_raw_data_contract_run_acceptance_on_startup = get_bool(kv, "multi_tof_raw_data_contract.run_acceptance_on_startup", c.multi_tof_raw_data_contract_run_acceptance_on_startup);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1452,6 +1477,64 @@ void validate_config(const Config &c) {
         errors.push_back("fake product acceptance requires allow_writer_dispatch=false");
     }
 
+    if (c.multi_tof_raw_data_contract_run_acceptance_on_startup) {
+        errors.push_back("multi_tof_raw_data_contract.run_acceptance_on_startup must remain false");
+    }
+    if (c.multi_tof_raw_data_contract_min_required_tof_count < 1 ||
+        c.multi_tof_raw_data_contract_min_required_tof_count > 3) {
+        errors.push_back("multi_tof_raw_data_contract.min_required_tof_count must be in [1,3]");
+    }
+    if (c.multi_tof_raw_data_contract_front_frame_id.empty() ||
+        c.multi_tof_raw_data_contract_left_frame_id.empty() ||
+        c.multi_tof_raw_data_contract_right_frame_id.empty()) {
+        errors.push_back("multi_tof_raw_data_contract frame ids must not be empty");
+    }
+    if (c.multi_tof_raw_data_contract_front_frame_id == c.multi_tof_raw_data_contract_left_frame_id ||
+        c.multi_tof_raw_data_contract_front_frame_id == c.multi_tof_raw_data_contract_right_frame_id ||
+        c.multi_tof_raw_data_contract_left_frame_id == c.multi_tof_raw_data_contract_right_frame_id) {
+        errors.push_back("multi_tof_raw_data_contract frame ids must be unique");
+    }
+    if (std::fabs(c.multi_tof_raw_data_contract_front_mount_yaw_rad - 0.0) >
+        c.multi_tof_raw_data_contract_max_mount_yaw_error_rad) {
+        errors.push_back("multi_tof_raw_data_contract.front_mount_yaw_rad must be near 0");
+    }
+    if (std::fabs(c.multi_tof_raw_data_contract_left_mount_yaw_rad - 1.5707963267948966) >
+        c.multi_tof_raw_data_contract_max_mount_yaw_error_rad) {
+        errors.push_back("multi_tof_raw_data_contract.left_mount_yaw_rad must be near +pi/2");
+    }
+    if (std::fabs(c.multi_tof_raw_data_contract_right_mount_yaw_rad + 1.5707963267948966) >
+        c.multi_tof_raw_data_contract_max_mount_yaw_error_rad) {
+        errors.push_back("multi_tof_raw_data_contract.right_mount_yaw_rad must be near -pi/2");
+    }
+    if (!(c.multi_tof_raw_data_contract_max_request_latency_s > 0.0) ||
+        !std::isfinite(c.multi_tof_raw_data_contract_max_request_latency_s)) {
+        errors.push_back("multi_tof_raw_data_contract.max_request_latency_s must be > 0");
+    }
+    if (!(c.multi_tof_raw_data_contract_max_request_latency_mismatch_s > 0.0) ||
+        !std::isfinite(c.multi_tof_raw_data_contract_max_request_latency_mismatch_s)) {
+        errors.push_back("multi_tof_raw_data_contract.max_request_latency_mismatch_s must be > 0");
+    }
+    if (c.multi_tof_raw_data_contract_max_nan_ratio < 0.0 ||
+        c.multi_tof_raw_data_contract_max_nan_ratio > 1.0 ||
+        !std::isfinite(c.multi_tof_raw_data_contract_max_nan_ratio)) {
+        errors.push_back("multi_tof_raw_data_contract.max_nan_ratio must be in [0,1]");
+    }
+    if (!(c.multi_tof_raw_data_contract_max_range_m > c.multi_tof_raw_data_contract_min_range_m)) {
+        errors.push_back("multi_tof_raw_data_contract.max_range_m must be greater than min_range_m");
+    }
+    if (c.multi_tof_raw_data_contract_enabled &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("multi_tof_raw_data_contract requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.multi_tof_raw_data_contract_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("multi_tof_raw_data_contract requires production_interface_enabled=false");
+    }
+    if (c.multi_tof_raw_data_contract_enabled &&
+        c.motion_execution_allow_writer_dispatch) {
+        errors.push_back("multi_tof_raw_data_contract requires allow_writer_dispatch=false");
+    }
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -2015,6 +2098,32 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  require_no_pose_writeback: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_no_pose_writeback) << "\n"
       << "  require_no_forward_backward: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_no_forward_backward) << "\n"
       << "  require_adapter_manifest: " << bool_yaml(c.fake_autonomous_slam_product_acceptance_require_adapter_manifest) << "\n";
+    o << "multi_tof_raw_data_contract:\n"
+      << "  enabled: " << bool_yaml(c.multi_tof_raw_data_contract_enabled) << "\n"
+      << "  require_front: " << bool_yaml(c.multi_tof_raw_data_contract_require_front) << "\n"
+      << "  require_left: " << bool_yaml(c.multi_tof_raw_data_contract_require_left) << "\n"
+      << "  require_right: " << bool_yaml(c.multi_tof_raw_data_contract_require_right) << "\n"
+      << "  require_unique_mount_ids: " << bool_yaml(c.multi_tof_raw_data_contract_require_unique_mount_ids) << "\n"
+      << "  require_unique_frame_ids: " << bool_yaml(c.multi_tof_raw_data_contract_require_unique_frame_ids) << "\n"
+      << "  require_request_timing: " << bool_yaml(c.multi_tof_raw_data_contract_require_request_timing) << "\n"
+      << "  allow_nan_ranges: " << bool_yaml(c.multi_tof_raw_data_contract_allow_nan_ranges) << "\n"
+      << "  min_required_tof_count: " << c.multi_tof_raw_data_contract_min_required_tof_count << "\n"
+      << "  front_mount_yaw_rad: " << c.multi_tof_raw_data_contract_front_mount_yaw_rad << "\n"
+      << "  left_mount_yaw_rad: " << c.multi_tof_raw_data_contract_left_mount_yaw_rad << "\n"
+      << "  right_mount_yaw_rad: " << c.multi_tof_raw_data_contract_right_mount_yaw_rad << "\n"
+      << "  max_mount_yaw_error_rad: " << c.multi_tof_raw_data_contract_max_mount_yaw_error_rad << "\n"
+      << "  max_packet_age_s: " << c.multi_tof_raw_data_contract_max_packet_age_s << "\n"
+      << "  max_request_latency_s: " << c.multi_tof_raw_data_contract_max_request_latency_s << "\n"
+      << "  max_request_latency_mismatch_s: " << c.multi_tof_raw_data_contract_max_request_latency_mismatch_s << "\n"
+      << "  max_estimated_sample_time_midpoint_error_s: " << c.multi_tof_raw_data_contract_max_estimated_sample_time_midpoint_error_s << "\n"
+      << "  max_future_timestamp_skew_s: " << c.multi_tof_raw_data_contract_max_future_timestamp_skew_s << "\n"
+      << "  max_nan_ratio: " << c.multi_tof_raw_data_contract_max_nan_ratio << "\n"
+      << "  min_range_m: " << c.multi_tof_raw_data_contract_min_range_m << "\n"
+      << "  max_range_m: " << c.multi_tof_raw_data_contract_max_range_m << "\n"
+      << "  front_frame_id: " << c.multi_tof_raw_data_contract_front_frame_id << "\n"
+      << "  left_frame_id: " << c.multi_tof_raw_data_contract_left_frame_id << "\n"
+      << "  right_frame_id: " << c.multi_tof_raw_data_contract_right_frame_id << "\n"
+      << "  run_acceptance_on_startup: " << bool_yaml(c.multi_tof_raw_data_contract_run_acceptance_on_startup) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"
