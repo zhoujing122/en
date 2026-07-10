@@ -640,6 +640,11 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.multi_tof_snapshot_builder_legacy_primary_mode = get_string(kv, "multi_tof_snapshot_builder.legacy_primary_mode", c.multi_tof_snapshot_builder_legacy_primary_mode);
     c.multi_tof_snapshot_builder_min_required_tof_count = get_int(kv, "multi_tof_snapshot_builder.min_required_tof_count", c.multi_tof_snapshot_builder_min_required_tof_count);
     c.multi_tof_snapshot_builder_run_acceptance_on_startup = get_bool(kv, "multi_tof_snapshot_builder.run_acceptance_on_startup", c.multi_tof_snapshot_builder_run_acceptance_on_startup);
+    c.multi_tof_replay_enabled = get_bool(kv, "multi_tof_replay.enabled", c.multi_tof_replay_enabled);
+    c.multi_tof_replay_reject_invalid_records = get_bool(kv, "multi_tof_replay.reject_invalid_records", c.multi_tof_replay_reject_invalid_records);
+    c.multi_tof_replay_require_snapshot_build = get_bool(kv, "multi_tof_replay.require_snapshot_build", c.multi_tof_replay_require_snapshot_build);
+    c.multi_tof_replay_time_mode = get_string(kv, "multi_tof_replay.time_mode", c.multi_tof_replay_time_mode);
+    c.multi_tof_replay_run_acceptance_on_startup = get_bool(kv, "multi_tof_replay.run_acceptance_on_startup", c.multi_tof_replay_run_acceptance_on_startup);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1629,6 +1634,31 @@ void validate_config(const Config &c) {
         errors.push_back("multi_tof_snapshot_builder requires allow_writer_dispatch=false");
     }
 
+    if (c.multi_tof_replay_run_acceptance_on_startup) {
+        errors.push_back("multi_tof_replay.run_acceptance_on_startup must remain false");
+    }
+    if (!c.multi_tof_replay_reject_invalid_records) {
+        errors.push_back("multi_tof_replay.reject_invalid_records must remain true");
+    }
+    if (!c.multi_tof_replay_require_snapshot_build) {
+        errors.push_back("multi_tof_replay.require_snapshot_build must remain true");
+    }
+    if (!one_of(c.multi_tof_replay_time_mode, {"external_now", "record_packet_time", "record_sensor_max_time"})) {
+        errors.push_back("multi_tof_replay.time_mode must be external_now, record_packet_time, or record_sensor_max_time");
+    }
+    if (c.multi_tof_replay_enabled &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("multi_tof_replay requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.multi_tof_replay_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("multi_tof_replay requires production_interface_enabled=false");
+    }
+    if (c.multi_tof_replay_enabled &&
+        c.motion_execution_allow_writer_dispatch) {
+        errors.push_back("multi_tof_replay requires allow_writer_dispatch=false");
+    }
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -2239,6 +2269,12 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  legacy_primary_mode: " << c.multi_tof_snapshot_builder_legacy_primary_mode << "\n"
       << "  min_required_tof_count: " << c.multi_tof_snapshot_builder_min_required_tof_count << "\n"
       << "  run_acceptance_on_startup: " << bool_yaml(c.multi_tof_snapshot_builder_run_acceptance_on_startup) << "\n";
+    o << "multi_tof_replay:\n"
+      << "  enabled: " << bool_yaml(c.multi_tof_replay_enabled) << "\n"
+      << "  reject_invalid_records: " << bool_yaml(c.multi_tof_replay_reject_invalid_records) << "\n"
+      << "  require_snapshot_build: " << bool_yaml(c.multi_tof_replay_require_snapshot_build) << "\n"
+      << "  time_mode: " << c.multi_tof_replay_time_mode << "\n"
+      << "  run_acceptance_on_startup: " << bool_yaml(c.multi_tof_replay_run_acceptance_on_startup) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

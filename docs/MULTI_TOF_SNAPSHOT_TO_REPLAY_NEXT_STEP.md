@@ -10,3 +10,5 @@ Expected M3-C3 work:
 - run raw contract, sync checker, and snapshot builder from replay data.
 - keep legacy single-ToF replay compatibility.
 - do not connect real hardware until a later real adapter stage.
+
+M3-C3 status: in-memory 3-ToF replay/log now feeds MultiTofRawPacket through sync and snapshot build. M3-C4 remains the fake full pipeline integration step.

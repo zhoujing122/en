@@ -67,3 +67,5 @@ Future real adapters must expose `tof_front_frame`, `tof_left_frame`, and `tof_r
 A future real three-ToF adapter must pass both the M3-C0 raw contract and the M3-C1 sync contract before any snapshot builder or mapping path consumes it. ToF/Wheel timing remains request-window estimated sample time; IMU uses its sample timestamp.
 
 M3-C2 note: real adapters must eventually feed synchronized front/left/right ToF packets into the Multi-ToF snapshot builder; no real driver is connected yet.
+
+M3-C3 note: replay/log now covers front/left/right ToF raw packets through sync and snapshot construction. Real drivers remain unimplemented and must not bypass the contract/sync/snapshot chain.

@@ -725,3 +725,10 @@ multi_tof_snapshot_builder:
   legacy_primary_mode: front
   min_required_tof_count: 3
   run_acceptance_on_startup: false
+
+multi_tof_replay:
+  enabled: false
+  reject_invalid_records: true
+  require_snapshot_build: true
+  time_mode: record_packet_time
+  run_acceptance_on_startup: false

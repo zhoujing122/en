@@ -775,6 +775,11 @@ struct Config {
     std::string multi_tof_snapshot_builder_legacy_primary_mode = "front";
     int multi_tof_snapshot_builder_min_required_tof_count = 3;
     bool multi_tof_snapshot_builder_run_acceptance_on_startup = false;
+    bool multi_tof_replay_enabled = false;
+    bool multi_tof_replay_reject_invalid_records = true;
+    bool multi_tof_replay_require_snapshot_build = true;
+    std::string multi_tof_replay_time_mode = "record_packet_time";
+    bool multi_tof_replay_run_acceptance_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1463,6 +1468,20 @@ struct AutonomousSlamRunStats {
     bool multi_tof_snapshot_builder_sync_ok_last = false;
     int multi_tof_snapshot_builder_failed_case_count_last = 0;
     int multi_tof_snapshot_builder_warning_count_last = 0;
+    bool multi_tof_replay_enabled_last = false;
+    uint64_t multi_tof_replay_acceptance_run_count = 0;
+    bool multi_tof_replay_acceptance_ok_last = false;
+    int multi_tof_replay_status_last = 0;
+    int multi_tof_replay_fault_last = 0;
+    int multi_tof_replay_record_count_last = 0;
+    int multi_tof_replay_packet_count_last = 0;
+    int multi_tof_replay_invalid_record_count_last = 0;
+    int multi_tof_replay_consumed_packet_count_last = 0;
+    bool multi_tof_replay_snapshot_has_multi_tof_last = false;
+    int multi_tof_replay_snapshot_valid_tof_count_last = 0;
+    bool multi_tof_replay_snapshot_degraded_last = false;
+    int multi_tof_replay_failed_case_count_last = 0;
+    int multi_tof_replay_warning_count_last = 0;
 };
 
 struct RunMetrics {
