@@ -633,6 +633,13 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s = get_double(kv, "multi_tof_sync.max_multi_tof_wheel_sync_dt_s", c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s);
     c.multi_tof_sync_max_effective_time_future_skew_s = get_double(kv, "multi_tof_sync.max_effective_time_future_skew_s", c.multi_tof_sync_max_effective_time_future_skew_s);
     c.multi_tof_sync_run_acceptance_on_startup = get_bool(kv, "multi_tof_sync.run_acceptance_on_startup", c.multi_tof_sync_run_acceptance_on_startup);
+    c.multi_tof_snapshot_builder_enabled = get_bool(kv, "multi_tof_snapshot_builder.enabled", c.multi_tof_snapshot_builder_enabled);
+    c.multi_tof_snapshot_builder_require_sync_pass = get_bool(kv, "multi_tof_snapshot_builder.require_sync_pass", c.multi_tof_snapshot_builder_require_sync_pass);
+    c.multi_tof_snapshot_builder_populate_legacy_tof = get_bool(kv, "multi_tof_snapshot_builder.populate_legacy_tof", c.multi_tof_snapshot_builder_populate_legacy_tof);
+    c.multi_tof_snapshot_builder_require_legacy_primary = get_bool(kv, "multi_tof_snapshot_builder.require_legacy_primary", c.multi_tof_snapshot_builder_require_legacy_primary);
+    c.multi_tof_snapshot_builder_legacy_primary_mode = get_string(kv, "multi_tof_snapshot_builder.legacy_primary_mode", c.multi_tof_snapshot_builder_legacy_primary_mode);
+    c.multi_tof_snapshot_builder_min_required_tof_count = get_int(kv, "multi_tof_snapshot_builder.min_required_tof_count", c.multi_tof_snapshot_builder_min_required_tof_count);
+    c.multi_tof_snapshot_builder_run_acceptance_on_startup = get_bool(kv, "multi_tof_snapshot_builder.run_acceptance_on_startup", c.multi_tof_snapshot_builder_run_acceptance_on_startup);
     if (!output_override.empty()) c.output_dir = output_override;
     return c;
 }
@@ -1596,6 +1603,32 @@ void validate_config(const Config &c) {
         errors.push_back("multi_tof_sync requires allow_writer_dispatch=false");
     }
 
+    if (c.multi_tof_snapshot_builder_run_acceptance_on_startup) {
+        errors.push_back("multi_tof_snapshot_builder.run_acceptance_on_startup must remain false");
+    }
+    if (!c.multi_tof_snapshot_builder_require_sync_pass) {
+        errors.push_back("multi_tof_snapshot_builder.require_sync_pass must remain true");
+    }
+    if (!one_of(c.multi_tof_snapshot_builder_legacy_primary_mode, {"front", "median_time_closest", "first_present"})) {
+        errors.push_back("multi_tof_snapshot_builder.legacy_primary_mode must be front, median_time_closest, or first_present");
+    }
+    if (c.multi_tof_snapshot_builder_min_required_tof_count < 1 ||
+        c.multi_tof_snapshot_builder_min_required_tof_count > 3) {
+        errors.push_back("multi_tof_snapshot_builder.min_required_tof_count must be in [1,3]");
+    }
+    if (c.multi_tof_snapshot_builder_enabled &&
+        c.motion_execution_hardware_write_enabled) {
+        errors.push_back("multi_tof_snapshot_builder requires motion_execution.hardware_write_enabled=false");
+    }
+    if (c.multi_tof_snapshot_builder_enabled &&
+        c.motion_execution_software_motion_production_interface_enabled) {
+        errors.push_back("multi_tof_snapshot_builder requires production_interface_enabled=false");
+    }
+    if (c.multi_tof_snapshot_builder_enabled &&
+        c.motion_execution_allow_writer_dispatch) {
+        errors.push_back("multi_tof_snapshot_builder requires allow_writer_dispatch=false");
+    }
+
     if (!errors.empty()) throw std::runtime_error("invalid config: " + join_errors(errors));
 }
 
@@ -2198,6 +2231,14 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  max_multi_tof_wheel_sync_dt_s: " << c.multi_tof_sync_max_multi_tof_wheel_sync_dt_s << "\n"
       << "  max_effective_time_future_skew_s: " << c.multi_tof_sync_max_effective_time_future_skew_s << "\n"
       << "  run_acceptance_on_startup: " << bool_yaml(c.multi_tof_sync_run_acceptance_on_startup) << "\n";
+    o << "multi_tof_snapshot_builder:\n"
+      << "  enabled: " << bool_yaml(c.multi_tof_snapshot_builder_enabled) << "\n"
+      << "  require_sync_pass: " << bool_yaml(c.multi_tof_snapshot_builder_require_sync_pass) << "\n"
+      << "  populate_legacy_tof: " << bool_yaml(c.multi_tof_snapshot_builder_populate_legacy_tof) << "\n"
+      << "  require_legacy_primary: " << bool_yaml(c.multi_tof_snapshot_builder_require_legacy_primary) << "\n"
+      << "  legacy_primary_mode: " << c.multi_tof_snapshot_builder_legacy_primary_mode << "\n"
+      << "  min_required_tof_count: " << c.multi_tof_snapshot_builder_min_required_tof_count << "\n"
+      << "  run_acceptance_on_startup: " << bool_yaml(c.multi_tof_snapshot_builder_run_acceptance_on_startup) << "\n";
     o << "motion_execution:\n"
       << "  enabled: " << bool_yaml(c.motion_execution_enabled) << "\n"
       << "  mode: " << c.motion_execution_mode << "\n"

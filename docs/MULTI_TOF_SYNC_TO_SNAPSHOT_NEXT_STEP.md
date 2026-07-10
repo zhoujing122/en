@@ -8,3 +8,5 @@ Open M3-C2 items:
 - preserve each ToF request-window timing in diagnostics.
 - define how synchronized multi-ToF data enters deterministic backend tests.
 - keep app runtime disabled by default.
+
+M3-C2 has now added the in-memory Multi-ToF snapshot builder. The remaining next step is M3-C3 replay/log support for three request-window ToF frames.

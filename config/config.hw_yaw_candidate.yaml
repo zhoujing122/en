@@ -716,3 +716,12 @@ multi_tof_sync:
   max_multi_tof_wheel_sync_dt_s: 0.100
   max_effective_time_future_skew_s: 0.050
   run_acceptance_on_startup: false
+
+multi_tof_snapshot_builder:
+  enabled: false
+  require_sync_pass: true
+  populate_legacy_tof: true
+  require_legacy_primary: true
+  legacy_primary_mode: front
+  min_required_tof_count: 3
+  run_acceptance_on_startup: false

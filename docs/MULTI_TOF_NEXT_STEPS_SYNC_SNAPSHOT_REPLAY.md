@@ -13,3 +13,5 @@ None of these follow-up behaviors are implemented by M3-C0.
 ## Current Status After M3-C1
 
 M3-C1 implements the offline three-ToF plus IMU/Wheel synchronization checker. M3-C2 remains the next step for a multi-ToF snapshot builder, and M3-C3 remains the future replay/log stage.
+
+M3-C2 status: Multi-ToF snapshot construction is implemented. Replay/log remains deferred to M3-C3.

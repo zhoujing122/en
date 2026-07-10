@@ -159,3 +159,5 @@ M3-B7 adds autonomy/product_acceptance for fake autonomous SLAM product acceptan
 ## Multi-ToF Sync
 
 `include/robot_slamd/autonomy/real_adapters/multi_tof/` now also contains M3-C1 effective time, degradation, sync checker, sync samples, acceptance runner, and report writer headers. These remain offline contract utilities and are not app runtime hardware adapters.
+
+M3-C2 adds `include/robot_slamd/autonomy/real_adapters/multi_tof/*snapshot*` for in-memory Multi-ToF snapshot construction and tests under `tests/test_multi_tof_snapshot_*`.

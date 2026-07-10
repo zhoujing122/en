@@ -768,6 +768,13 @@ struct Config {
     double multi_tof_sync_max_multi_tof_wheel_sync_dt_s = 0.100;
     double multi_tof_sync_max_effective_time_future_skew_s = 0.050;
     bool multi_tof_sync_run_acceptance_on_startup = false;
+    bool multi_tof_snapshot_builder_enabled = false;
+    bool multi_tof_snapshot_builder_require_sync_pass = true;
+    bool multi_tof_snapshot_builder_populate_legacy_tof = true;
+    bool multi_tof_snapshot_builder_require_legacy_primary = true;
+    std::string multi_tof_snapshot_builder_legacy_primary_mode = "front";
+    int multi_tof_snapshot_builder_min_required_tof_count = 3;
+    bool multi_tof_snapshot_builder_run_acceptance_on_startup = false;
 };
 
 struct Pose { double x = 0.0, y = 0.0, yaw = 0.0; };
@@ -1444,6 +1451,18 @@ struct AutonomousSlamRunStats {
     double multi_tof_sync_multi_tof_wheel_dt_s_last = 0.0;
     int multi_tof_sync_failed_case_count_last = 0;
     int multi_tof_sync_warning_count_last = 0;
+    bool multi_tof_snapshot_builder_enabled_last = false;
+    uint64_t multi_tof_snapshot_builder_acceptance_run_count = 0;
+    bool multi_tof_snapshot_builder_acceptance_ok_last = false;
+    int multi_tof_snapshot_builder_status_last = 0;
+    int multi_tof_snapshot_builder_fault_last = 0;
+    int multi_tof_snapshot_builder_valid_tof_count_last = 0;
+    bool multi_tof_snapshot_builder_degraded_last = false;
+    bool multi_tof_snapshot_builder_has_multi_tof_last = false;
+    bool multi_tof_snapshot_builder_has_legacy_tof_last = false;
+    bool multi_tof_snapshot_builder_sync_ok_last = false;
+    int multi_tof_snapshot_builder_failed_case_count_last = 0;
+    int multi_tof_snapshot_builder_warning_count_last = 0;
 };
 
 struct RunMetrics {

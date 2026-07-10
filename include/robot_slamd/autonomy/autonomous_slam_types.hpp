@@ -79,11 +79,31 @@ struct WheelOdomFrame {
     bool valid = false;
 };
 
+struct MultiTofSnapshot {
+    bool has_front = false;
+    bool has_left = false;
+    bool has_right = false;
+    TofScanFrame front;
+    TofScanFrame left;
+    TofScanFrame right;
+    double synchronized_time_s = 0.0;
+    int valid_tof_count = 0;
+    bool degraded = false;
+    double front_left_dt_s = 0.0;
+    double front_right_dt_s = 0.0;
+    double left_right_dt_s = 0.0;
+    double multi_tof_imu_dt_s = 0.0;
+    double multi_tof_wheel_dt_s = 0.0;
+    std::string source = "multi_tof_snapshot_builder";
+};
+
 struct RobotSlamSensorSnapshot {
     bool has_tof = false;
+    bool has_multi_tof = false;
     bool has_imu = false;
     bool has_wheel = false;
     TofScanFrame tof;
+    MultiTofSnapshot multi_tof;
     ImuFrame imu;
     WheelOdomFrame wheel;
 };

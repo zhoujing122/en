@@ -433,6 +433,18 @@ void write_run_metrics(const std::string &path, const RunMetrics &m, const Local
     o << "multi_tof_sync_multi_tof_wheel_dt_s_last," << m.autonomous_slam.multi_tof_sync_multi_tof_wheel_dt_s_last << "\n";
     o << "multi_tof_sync_failed_case_count_last," << m.autonomous_slam.multi_tof_sync_failed_case_count_last << "\n";
     o << "multi_tof_sync_warning_count_last," << m.autonomous_slam.multi_tof_sync_warning_count_last << "\n";
+    o << "multi_tof_snapshot_builder_enabled_last," << (cfg.multi_tof_snapshot_builder_enabled ? 1 : 0) << "\n";
+    o << "multi_tof_snapshot_builder_acceptance_run_count," << m.autonomous_slam.multi_tof_snapshot_builder_acceptance_run_count << "\n";
+    o << "multi_tof_snapshot_builder_acceptance_ok_last," << (m.autonomous_slam.multi_tof_snapshot_builder_acceptance_ok_last ? 1 : 0) << "\n";
+    o << "multi_tof_snapshot_builder_status_last," << m.autonomous_slam.multi_tof_snapshot_builder_status_last << "\n";
+    o << "multi_tof_snapshot_builder_fault_last," << m.autonomous_slam.multi_tof_snapshot_builder_fault_last << "\n";
+    o << "multi_tof_snapshot_builder_valid_tof_count_last," << m.autonomous_slam.multi_tof_snapshot_builder_valid_tof_count_last << "\n";
+    o << "multi_tof_snapshot_builder_degraded_last," << (m.autonomous_slam.multi_tof_snapshot_builder_degraded_last ? 1 : 0) << "\n";
+    o << "multi_tof_snapshot_builder_has_multi_tof_last," << (m.autonomous_slam.multi_tof_snapshot_builder_has_multi_tof_last ? 1 : 0) << "\n";
+    o << "multi_tof_snapshot_builder_has_legacy_tof_last," << (m.autonomous_slam.multi_tof_snapshot_builder_has_legacy_tof_last ? 1 : 0) << "\n";
+    o << "multi_tof_snapshot_builder_sync_ok_last," << (m.autonomous_slam.multi_tof_snapshot_builder_sync_ok_last ? 1 : 0) << "\n";
+    o << "multi_tof_snapshot_builder_failed_case_count_last," << m.autonomous_slam.multi_tof_snapshot_builder_failed_case_count_last << "\n";
+    o << "multi_tof_snapshot_builder_warning_count_last," << m.autonomous_slam.multi_tof_snapshot_builder_warning_count_last << "\n";
     o << "static_scan_boost_updates," << m.static_scan_boost_updates << "\n";
     o << "low_odom_quality_pauses," << m.low_odom_quality_pauses << "\n";
     o << "tof_unhealthy_pauses," << m.tof_unhealthy_pauses << "\n";
