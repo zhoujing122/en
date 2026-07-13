@@ -210,6 +210,12 @@ struct Config {
     double static_scan_boost = 1.5;
     std::string slam_runtime_mode = "legacy";
     std::string sparse_shadow_sensor_source = "deterministic_simulation";
+    std::string sparse_slam_map_startup_mode = "create_new";
+    std::string sparse_slam_initial_pose_mode = "startup_zero";
+    bool sparse_slam_has_configured_pose = false;
+    double sparse_slam_configured_pose_x_m = 0.0;
+    double sparse_slam_configured_pose_y_m = 0.0;
+    double sparse_slam_configured_pose_yaw_rad = 0.0;
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;

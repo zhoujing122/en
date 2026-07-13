@@ -163,6 +163,12 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.slam_runtime_mode = get_string(kv, "slam_runtime.mode", c.slam_runtime_mode);
     c.sparse_shadow_sensor_source = get_string(kv, "runtime.sparse_shadow_sensor_source", c.sparse_shadow_sensor_source);
     c.sparse_shadow_sensor_source = get_string(kv, "slam_runtime.sparse_shadow_sensor_source", c.sparse_shadow_sensor_source);
+    c.sparse_slam_map_startup_mode = get_string(kv, "sparse_slam.map_startup_mode", c.sparse_slam_map_startup_mode);
+    c.sparse_slam_initial_pose_mode = get_string(kv, "sparse_slam.initial_pose_mode", c.sparse_slam_initial_pose_mode);
+    c.sparse_slam_has_configured_pose = get_bool(kv, "sparse_slam.has_configured_pose", c.sparse_slam_has_configured_pose);
+    c.sparse_slam_configured_pose_x_m = get_double(kv, "sparse_slam.configured_pose_x_m", c.sparse_slam_configured_pose_x_m);
+    c.sparse_slam_configured_pose_y_m = get_double(kv, "sparse_slam.configured_pose_y_m", c.sparse_slam_configured_pose_y_m);
+    c.sparse_slam_configured_pose_yaw_rad = get_double(kv, "sparse_slam.configured_pose_yaw_rad", c.sparse_slam_configured_pose_yaw_rad);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -751,6 +757,13 @@ void validate_config(const Config &c) {
     if (!one_of(c.slam_runtime_mode, {"legacy", "sparse_shadow"})) errors.push_back("slam_runtime.mode must be legacy or sparse_shadow");
     if (!one_of(c.sparse_shadow_sensor_source, {"deterministic_simulation", "hardware", "replay"})) errors.push_back("slam_runtime.sparse_shadow_sensor_source must be deterministic_simulation, replay, or hardware");
     if (c.slam_runtime_mode == "sparse_shadow" && c.sparse_shadow_sensor_source != "deterministic_simulation") errors.push_back("SparseShadow supports only deterministic_simulation source in M3-D1.1; hardware and replay are fail-closed");
+    if (!one_of(c.sparse_slam_map_startup_mode, {"create_new", "load_existing"})) errors.push_back("sparse_slam.map_startup_mode must be create_new or load_existing");
+    if (!one_of(c.sparse_slam_initial_pose_mode, {"startup_zero", "configured_pose", "relocalization"})) errors.push_back("sparse_slam.initial_pose_mode must be startup_zero, configured_pose, or relocalization");
+    if (c.sparse_slam_initial_pose_mode == "configured_pose" && !c.sparse_slam_has_configured_pose) errors.push_back("sparse_slam configured_pose mode requires has_configured_pose=true");
+    if (c.sparse_slam_initial_pose_mode == "startup_zero" && c.sparse_slam_has_configured_pose) errors.push_back("sparse_slam startup_zero must not also configure a map pose");
+    if (!std::isfinite(c.sparse_slam_configured_pose_x_m)) errors.push_back("sparse_slam.configured_pose_x_m must be finite");
+    if (!std::isfinite(c.sparse_slam_configured_pose_y_m)) errors.push_back("sparse_slam.configured_pose_y_m must be finite");
+    if (!std::isfinite(c.sparse_slam_configured_pose_yaw_rad)) errors.push_back("sparse_slam.configured_pose_yaw_rad must be finite");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1731,6 +1744,13 @@ void write_resolved_config(const Config &c, const std::string &path) {
     o << "slam_runtime:\n"
       << "  mode: " << c.slam_runtime_mode << "\n"
       << "  sparse_shadow_sensor_source: " << c.sparse_shadow_sensor_source << "\n";
+    o << "sparse_slam:\n"
+      << "  map_startup_mode: " << c.sparse_slam_map_startup_mode << "\n"
+      << "  initial_pose_mode: " << c.sparse_slam_initial_pose_mode << "\n"
+      << "  has_configured_pose: " << bool_yaml(c.sparse_slam_has_configured_pose) << "\n"
+      << "  configured_pose_x_m: " << c.sparse_slam_configured_pose_x_m << "\n"
+      << "  configured_pose_y_m: " << c.sparse_slam_configured_pose_y_m << "\n"
+      << "  configured_pose_yaw_rad: " << c.sparse_slam_configured_pose_yaw_rad << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"
