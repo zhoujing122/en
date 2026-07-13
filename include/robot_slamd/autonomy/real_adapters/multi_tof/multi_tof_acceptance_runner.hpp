@@ -54,8 +54,8 @@ public:
                  false,
                  checker,
                  report);
-        run_case("empty_ranges_packet",
-                 MultiTofSampleData::empty_ranges_packet(),
+        run_case("invalid_distance_packet",
+                 MultiTofSampleData::invalid_distance_packet(),
                  false,
                  checker,
                  report);

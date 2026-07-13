@@ -124,7 +124,13 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.tof_frequency_hz = get_double(kv, "tof.frequency_hz", c.tof_frequency_hz);
     c.tof_min_range_m = get_double(kv, "tof.min_range_m", c.tof_min_range_m);
     c.tof_max_range_m = get_double(kv, "tof.max_range_m", c.tof_max_range_m);
+    c.tof_protocol_min_range_m = get_double(kv, "tof.protocol_min_range_m", c.tof_protocol_min_range_m);
+    c.tof_protocol_max_range_m = get_double(kv, "tof.protocol_max_range_m", c.tof_protocol_max_range_m);
+    c.tof_mapping_min_range_m = get_double(kv, "tof.mapping_min_range_m", c.tof_mapping_min_range_m);
+    c.tof_mapping_max_range_m = get_double(kv, "tof.mapping_max_range_m", c.tof_mapping_max_range_m);
     c.confidence_min = get_int(kv, "tof.confidence_min", c.confidence_min);
+    c.tof_mapping_min_confidence = get_int(kv, "tof.mapping_min_confidence", c.tof_mapping_min_confidence);
+    c.tof_full_fov_deg = get_double(kv, "tof.full_fov_deg", c.tof_full_fov_deg);
     c.median_window = get_int(kv, "tof.median_window", c.median_window);
     c.jump_reject_m = get_double(kv, "tof.jump_reject_m", c.jump_reject_m);
     c.mad_reject_m = get_double(kv, "tof.mad_reject_m", c.mad_reject_m);
@@ -707,7 +713,13 @@ void validate_config(const Config &c) {
     positive("tof.min_range_m", c.tof_min_range_m);
     positive("tof.max_range_m", c.tof_max_range_m);
     if (c.tof_min_range_m >= c.tof_max_range_m) errors.push_back("tof.min_range_m must be < tof.max_range_m");
-    if (c.confidence_min < 0 || c.confidence_min > 255) errors.push_back("tof.confidence_min must be in [0, 255]");
+    if (c.confidence_min < 0 || c.confidence_min > 100) errors.push_back("tof.confidence_min must be in [0, 100]");
+    if (!std::isfinite(c.tof_protocol_min_range_m) || c.tof_protocol_min_range_m <= 0.0) errors.push_back("tof.protocol_min_range_m must be finite and > 0");
+    if (!std::isfinite(c.tof_protocol_max_range_m) || c.tof_protocol_max_range_m <= c.tof_protocol_min_range_m) errors.push_back("tof.protocol_max_range_m must be > protocol_min_range_m");
+    if (!std::isfinite(c.tof_mapping_min_range_m) || c.tof_mapping_min_range_m < c.tof_protocol_min_range_m) errors.push_back("tof.mapping_min_range_m must be >= protocol_min_range_m");
+    if (!std::isfinite(c.tof_mapping_max_range_m) || c.tof_mapping_max_range_m > c.tof_protocol_max_range_m || c.tof_mapping_max_range_m <= c.tof_mapping_min_range_m) errors.push_back("tof.mapping_max_range_m must be <= protocol_max_range_m and > mapping_min_range_m");
+    if (c.tof_mapping_min_confidence < 0 || c.tof_mapping_min_confidence > 100) errors.push_back("tof.mapping_min_confidence must be in [0, 100]");
+    if (!std::isfinite(c.tof_full_fov_deg) || c.tof_full_fov_deg <= 0.0) errors.push_back("tof.full_fov_deg must be finite and > 0");
     if (c.median_window <= 0) errors.push_back("tof.median_window must be > 0");
     non_negative("tof.jump_reject_m", c.jump_reject_m);
     non_negative("tof.mad_reject_m", c.mad_reject_m);
@@ -1762,7 +1774,13 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  frequency_hz: " << c.tof_frequency_hz << "\n"
       << "  min_range_m: " << c.tof_min_range_m << "\n"
       << "  max_range_m: " << c.tof_max_range_m << "\n"
+      << "  protocol_min_range_m: " << c.tof_protocol_min_range_m << "\n"
+      << "  protocol_max_range_m: " << c.tof_protocol_max_range_m << "\n"
+      << "  mapping_min_range_m: " << c.tof_mapping_min_range_m << "\n"
+      << "  mapping_max_range_m: " << c.tof_mapping_max_range_m << "\n"
       << "  confidence_min: " << c.confidence_min << "\n"
+      << "  mapping_min_confidence: " << c.tof_mapping_min_confidence << "\n"
+      << "  full_fov_deg: " << c.tof_full_fov_deg << "\n"
       << "  median_window: " << c.median_window << "\n"
       << "  jump_reject_m: " << c.jump_reject_m << "\n"
       << "  mad_reject_m: " << c.mad_reject_m << "\n"

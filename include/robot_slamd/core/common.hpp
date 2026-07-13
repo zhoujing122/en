@@ -165,8 +165,14 @@ struct Config {
     std::string tof_csv_path = "/userdata/tof.csv";
     double tof_frequency_hz = 30.0;
     double tof_min_range_m = 0.05;
-    double tof_max_range_m = 3.0;
+    double tof_max_range_m = 12.0;
+    double tof_protocol_min_range_m = 0.02;
+    double tof_protocol_max_range_m = 12.0;
+    double tof_mapping_min_range_m = 0.05;
+    double tof_mapping_max_range_m = 12.0;
     int confidence_min = 70;
+    int tof_mapping_min_confidence = 70;
+    double tof_full_fov_deg = 1.6;
     int median_window = 5;
     double jump_reject_m = 0.6;
     double mad_reject_m = 0.20;
@@ -180,12 +186,12 @@ struct Config {
         double x_m = 0.0;
         double y_m = 0.0;
         double yaw_deg = 0.0;
-        double fov_deg = 10.0;
+        double fov_deg = 1.6;
     };
     std::map<std::string, TofExtrinsic> tof_extrinsics{
-        {"front", {0.10, 0.00, 0.0, 10.0}},
-        {"left", {0.00, 0.08, 90.0, 10.0}},
-        {"right", {0.00, -0.08, -90.0, 10.0}},
+        {"front", {0.10, 0.00, 0.0, 1.6}},
+        {"left", {0.00, 0.08, 90.0, 1.6}},
+        {"right", {0.00, -0.08, -90.0, 1.6}},
     };
     double resolution_m = 0.05;
     int chunk_cells = 64;
@@ -555,7 +561,7 @@ struct Config {
     int real_adapter_contract_tof_min_range_count = 3;
     int real_adapter_contract_tof_max_range_count = 4096;
     double real_adapter_contract_tof_min_range_m = 0.02;
-    double real_adapter_contract_tof_max_range_m = 10.0;
+    double real_adapter_contract_tof_max_range_m = 12.0;
     double real_adapter_contract_tof_max_allowed_nan_ratio = 0.25;
     bool real_adapter_contract_require_tof_frame_id = true;
     double real_adapter_contract_imu_max_abs_yaw_rate_rad_s = 20.0;
@@ -738,7 +744,7 @@ struct Config {
     bool multi_tof_raw_data_contract_require_unique_mount_ids = true;
     bool multi_tof_raw_data_contract_require_unique_frame_ids = true;
     bool multi_tof_raw_data_contract_require_request_timing = true;
-    bool multi_tof_raw_data_contract_allow_nan_ranges = true;
+    bool multi_tof_raw_data_contract_allow_nan_ranges = false;
     int multi_tof_raw_data_contract_min_required_tof_count = 3;
     double multi_tof_raw_data_contract_front_mount_yaw_rad = 0.0;
     double multi_tof_raw_data_contract_left_mount_yaw_rad = 1.5707963267948966;
@@ -749,9 +755,9 @@ struct Config {
     double multi_tof_raw_data_contract_max_request_latency_mismatch_s = 0.001;
     double multi_tof_raw_data_contract_max_estimated_sample_time_midpoint_error_s = 0.005;
     double multi_tof_raw_data_contract_max_future_timestamp_skew_s = 0.05;
-    double multi_tof_raw_data_contract_max_nan_ratio = 0.50;
+    double multi_tof_raw_data_contract_max_nan_ratio = 0.0;
     double multi_tof_raw_data_contract_min_range_m = 0.02;
-    double multi_tof_raw_data_contract_max_range_m = 8.00;
+    double multi_tof_raw_data_contract_max_range_m = 12.00;
     std::string multi_tof_raw_data_contract_front_frame_id = "tof_front_frame";
     std::string multi_tof_raw_data_contract_left_frame_id = "tof_left_frame";
     std::string multi_tof_raw_data_contract_right_frame_id = "tof_right_frame";
@@ -792,6 +798,11 @@ struct CjcBl4820WheelReading {
     uint16_t current_raw = 0;
     double current_a = 0.0;
     uint8_t status = 0xff;
+    uint64_t request_start_us = 0;
+    uint64_t response_received_us = 0;
+    uint64_t estimated_sample_us = 0;
+    uint64_t latency_us = 0;
+    bool timing_valid = false;
     std::string reason = "not_read";
 };
 

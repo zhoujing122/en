@@ -1,5 +1,6 @@
 #pragma once
 
+#include "robot_slamd/autonomy/real_adapters/multi_tof/scalar_tof_geometry.hpp"
 #include "robot_slamd/autonomy/real_adapters/sensor_data/real_sensor_data_contract_types.hpp"
 
 #include <cmath>
@@ -41,22 +42,60 @@ enum class MultiTofContractFault {
     InvalidAngle,
     InvalidRangeLimits,
     NanRatioTooHigh,
-    InvalidPacketTimestamp
+    InvalidPacketTimestamp,
+    DistanceBelowProtocolMinimum,
+    DistanceAboveProtocolMaximum,
+    ConfidenceZero,
+    ConfidenceOutOfRange,
+    ConfidenceBelowMappingThreshold,
+    DistanceOutsideMappingRange,
+    InvalidFullFov
+};
+
+enum class ScalarTofValidity {
+    ValidForMapping,
+    DiagnosticOnly,
+    Invalid
+};
+
+enum class ScalarTofFault {
+    None,
+    InvalidFrameLength,
+    DistanceBelowProtocolMinimum,
+    DistanceAboveProtocolMaximum,
+    ConfidenceZero,
+    ConfidenceOutOfRange,
+    ConfidenceBelowMappingThreshold,
+    DistanceOutsideMappingRange,
+    InvalidRequestTiming,
+    RequestLatencyTooHigh,
+    FutureTimestamp,
+    StaleTimestamp,
+    InvalidFullFov
 };
 
 struct MultiTofRawFrame {
     MultiTofMountId mount_id = MultiTofMountId::Front;
+    uint64_t echo_tag_u48 = 0;
+    uint16_t distance_mm = 0;
+    uint8_t confidence = 0;
     RealSensorRequestTiming timing;
     std::string frame_id;
-    std::vector<double> ranges_m;
-    double angle_min_rad = 0.0;
-    double angle_max_rad = 0.0;
-    double angle_increment_rad = 0.0;
-    double range_min_m = 0.0;
-    double range_max_m = 0.0;
     double mount_yaw_rad = 0.0;
+    double full_fov_rad = 0.0;
     int sequence = 0;
     std::string source;
+};
+
+struct ScalarTofValidatedReading {
+    MultiTofRawFrame raw;
+    double distance_m = 0.0;
+    double effective_timestamp_s = 0.0;
+    bool protocol_valid = false;
+    bool usable_for_mapping = false;
+    ScalarTofValidity validity = ScalarTofValidity::Invalid;
+    ScalarTofFault fault = ScalarTofFault::None;
+    std::string reason;
 };
 
 struct MultiTofRawPacket {
@@ -81,7 +120,6 @@ struct MultiTofContractOptions {
     bool require_unique_mount_ids = true;
     bool require_unique_frame_ids = true;
     bool require_request_timing = true;
-    bool allow_nan_ranges = true;
     int min_required_tof_count = 3;
     double front_mount_yaw_rad = 0.0;
     double left_mount_yaw_rad = 1.5707963267948966;
@@ -92,9 +130,12 @@ struct MultiTofContractOptions {
     double max_request_latency_mismatch_s = 0.001;
     double max_estimated_sample_time_midpoint_error_s = 0.005;
     double max_future_timestamp_skew_s = 0.05;
-    double max_nan_ratio = 0.50;
-    double min_range_m = 0.02;
-    double max_range_m = 8.00;
+    int protocol_min_distance_mm = 20;
+    int protocol_max_distance_mm = 12000;
+    int mapping_min_distance_mm = 50;
+    int mapping_max_distance_mm = 12000;
+    int mapping_min_confidence = 70;
+    double full_fov_deg = 1.6;
     std::string front_frame_id = "tof_front_frame";
     std::string left_frame_id = "tof_left_frame";
     std::string right_frame_id = "tof_right_frame";
@@ -179,6 +220,20 @@ inline std::string to_string(MultiTofContractFault fault) {
         return "nan_ratio_too_high";
     case MultiTofContractFault::InvalidPacketTimestamp:
         return "invalid_packet_timestamp";
+    case MultiTofContractFault::DistanceBelowProtocolMinimum:
+        return "distance_below_protocol_minimum";
+    case MultiTofContractFault::DistanceAboveProtocolMaximum:
+        return "distance_above_protocol_maximum";
+    case MultiTofContractFault::ConfidenceZero:
+        return "confidence_zero";
+    case MultiTofContractFault::ConfidenceOutOfRange:
+        return "confidence_out_of_range";
+    case MultiTofContractFault::ConfidenceBelowMappingThreshold:
+        return "confidence_below_mapping_threshold";
+    case MultiTofContractFault::DistanceOutsideMappingRange:
+        return "distance_outside_mapping_range";
+    case MultiTofContractFault::InvalidFullFov:
+        return "invalid_full_fov";
     }
     return "unknown";
 }
@@ -219,13 +274,11 @@ inline MultiTofRawFrame make_multi_tof_frame(
     frame.mount_id = mount_id;
     frame.timing = make_request_timing(request_start_s, response_received_s);
     frame.frame_id = frame_id;
-    frame.ranges_m = {1.0, 1.2, 1.4, 1.6};
-    frame.angle_min_rad = -0.30;
-    frame.angle_max_rad = 0.30;
-    frame.angle_increment_rad = 0.20;
-    frame.range_min_m = 0.02;
-    frame.range_max_m = 8.00;
+    frame.echo_tag_u48 = 0x000044332211ULL + static_cast<uint64_t>(multi_tof_mount_id_id(mount_id));
+    frame.distance_mm = 2731;
+    frame.confidence = 100;
     frame.mount_yaw_rad = mount_yaw_rad;
+    frame.full_fov_rad = scalar_tof_default_full_fov_rad();
     frame.sequence = 1;
     frame.source = "deterministic_multi_tof_sample";
     return frame;

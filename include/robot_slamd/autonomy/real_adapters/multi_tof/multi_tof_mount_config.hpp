@@ -27,18 +27,18 @@ public:
         config.front.mount_id = MultiTofMountId::Front;
         config.front.frame_id = "tof_front_frame";
         config.front.yaw_rad = 0.0;
-        config.front.fov_min_rad = -0.30;
-        config.front.fov_max_rad = 0.30;
+        config.front.fov_min_rad = -0.5 * scalar_tof_default_full_fov_rad();
+        config.front.fov_max_rad = 0.5 * scalar_tof_default_full_fov_rad();
         config.left.mount_id = MultiTofMountId::Left;
         config.left.frame_id = "tof_left_frame";
         config.left.yaw_rad = 1.5707963267948966;
-        config.left.fov_min_rad = -0.30;
-        config.left.fov_max_rad = 0.30;
+        config.left.fov_min_rad = -0.5 * scalar_tof_default_full_fov_rad();
+        config.left.fov_max_rad = 0.5 * scalar_tof_default_full_fov_rad();
         config.right.mount_id = MultiTofMountId::Right;
         config.right.frame_id = "tof_right_frame";
         config.right.yaw_rad = -1.5707963267948966;
-        config.right.fov_min_rad = -0.30;
-        config.right.fov_max_rad = 0.30;
+        config.right.fov_min_rad = -0.5 * scalar_tof_default_full_fov_rad();
+        config.right.fov_max_rad = 0.5 * scalar_tof_default_full_fov_rad();
         return config;
     }
 };

@@ -7,7 +7,7 @@ latest.txt
 *.a
 *.so
 *.so.*
-robot_slamd
+/robot_slamd
 test_cjc_bl4820
 test_map_quality
 *.pgm

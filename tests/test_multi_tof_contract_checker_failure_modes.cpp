@@ -20,7 +20,7 @@ int main() {
     expect(!checker.check_packet(MultiTofSampleData::duplicate_frame_id_packet(), 100.0).ok, "duplicate frame fail");
     expect(!checker.check_packet(MultiTofSampleData::duplicate_mount_id_packet(), 100.0).ok, "duplicate mount fail");
     expect(!checker.check_packet(MultiTofSampleData::invalid_mount_yaw_packet(), 100.0).ok, "invalid yaw fail");
-    expect(!checker.check_packet(MultiTofSampleData::empty_ranges_packet(), 100.0).ok, "empty ranges fail");
+    expect(!checker.check_packet(MultiTofSampleData::invalid_distance_packet(), 100.0).ok, "invalid distance fail");
     expect(!checker.check_packet(MultiTofSampleData::latency_too_high_packet(), 100.0).ok, "latency too high fail");
     auto bad_timing = MultiTofSampleData::valid_three_tof_packet();
     bad_timing.front.timing.request_latency_s = 0.001;

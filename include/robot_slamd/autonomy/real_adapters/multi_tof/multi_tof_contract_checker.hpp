@@ -17,6 +17,71 @@ public:
         MultiTofContractOptions options = {})
         : options_(options) {}
 
+    ScalarTofValidatedReading validate_reading(
+        const MultiTofRawFrame &frame,
+        double now_s) const {
+        ScalarTofValidatedReading reading;
+        reading.raw = frame;
+        reading.distance_m = static_cast<double>(frame.distance_mm) / 1000.0;
+        reading.effective_timestamp_s = frame.timing.estimated_sample_time_s;
+
+        const auto timing = check_request_timing(frame.timing, now_s, "scalar_tof");
+        if (!timing.ok) {
+            reading.fault = timing_to_scalar_fault(timing.fault);
+            reading.reason = timing.message;
+            return reading;
+        }
+        if (!std::isfinite(frame.full_fov_rad) || frame.full_fov_rad <= 0.0) {
+            reading.fault = ScalarTofFault::InvalidFullFov;
+            reading.reason = "invalid_full_fov";
+            return reading;
+        }
+        if (frame.distance_mm < options_.protocol_min_distance_mm) {
+            reading.fault = ScalarTofFault::DistanceBelowProtocolMinimum;
+            reading.reason = "distance_below_protocol_minimum";
+            return reading;
+        }
+        if (frame.distance_mm > options_.protocol_max_distance_mm) {
+            reading.fault = ScalarTofFault::DistanceAboveProtocolMaximum;
+            reading.reason = "distance_above_protocol_maximum";
+            return reading;
+        }
+        if (frame.confidence > 100) {
+            reading.fault = ScalarTofFault::ConfidenceOutOfRange;
+            reading.reason = "confidence_out_of_range";
+            return reading;
+        }
+        if (frame.confidence == 0) {
+            reading.protocol_valid = false;
+            reading.usable_for_mapping = false;
+            reading.validity = ScalarTofValidity::Invalid;
+            reading.fault = ScalarTofFault::ConfidenceZero;
+            reading.reason = "confidence_zero";
+            return reading;
+        }
+
+        reading.protocol_valid = true;
+        if (frame.confidence < options_.mapping_min_confidence) {
+            reading.validity = ScalarTofValidity::DiagnosticOnly;
+            reading.fault = ScalarTofFault::ConfidenceBelowMappingThreshold;
+            reading.reason = "low_confidence";
+            return reading;
+        }
+        if (frame.distance_mm < options_.mapping_min_distance_mm ||
+            frame.distance_mm > options_.mapping_max_distance_mm) {
+            reading.validity = ScalarTofValidity::DiagnosticOnly;
+            reading.fault = ScalarTofFault::DistanceOutsideMappingRange;
+            reading.reason = "distance_outside_mapping_range";
+            return reading;
+        }
+
+        reading.usable_for_mapping = true;
+        reading.validity = ScalarTofValidity::ValidForMapping;
+        reading.fault = ScalarTofFault::None;
+        reading.reason = "ok";
+        return reading;
+    }
+
     MultiTofContractResult check_frame(
         const MultiTofRawFrame &frame,
         double now_s,
@@ -28,58 +93,33 @@ public:
             options_.max_mount_yaw_error_rad) {
             return reject(MultiTofContractFault::InvalidMountYaw, label + "_invalid_mount_yaw");
         }
-        const auto timing = check_request_timing(frame.timing, now_s, label);
-        if (!timing.ok) {
-            return timing;
+        const auto reading = validate_reading(frame, now_s);
+        if (reading.fault == ScalarTofFault::InvalidRequestTiming ||
+            reading.fault == ScalarTofFault::RequestLatencyTooHigh ||
+            reading.fault == ScalarTofFault::FutureTimestamp ||
+            reading.fault == ScalarTofFault::StaleTimestamp) {
+            return reject(scalar_to_contract_fault(reading.fault), label + "_" + reading.reason);
         }
-        if (frame.ranges_m.empty()) {
-            return reject(MultiTofContractFault::EmptyRanges, label + "_empty_ranges");
-        }
-        if (!std::isfinite(frame.angle_min_rad) ||
-            !std::isfinite(frame.angle_max_rad) ||
-            !std::isfinite(frame.angle_increment_rad) ||
-            frame.angle_increment_rad <= 0.0 ||
-            frame.angle_max_rad < frame.angle_min_rad) {
-            return reject(MultiTofContractFault::InvalidAngle, label + "_invalid_angle");
-        }
-        if (!std::isfinite(frame.range_min_m) ||
-            !std::isfinite(frame.range_max_m) ||
-            frame.range_min_m <= 0.0 ||
-            frame.range_max_m <= frame.range_min_m) {
-            return reject(MultiTofContractFault::InvalidRangeLimits, label + "_invalid_range_limits");
-        }
-
-        int nan_count = 0;
-        int valid_count = 0;
-        for (const double range_m : frame.ranges_m) {
-            if (!std::isfinite(range_m)) {
-                nan_count++;
-                continue;
-            }
-            if (range_m >= frame.range_min_m &&
-                range_m <= frame.range_max_m &&
-                range_m >= options_.min_range_m &&
-                range_m <= options_.max_range_m) {
-                valid_count++;
-            }
-        }
-        const double nan_ratio = static_cast<double>(nan_count) /
-                                 static_cast<double>(frame.ranges_m.size());
-        if ((!options_.allow_nan_ranges && nan_count > 0) || nan_ratio > options_.max_nan_ratio) {
-            return reject(MultiTofContractFault::NanRatioTooHigh, label + "_nan_ratio_too_high");
-        }
-        if (valid_count <= 0) {
-            return reject(MultiTofContractFault::EmptyRanges, label + "_no_valid_ranges");
+        if (!reading.protocol_valid) {
+            return reject(scalar_to_contract_fault(reading.fault), label + "_" + reading.reason);
         }
 
         MultiTofContractResult result;
         result.ok = true;
-        result.status = MultiTofContractStatus::Accepted;
-        result.fault = MultiTofContractFault::None;
-        result.valid_tof_count = 1;
-        result.passed.push_back("multi_tof_" + label + "_ok");
+        result.status = reading.usable_for_mapping ? MultiTofContractStatus::Accepted
+                                                   : MultiTofContractStatus::Warning;
+        result.fault = reading.usable_for_mapping ? MultiTofContractFault::None
+                                                  : scalar_to_contract_fault(reading.fault);
+        result.valid_tof_count = reading.usable_for_mapping ? 1 : 0;
+        result.passed.push_back("multi_tof_" + label + "_protocol_ok");
         result.passed.push_back("multi_tof_" + label + "_request_timing_ok");
-        result.message = label + "_tof_frame_ok";
+        if (reading.usable_for_mapping) {
+            result.passed.push_back("multi_tof_" + label + "_mapping_usable");
+            result.message = label + "_tof_frame_ok";
+        } else {
+            result.warnings.push_back("multi_tof_" + label + "_diagnostic_only_" + reading.reason);
+            result.message = label + "_tof_frame_diagnostic_only";
+        }
         return result;
     }
 
@@ -111,15 +151,9 @@ public:
         }
 
         std::vector<std::pair<std::string, MultiTofRawFrame>> frames;
-        if (packet.has_front) {
-            frames.push_back({"front", packet.front});
-        }
-        if (packet.has_left) {
-            frames.push_back({"left", packet.left});
-        }
-        if (packet.has_right) {
-            frames.push_back({"right", packet.right});
-        }
+        if (packet.has_front) frames.push_back({"front", packet.front});
+        if (packet.has_left) frames.push_back({"left", packet.left});
+        if (packet.has_right) frames.push_back({"right", packet.right});
 
         if (options_.require_unique_mount_ids) {
             std::set<int> mount_ids;
@@ -143,21 +177,27 @@ public:
 
         MultiTofContractResult result;
         result.ok = true;
-        result.status = MultiTofContractStatus::Warning;
+        result.status = MultiTofContractStatus::Accepted;
         result.fault = MultiTofContractFault::None;
-        result.valid_tof_count = present_count;
         for (const auto &entry : frames) {
             const auto frame_result = check_frame(entry.second, now_s, entry.first);
             if (!frame_result.ok) {
                 return frame_result;
             }
-            result.passed.insert(result.passed.end(),
-                                 frame_result.passed.begin(),
-                                 frame_result.passed.end());
+            result.valid_tof_count += frame_result.valid_tof_count;
+            result.passed.insert(result.passed.end(), frame_result.passed.begin(), frame_result.passed.end());
+            result.warnings.insert(result.warnings.end(), frame_result.warnings.begin(), frame_result.warnings.end());
+            if (frame_result.status == MultiTofContractStatus::Warning) {
+                result.status = MultiTofContractStatus::Warning;
+            }
         }
-        result.warnings.push_back("multi_tof_pairwise_sync_deferred_to_m3c1");
-        result.warnings.push_back("multi_tof_imu_wheel_sync_deferred_to_m3c1");
-        result.message = "multi_tof_packet_ok_sync_deferred";
+        if (result.valid_tof_count < options_.min_required_tof_count) {
+            return reject(MultiTofContractFault::TooFewTofFrames,
+                          "multi_tof_too_few_mapping_usable_tof_frames");
+        }
+        result.message = result.status == MultiTofContractStatus::Warning
+                             ? "multi_tof_packet_ok_with_diagnostic_only_frames"
+                             : "multi_tof_packet_ok";
         return result;
     }
 
@@ -201,8 +241,7 @@ private:
             return reject(MultiTofContractFault::EstimatedSampleTimeOutsideWindow,
                           label + "_estimated_sample_time_outside_window");
         }
-        const double midpoint_s =
-            0.5 * (timing.request_start_s + timing.response_received_s);
+        const double midpoint_s = 0.5 * (timing.request_start_s + timing.response_received_s);
         if (std::fabs(timing.estimated_sample_time_s - midpoint_s) >
             options_.max_estimated_sample_time_midpoint_error_s) {
             return reject(MultiTofContractFault::EstimatedSampleTimeMidpointMismatch,
@@ -214,7 +253,7 @@ private:
         }
         if (now_s - timing.estimated_sample_time_s > options_.max_packet_age_s) {
             return reject(MultiTofContractFault::InvalidRequestTiming,
-                          label + "_stale_request_timing");
+                          label + "_stale_timestamp");
         }
 
         MultiTofContractResult result;
@@ -223,6 +262,46 @@ private:
         result.fault = MultiTofContractFault::None;
         result.message = label + "_request_timing_ok";
         return result;
+    }
+
+    static ScalarTofFault timing_to_scalar_fault(MultiTofContractFault fault) {
+        if (fault == MultiTofContractFault::RequestLatencyTooHigh) {
+            return ScalarTofFault::RequestLatencyTooHigh;
+        }
+        if (fault == MultiTofContractFault::FutureTimestamp) {
+            return ScalarTofFault::FutureTimestamp;
+        }
+        return ScalarTofFault::InvalidRequestTiming;
+    }
+
+    static MultiTofContractFault scalar_to_contract_fault(ScalarTofFault fault) {
+        switch (fault) {
+        case ScalarTofFault::DistanceBelowProtocolMinimum:
+            return MultiTofContractFault::DistanceBelowProtocolMinimum;
+        case ScalarTofFault::DistanceAboveProtocolMaximum:
+            return MultiTofContractFault::DistanceAboveProtocolMaximum;
+        case ScalarTofFault::ConfidenceZero:
+            return MultiTofContractFault::ConfidenceZero;
+        case ScalarTofFault::ConfidenceOutOfRange:
+            return MultiTofContractFault::ConfidenceOutOfRange;
+        case ScalarTofFault::ConfidenceBelowMappingThreshold:
+            return MultiTofContractFault::ConfidenceBelowMappingThreshold;
+        case ScalarTofFault::DistanceOutsideMappingRange:
+            return MultiTofContractFault::DistanceOutsideMappingRange;
+        case ScalarTofFault::RequestLatencyTooHigh:
+            return MultiTofContractFault::RequestLatencyTooHigh;
+        case ScalarTofFault::FutureTimestamp:
+            return MultiTofContractFault::FutureTimestamp;
+        case ScalarTofFault::InvalidFullFov:
+            return MultiTofContractFault::InvalidFullFov;
+        case ScalarTofFault::InvalidRequestTiming:
+        case ScalarTofFault::StaleTimestamp:
+            return MultiTofContractFault::InvalidRequestTiming;
+        case ScalarTofFault::None:
+        case ScalarTofFault::InvalidFrameLength:
+            return MultiTofContractFault::None;
+        }
+        return MultiTofContractFault::None;
     }
 
     MultiTofContractResult reject(

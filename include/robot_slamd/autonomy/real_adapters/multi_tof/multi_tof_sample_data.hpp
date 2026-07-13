@@ -63,9 +63,15 @@ public:
         return packet;
     }
 
-    static MultiTofRawPacket empty_ranges_packet() {
+    static MultiTofRawPacket invalid_distance_packet() {
         auto packet = valid_three_tof_packet();
-        packet.front.ranges_m.clear();
+        packet.front.distance_mm = 19;
+        return packet;
+    }
+
+    static MultiTofRawPacket low_confidence_packet() {
+        auto packet = valid_three_tof_packet();
+        packet.front.confidence = 69;
         return packet;
     }
 

@@ -33,7 +33,9 @@ int main() {
     expect(packet.packet.left.frame_id == "tof_left_frame", "left frame preserved");
     expect(packet.packet.right.frame_id == "tof_right_frame", "right frame preserved");
     expect(packet.packet.left.mount_yaw_rad > 1.5, "left yaw preserved");
-    expect(packet.packet.front.ranges_m.size() == 4, "ranges preserved");
+    expect(packet.packet.front.distance_mm == 2731, "distance preserved");
+    expect(packet.packet.front.confidence == 100, "confidence preserved");
+    expect(packet.packet.front.echo_tag_u48 == 0x000044332211ULL, "echo tag preserved");
     expect(packet.packet.has_imu && packet.packet.has_wheel, "imu wheel present");
     const auto encoded = codec.encode_record(packet.packet);
     const auto decoded = codec.decode_line(encoded, 7);

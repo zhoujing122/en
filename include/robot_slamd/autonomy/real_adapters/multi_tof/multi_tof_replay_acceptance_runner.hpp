@@ -38,7 +38,7 @@ public:
                  false, {}, sync, snapshot, replay, report);
         run_case("missing_field", codec.decode_lines(MultiTofReplaySampleLog::missing_field_log_lines()),
                  false, {}, sync, snapshot, replay, report);
-        run_case("empty_ranges", codec.decode_lines(MultiTofReplaySampleLog::empty_ranges_log_lines()),
+        run_case("invalid_payload", codec.decode_lines(MultiTofReplaySampleLog::invalid_payload_log_lines()),
                  false, {}, sync, snapshot, replay, report);
         run_case("pairwise_sync_failure", codec.decode_lines(MultiTofReplaySampleLog::pairwise_sync_failure_log_lines()),
                  false, {}, sync, snapshot, replay, report);

@@ -3,6 +3,7 @@
 #include "robot_slamd/motion/algorithm_motion_command.hpp"
 #include "robot_slamd/software_motion/software_motion_command.hpp"
 
+#include <cstdint>
 #include <string>
 #include <vector>
 
@@ -62,6 +63,23 @@ struct TofScanFrame {
     double angle_increment_rad = 0.0;
     double max_range_m = 0.0;
     std::string frame_id;
+    std::string source;
+};
+
+
+struct ScalarTofSnapshotFrame {
+    double distance_m = 0.0;
+    uint16_t distance_mm = 0;
+    uint8_t confidence = 0;
+    uint64_t echo_tag_u48 = 0;
+    double effective_timestamp_s = 0.0;
+    bool protocol_valid = false;
+    bool usable_for_mapping = false;
+    double full_fov_rad = 0.0;
+    double mount_yaw_rad = 0.0;
+    std::string frame_id;
+    std::string source;
+    std::string reason;
 };
 
 struct ImuFrame {
@@ -83,12 +101,13 @@ struct MultiTofSnapshot {
     bool has_front = false;
     bool has_left = false;
     bool has_right = false;
-    TofScanFrame front;
-    TofScanFrame left;
-    TofScanFrame right;
+    ScalarTofSnapshotFrame front;
+    ScalarTofSnapshotFrame left;
+    ScalarTofSnapshotFrame right;
     double synchronized_time_s = 0.0;
     int valid_tof_count = 0;
     bool degraded = false;
+    std::string degraded_reason;
     double front_left_dt_s = 0.0;
     double front_right_dt_s = 0.0;
     double left_right_dt_s = 0.0;

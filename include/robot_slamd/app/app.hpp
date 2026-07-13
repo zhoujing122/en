@@ -207,6 +207,8 @@ int real_main(int argc, char **argv) {
     uint64_t last_loc = start, last_tof = start, last_map = start, last_log = start, last_correction = start;
     bool have_last_encoder_sample_time = false;
     uint64_t last_encoder_sample_time = 0;
+    uint64_t last_tof_measurement_time = 0;
+    bool have_last_tof_measurement_time = false;
     std::vector<TofSample> latest_tof;
     double latest_tof_sample_s = -1.0;
     double latest_encoder_feedback_s = -1.0;
@@ -544,17 +546,20 @@ int real_main(int argc, char **argv) {
                            << static_cast<int>(elog.left_status) << "," << static_cast<int>(elog.right_status) << ","
                            << elog.decision << "," << elog.reason << "\n";
             }
-            if (cfg.encoder_source == "csv") {
-                if (have_last_encoder_sample_time && enc.t_us > last_encoder_sample_time) {
-                    dt = static_cast<double>(enc.t_us - last_encoder_sample_time) / 1000000.0;
-                }
+            bool encoder_fresh = !have_last_encoder_sample_time || enc.t_us > last_encoder_sample_time;
+            if (encoder_fresh && have_last_encoder_sample_time) {
+                dt = static_cast<double>(enc.t_us - last_encoder_sample_time) / 1000000.0;
+            }
+            if (encoder_fresh) {
                 last_encoder_sample_time = enc.t_us;
                 have_last_encoder_sample_time = true;
             }
             ImuSample imu = sensors.read_imu(now, sim_t);
-            loc.update(enc, imu, dt);
-            latest_encoder_feedback_s = sim_t;
-            metrics.localization_updates++;
+            if (encoder_fresh) {
+                loc.update(enc, imu, dt);
+                latest_encoder_feedback_s = sim_t;
+                metrics.localization_updates++;
+            }
             std::vector<std::string> sensor_warnings = sensors.consume_warnings();
             for (const auto &sw : sensor_warnings) {
                 if (sw == "imu_gap" || sw == "icm43600_no_data") supervisor_imu_gap_count++;
@@ -582,7 +587,15 @@ int real_main(int argc, char **argv) {
         if ((now - last_tof) >= static_cast<uint64_t>(1000000.0 / cfg.tof_read_hz)) {
             last_tof = now;
             latest_tof = sensors.read_tof(now, loc.pose());
-            if (!latest_tof.empty()) latest_tof_sample_s = sim_t;
+            uint64_t max_tof_time = 0;
+            for (const auto &sample : latest_tof) {
+                max_tof_time = std::max(max_tof_time, sample.t_us);
+            }
+            if (!latest_tof.empty() && (!have_last_tof_measurement_time || max_tof_time > last_tof_measurement_time)) {
+                latest_tof_sample_s = sim_t;
+                last_tof_measurement_time = max_tof_time;
+                have_last_tof_measurement_time = true;
+            }
             for (const auto &ev : sensors.consume_tof_events()) {
                 toflog << ev.t_us << "," << ev.id << ",-1,-1,0,0,0,0,0,0,0," << ev.decision << "\n";
             }

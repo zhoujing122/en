@@ -24,10 +24,8 @@ int main() {
     const auto result = checker.check_packet(MultiTofSampleData::valid_three_tof_packet(), 100.0);
     expect(result.ok, "valid packet pass");
     expect(result.valid_tof_count == 3, "valid count 3");
-    expect(contains(result.passed, "multi_tof_front_ok"), "front passed");
-    expect(contains(result.passed, "multi_tof_left_ok"), "left passed");
-    expect(contains(result.passed, "multi_tof_right_ok"), "right passed");
-    expect(contains(result.warnings, "multi_tof_pairwise_sync_deferred_to_m3c1"), "pairwise sync deferred");
-    expect(contains(result.warnings, "multi_tof_imu_wheel_sync_deferred_to_m3c1"), "imu wheel sync deferred");
+    expect(contains(result.passed, "multi_tof_front_protocol_ok"), "front passed");
+    expect(contains(result.passed, "multi_tof_left_protocol_ok"), "left passed");
+    expect(contains(result.passed, "multi_tof_right_protocol_ok"), "right passed");
     return failures ? 1 : 0;
 }

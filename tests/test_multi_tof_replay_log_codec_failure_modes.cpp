@@ -32,11 +32,11 @@ int main() {
            "invalid bool invalid record");
     expect(rec.error.find("invalid_bool") != std::string::npos,
            "invalid bool error");
-    rec = codec.decode_lines(MultiTofReplaySampleLog::empty_ranges_log_lines()).front();
+    rec = codec.decode_lines(MultiTofReplaySampleLog::invalid_payload_log_lines()).front();
     expect(rec.kind == MultiTofReplayRecordKind::InvalidRecord,
-           "empty ranges invalid record");
-    expect(rec.error.find("empty_ranges") != std::string::npos,
-           "empty ranges error");
+           "invalid payload invalid record");
+    expect(rec.error.find("invalid_hex_length") != std::string::npos,
+           "invalid payload error");
     rec = codec.decode_line("this is not valid", 42);
     expect(rec.kind == MultiTofReplayRecordKind::InvalidRecord,
            "parse error not comment");

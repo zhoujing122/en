@@ -27,19 +27,19 @@ public:
 
     static std::vector<std::string> invalid_numeric_log_lines() {
         auto line = line_for(MultiTofSyncSampleData::valid_synced_packet());
-        replace_token(line, "front_est=100", "front_est=bad");
+        replace_token(line, "front_req_start=99.98", "front_req_start=bad");
         return {line};
     }
 
     static std::vector<std::string> missing_field_log_lines() {
         auto line = line_for(MultiTofSyncSampleData::valid_synced_packet());
-        replace_token(line, " left_ranges=1,1.2,1.4,1.6", "");
+        replace_key_value(line, "left_payload_hex", "");
         return {line};
     }
 
-    static std::vector<std::string> empty_ranges_log_lines() {
+    static std::vector<std::string> invalid_payload_log_lines() {
         auto line = line_for(MultiTofSyncSampleData::valid_synced_packet());
-        replace_token(line, "right_ranges=1,1.2,1.4,1.6", "right_ranges=");
+        replace_key_value(line, "right_payload_hex", "right_payload_hex=00");
         return {line};
     }
 
@@ -78,6 +78,20 @@ private:
         if (pos != std::string::npos) {
             line.replace(pos, from.size(), to);
         }
+    }
+
+    static void replace_key_value(
+        std::string &line,
+        const std::string &key,
+        const std::string &replacement) {
+        const std::string needle = " " + key + "=";
+        const auto pos = line.find(needle);
+        if (pos == std::string::npos) {
+            return;
+        }
+        const auto end = line.find(" ", pos + 1);
+        const auto count = end == std::string::npos ? std::string::npos : end - pos;
+        line.replace(pos, count, replacement.empty() ? "" : " " + replacement);
     }
 };
 

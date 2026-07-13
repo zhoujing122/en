@@ -69,3 +69,7 @@ A future real three-ToF adapter must pass both the M3-C0 raw contract and the M3
 M3-C2 note: real adapters must eventually feed synchronized front/left/right ToF packets into the Multi-ToF snapshot builder; no real driver is connected yet.
 
 M3-C3 note: replay/log now covers front/left/right ToF raw packets through sync and snapshot construction. Real drivers remain unimplemented and must not bypass the contract/sync/snapshot chain.
+
+## M3-C3.1 Protocol Alignment Note
+
+M3-C3.1 replaces the M3-C three-ToF replay contract with scalar single-point ToF readings backed by the confirmed 9-byte payload: 48-bit echo tag, `distance_mm`, and `confidence`. The echo tag is retained for correlation/debug only and is not used as measurement time. Synchronization uses request-window midpoint timestamps. The default full ToF FOV is 1.6 degrees and must not be expanded into synthetic ranges or point clouds. Legacy `snapshot.tof` is only a one-range compatibility projection for old fake backends. This stage does not connect real ToF/UART hardware, enable real motion, write real maps, perform pose writeback, or implement true three-ToF SLAM fusion.

@@ -52,15 +52,15 @@ tof_extrinsics:
   front.x_m: 0.10
   front.y_m: 0.00
   front.yaw_deg: 0
-  front.fov_deg: 10
+  front.fov_deg: 1.6
   left.x_m: 0.00
   left.y_m: 0.08
   left.yaw_deg: 90
-  left.fov_deg: 10
+  left.fov_deg: 1.6
   right.x_m: 0.00
   right.y_m: -0.08
   right.yaw_deg: -90
-  right.fov_deg: 10
+  right.fov_deg: 1.6
 
 mapping:
   resolution_m: 0.05
@@ -475,7 +475,7 @@ real_adapter_contract:
   tof_min_range_count: 3
   tof_max_range_count: 4096
   tof_min_range_m: 0.02
-  tof_max_range_m: 10.0
+  tof_max_range_m: 12.0
   tof_max_allowed_nan_ratio: 0.25
   require_tof_frame_id: true
   imu_max_abs_yaw_rate_rad_s: 20.0
@@ -523,7 +523,7 @@ real_sensor_adapter_data_contract:
   require_imu_or_wheel: true
   require_frame_id: true
   require_request_timing: true
-  allow_nan_ranges: true
+  allow_nan_ranges: false
   max_packet_age_s: 0.50
   max_sensor_sync_dt_s: 0.10
   max_request_latency_s: 0.20
@@ -580,7 +580,7 @@ deterministic_slam_backend:
   min_yaw_coverage_ratio_for_good: 0.30
   keyframe_yaw_delta_rad: 0.15
   min_range_m: 0.02
-  max_range_m: 8.00
+  max_range_m: 12.00
   max_update_latency_s: 0.50
   assumed_scan_yaw_span_rad: 0.52
   yaw_bin_size_rad: 0.26
@@ -664,7 +664,7 @@ multi_tof_raw_data_contract:
   require_unique_mount_ids: true
   require_unique_frame_ids: true
   require_request_timing: true
-  allow_nan_ranges: true
+  allow_nan_ranges: false
   min_required_tof_count: 3
   front_mount_yaw_rad: 0.0
   left_mount_yaw_rad: 1.5707963267948966
@@ -675,9 +675,9 @@ multi_tof_raw_data_contract:
   max_request_latency_mismatch_s: 0.001
   max_estimated_sample_time_midpoint_error_s: 0.005
   max_future_timestamp_skew_s: 0.05
-  max_nan_ratio: 0.50
+  max_nan_ratio: 0.0
   min_range_m: 0.02
-  max_range_m: 8.00
+  max_range_m: 12.00
   front_frame_id: tof_front_frame
   left_frame_id: tof_left_frame
   right_frame_id: tof_right_frame

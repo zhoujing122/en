@@ -164,6 +164,22 @@ inline double current_raw_to_a(uint16_t raw) {
     return static_cast<double>(raw) * 0.1;
 }
 
+inline uint64_t read_midpoint_us(uint64_t request_start_us, uint64_t response_received_us) {
+    return request_start_us + (response_received_us - request_start_us) / 2;
+}
+
+inline uint64_t pair_midpoint_us(uint64_t left_timestamp_us, uint64_t right_timestamp_us) {
+    const uint64_t lo = std::min(left_timestamp_us, right_timestamp_us);
+    const uint64_t hi = std::max(left_timestamp_us, right_timestamp_us);
+    return lo + (hi - lo) / 2;
+}
+
+inline uint64_t pair_skew_us(uint64_t left_timestamp_us, uint64_t right_timestamp_us) {
+    const uint64_t lo = std::min(left_timestamp_us, right_timestamp_us);
+    const uint64_t hi = std::max(left_timestamp_us, right_timestamp_us);
+    return hi - lo;
+}
+
 inline double pair_skew_us(double left_timestamp_s, double right_timestamp_s) {
     if (!std::isfinite(left_timestamp_s) || !std::isfinite(right_timestamp_s)) return std::numeric_limits<double>::infinity();
     return std::fabs(left_timestamp_s - right_timestamp_s) * 1000000.0;
@@ -281,7 +297,6 @@ public:
         std::string left_reason, right_reason;
         bool left_ok = read_wheel(left_, left_read, left_reason);
         bool right_ok = read_wheel(right_, right_read, right_reason);
-        update_pair_skew();
         fill_log_from_readings(left_read, right_read);
 
         if (!left_ok || !right_ok) {
@@ -289,6 +304,20 @@ public:
             mark_unhealthy_from_consecutive_errors();
             return false;
         }
+
+        update_pair_skew();
+        if (cfg_.encoder_require_pair_skew_ok_for_odometry && !stats_.encoder_pair_skew_ok) {
+            last_log_.decision = "rejected";
+            last_log_.reason = "encoder_pair_skew_exceeded";
+            stats_.jump_rejects++;
+            mark_error(left_);
+            mark_error(right_);
+            mark_unhealthy_from_consecutive_errors();
+            return false;
+        }
+
+        const uint64_t pair_timestamp_us = cjc_bl4820::pair_midpoint_us(
+            left_read.estimated_sample_us, right_read.estimated_sample_us);
 
         int64_t left_delta = 0, right_delta = 0, left_total = 0, right_total = 0;
         if (!candidate_total(left_, left_read.position_raw, left_delta, left_total, left_reason) ||
@@ -302,8 +331,8 @@ public:
             return false;
         }
 
-        commit(left_, left_read.position_raw, left_delta, left_total, t_us);
-        commit(right_, right_read.position_raw, right_delta, right_total, t_us);
+        commit(left_, left_read.position_raw, left_delta, left_total, pair_timestamp_us);
+        commit(right_, right_read.position_raw, right_delta, right_total, pair_timestamp_us);
         stats_.left_total_ticks = left_.state.total_ticks;
         stats_.right_total_ticks = right_.state.total_ticks;
         stats_.left_rpm = left_read.rpm;
@@ -322,17 +351,15 @@ public:
         last_log_.left_total_ticks = left_.state.total_ticks;
         last_log_.right_total_ticks = right_.state.total_ticks;
 
-        last_sample_ = {t_us, left_.state.total_ticks, right_.state.total_ticks};
+        last_sample_ = {pair_timestamp_us, left_.state.total_ticks, right_.state.total_ticks};
         have_last_sample_ = true;
         sample = last_sample_;
         return true;
     }
 
     bool have_last_sample() const { return have_last_sample_; }
-    EncoderSample last_sample(uint64_t t_us) const {
-        EncoderSample out = last_sample_;
-        out.t_us = t_us;
-        return out;
+    EncoderSample last_sample(uint64_t) const {
+        return last_sample_;
     }
     const EncoderStats &stats() const { return stats_; }
     const EncoderLogSample &last_log() const { return last_log_; }
@@ -447,7 +474,7 @@ private:
             record_error(port, reason);
             return false;
         }
-        finish_read_attempt(port, start_us, true);
+        finish_read_attempt(port, start_us, true, &reading);
         record_success(port);
         record_reading(port, reading);
         return true;
@@ -566,16 +593,25 @@ private:
         }
     }
 
-    void finish_read_attempt(WheelPort &port, uint64_t start_us, bool ok) {
+    void finish_read_attempt(WheelPort &port, uint64_t start_us, bool ok, CjcBl4820WheelReading *reading = nullptr) {
         const uint64_t end_us = now_us_steady();
-        const double latency = static_cast<double>(end_us - start_us);
-        const double timestamp_s = static_cast<double>(end_us) / 1000000.0;
+        const uint64_t latency_us = end_us >= start_us ? end_us - start_us : 0;
+        const uint64_t estimated_sample_us = cjc_bl4820::read_midpoint_us(start_us, end_us);
+        const double latency = static_cast<double>(latency_us);
+        const double timestamp_s = static_cast<double>(estimated_sample_us) / 1000000.0;
+        if (reading != nullptr) {
+            reading->request_start_us = start_us;
+            reading->response_received_us = end_us;
+            reading->estimated_sample_us = estimated_sample_us;
+            reading->latency_us = latency_us;
+            reading->timing_valid = ok;
+        }
         if (port.is_left) {
-            stats_.left_latency_us = latency; stats_.left_timestamp_s = timestamp_s; stats_.left_read_ok = ok;
-            if (ok) { stats_.left_frame_ok = true; stats_.left_checksum_ok = true; }
+            stats_.left_latency_us = latency; stats_.left_read_ok = ok;
+            if (ok) { stats_.left_timestamp_s = timestamp_s; stats_.left_frame_ok = true; stats_.left_checksum_ok = true; }
         } else {
-            stats_.right_latency_us = latency; stats_.right_timestamp_s = timestamp_s; stats_.right_read_ok = ok;
-            if (ok) { stats_.right_frame_ok = true; stats_.right_checksum_ok = true; }
+            stats_.right_latency_us = latency; stats_.right_read_ok = ok;
+            if (ok) { stats_.right_timestamp_s = timestamp_s; stats_.right_frame_ok = true; stats_.right_checksum_ok = true; }
         }
     }
 
@@ -784,9 +820,7 @@ public:
             add_warning("tof_gap");
             tof_events_.push_back({t_us, "all", "tof_eof"});
             if (have_tof_csv_) {
-                std::vector<TofSample> held = last_tof_csv_;
-                for (auto &smp : held) smp.t_us = t_us;
-                return held;
+                return last_tof_csv_;
             }
             return {};
         }
