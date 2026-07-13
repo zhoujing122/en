@@ -6,11 +6,27 @@
 
 namespace robot_slamd {
 
+struct RobotSlamMapUpdateInput {
+    double timestamp_s = 0.0;
+    RobotSlamSensorSnapshot snapshot;
+    RobotPose2D predicted_map_pose;
+    bool has_predicted_map_pose = false;
+    bool mapping_commit_allowed = true;
+    std::string source;
+};
+
 class RobotSlamMapPort {
 public:
     virtual ~RobotSlamMapPort() = default;
 
     virtual bool ready() const = 0;
+
+    virtual bool integrate_map_update(const RobotSlamMapUpdateInput &input) {
+        if (!input.mapping_commit_allowed) {
+            return false;
+        }
+        return integrate_sensor_snapshot(input.snapshot, input.timestamp_s);
+    }
 
     virtual bool integrate_sensor_snapshot(const RobotSlamSensorSnapshot &snapshot,
                                            double now_s) = 0;

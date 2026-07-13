@@ -22,14 +22,27 @@ public:
         return backend_ && backend_->ready();
     }
 
-    bool integrate_sensor_snapshot(const RobotSlamSensorSnapshot &snapshot,
-                                   double now_s) override {
+    bool integrate_map_update(const RobotSlamMapUpdateInput &map_update) override {
+        if (!map_update.mapping_commit_allowed) {
+            SlamBackendUpdateResult skipped;
+            skipped.status = SlamBackendUpdateStatus::Skipped;
+            skipped.fault = SlamBackendFault::None;
+            skipped.map_updated = false;
+            skipped.message = "mapping_commit_not_allowed";
+            history_.push_back(skipped);
+            return false;
+        }
+
         // Input frame contract check.
         SlamBackendInputFrame input;
-        input.timestamp_s = now_s;
-        input.snapshot = snapshot;
-        input.source = "robot_slam_map_port";
-        const auto input_check = checker_.check_input_frame(input, now_s);
+        input.timestamp_s = map_update.timestamp_s;
+        input.snapshot = map_update.snapshot;
+        input.predicted_pose = map_update.predicted_map_pose;
+        input.has_predicted_pose = map_update.has_predicted_map_pose;
+        input.source = map_update.source.empty()
+                           ? "robot_slam_map_port"
+                           : map_update.source;
+        const auto input_check = checker_.check_input_frame(input, map_update.timestamp_s);
         if (input_check.status != SlamBackendUpdateStatus::Accepted) {
             history_.push_back(input_check);
             return false;
@@ -54,6 +67,17 @@ public:
             return true;
         }
         return false;
+    }
+
+    bool integrate_sensor_snapshot(const RobotSlamSensorSnapshot &snapshot,
+                                   double now_s) override {
+        RobotSlamMapUpdateInput input;
+        input.timestamp_s = now_s;
+        input.snapshot = snapshot;
+        input.source = "robot_slam_map_port";
+        input.has_predicted_map_pose = false;
+        input.mapping_commit_allowed = true;
+        return integrate_map_update(input);
     }
 
     RobotSlamMapQuality latest_quality(double now_s) const override {
