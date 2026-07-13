@@ -21,6 +21,7 @@ struct SimThreeScalarTofConfig {
     double right_response_offset_s = 0.0004;
     uint8_t hit_confidence = 100;
     uint8_t no_hit_confidence = 0;
+    bool no_hit_as_explicit_no_return = false;
     bool front_dropout = false;
     bool left_dropout = false;
     bool right_dropout = false;
@@ -132,7 +133,9 @@ private:
         frame.echo_tag_u48 = (echo_prefix + static_cast<uint64_t>(sequence)) &
                              0x0000FFFFFFFFFFFFULL;
         frame.distance_mm = distance_mm;
-        frame.confidence = hit.hit ? config_.hit_confidence : config_.no_hit_confidence;
+        frame.confidence = hit.hit || config_.no_hit_as_explicit_no_return
+                               ? config_.hit_confidence
+                               : config_.no_hit_confidence;
         const double response = now_s - response_offset_s;
         frame.timing = make_request_timing(response - latency_s,
                                            response,
@@ -141,7 +144,10 @@ private:
         frame.mount_yaw_rad = mount_yaw_rad;
         frame.full_fov_rad = sim_degrees_to_radians(config_.full_fov_deg);
         frame.sequence = sequence;
-        frame.source = hit.hit ? "sim_center_raycast_hit" : "sim_center_raycast_no_hit";
+        frame.source = hit.hit ? "sim_center_raycast_hit"
+                               : (config_.no_hit_as_explicit_no_return
+                                      ? "sim_center_raycast_explicit_no_return"
+                                      : "sim_center_raycast_no_hit");
         return frame;
     }
 
