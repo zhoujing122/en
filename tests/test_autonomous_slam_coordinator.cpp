@@ -26,6 +26,35 @@ robot_slamd::AutonomousSlamStepInput input(double now_s) {
     in.now_s = now_s;
     return in;
 }
+
+class CountingSensorPort final : public robot_slamd::RobotSlamSensorPort {
+public:
+    bool ready() const override { return true; }
+    robot_slamd::RobotSlamSensorSnapshot latest_snapshot(double now_s) override {
+        read_count++;
+        snapshot.tof.timestamp_s = now_s;
+        snapshot.imu.timestamp_s = now_s;
+        snapshot.wheel.timestamp_s = now_s;
+        return snapshot;
+    }
+    std::string status() const override { return "counting_sensor"; }
+    int read_count = 0;
+    robot_slamd::RobotSlamSensorSnapshot snapshot;
+};
+
+robot_slamd::RobotSlamSensorSnapshot valid_legacy_snapshot() {
+    robot_slamd::RobotSlamSensorSnapshot s;
+    s.has_tof = true;
+    s.has_imu = true;
+    s.has_wheel = true;
+    s.tof.ranges_m = {0.5};
+    s.tof.timestamp_s = 1.0;
+    s.tof.source = "legacy_scalar_tof_projection:test";
+    s.imu.timestamp_s = 1.0;
+    s.wheel.timestamp_s = 1.0;
+    s.wheel.valid = true;
+    return s;
+}
 } // namespace
 
 int main() {
@@ -158,6 +187,47 @@ int main() {
         expect(!motion->sent_commands.empty() &&
                    motion->sent_commands.back().kind == AlgorithmMotionKind::Stop,
                "stop request sends stop");
+    }
+
+
+
+    {
+        auto sensor = std::make_shared<CountingSensorPort>();
+        sensor->snapshot = valid_legacy_snapshot();
+        auto motion = std::make_shared<FakeRobotSlamMotionPort>();
+        auto map = std::make_shared<FakeRobotSlamMapPort>(1);
+        AutonomousSlamCoordinator coordinator(sensor, motion, map, enabled_options());
+        auto start = input(70.0);
+        start.start_requested = true;
+        coordinator.step(start);
+        coordinator.step(input(70.1));
+        auto explicit_multi = input(70.2);
+        explicit_multi.sensors.has_multi_tof = true;
+        explicit_multi.sensors.multi_tof.has_front = true;
+        auto out = coordinator.step(explicit_multi);
+        expect(sensor->read_count == 0,
+               "explicit multi-ToF input does not consume sensor port");
+        expect(out.state == AutonomousSlamState::Fault,
+               "multi-ToF without legacy projection fails initialization");
+        expect(out.fault == AutonomousSlamFault::InitializationFailed,
+               "multi-ToF only init failure explicit");
+    }
+
+    {
+        auto sensor = std::make_shared<CountingSensorPort>();
+        sensor->snapshot = valid_legacy_snapshot();
+        auto motion = std::make_shared<FakeRobotSlamMotionPort>();
+        auto map = std::make_shared<FakeRobotSlamMapPort>(1);
+        AutonomousSlamCoordinator coordinator(sensor, motion, map, enabled_options());
+        auto start = input(80.0);
+        start.start_requested = true;
+        coordinator.step(start);
+        coordinator.step(input(80.1));
+        auto out = coordinator.step(input(80.2));
+        expect(sensor->read_count == 1,
+               "empty input keeps existing sensor port read behavior");
+        expect(out.state == AutonomousSlamState::Mapping,
+               "empty input can initialize from sensor port");
     }
 
     if (failures) {

@@ -32,7 +32,19 @@ int main() {
     expect(!comments.ready(), "no packet not ready");
     MultiTofReplayPort invalid(codec.decode_lines(MultiTofReplaySampleLog::invalid_numeric_log_lines()),
                                {}, sync, snapshot, replay);
-    expect(!invalid.ready(), "invalid record not ready");
+    expect(!invalid.ready(), "only invalid records have no packet and are not ready");
+    auto invalid_then_valid_lines = MultiTofReplaySampleLog::invalid_numeric_log_lines();
+    const auto valid_lines = MultiTofReplaySampleLog::valid_log_lines();
+    invalid_then_valid_lines.insert(invalid_then_valid_lines.end(),
+                                    valid_lines.begin(),
+                                    valid_lines.end());
+    MultiTofReplayPort invalid_then_valid(codec.decode_lines(invalid_then_valid_lines),
+                                          {}, sync, snapshot, replay);
+    expect(invalid_then_valid.ready(), "invalid record with later packet ready");
+    auto invalid_result = invalid_then_valid.latest_snapshot(100.0);
+    expect(!invalid_result.ok && invalid_result.fault == MultiTofReplayFault::InvalidRecord,
+           "invalid record exposed at read time");
+
     MultiTofReplayPort valid(codec.decode_lines(MultiTofReplaySampleLog::valid_log_lines()),
                              {}, sync, snapshot, replay);
     expect(valid.ready(), "valid ready");

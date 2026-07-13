@@ -94,6 +94,14 @@ struct FullAutonomousSlamPipelineReport {
     FakeMapArtifact fake_map_artifact;
     int sensor_consumed_count = 0;
     int sensor_skipped_count = 0;
+    int multi_tof_snapshot_count = 0;
+    int legacy_tof_snapshot_count = 0;
+    int snapshots_with_front = 0;
+    int snapshots_with_left = 0;
+    int snapshots_with_right = 0;
+    int degraded_multi_tof_snapshot_count = 0;
+    bool saw_multi_tof_snapshot = false;
+    bool saw_legacy_scalar_projection = false;
 };
 
 inline std::string to_string(FullAutonomousSlamPipelineStage stage) {

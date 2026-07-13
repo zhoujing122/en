@@ -141,7 +141,7 @@ private:
     }
 
     RobotSlamSensorSnapshot current_snapshot(const AutonomousSlamStepInput &input) {
-        if (input.sensors.has_tof || input.sensors.has_imu || input.sensors.has_wheel) {
+        if (snapshot_has_any_payload(input.sensors)) {
             return input.sensors;
         }
         return sensor_port_ ? sensor_port_->latest_snapshot(input.now_s)

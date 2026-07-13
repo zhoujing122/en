@@ -5,6 +5,7 @@
 #include "robot_slamd/autonomy/full_pipeline/full_autonomous_slam_fake_motion_port.hpp"
 #include "robot_slamd/autonomy/full_pipeline/full_autonomous_slam_scenario_builder.hpp"
 #include "robot_slamd/autonomy/map_backend/slam_backend_map_port_adapter.hpp"
+#include "robot_slamd/autonomy/ports/robot_slam_sensor_port.hpp"
 #include "robot_slamd/autonomy/real_adapters/sensor_replay/real_sensor_replay_port.hpp"
 #include "robot_slamd/autonomy/real_adapters/slam_backend/deterministic_slam_backend_binding.hpp"
 
@@ -45,7 +46,23 @@ public:
             scenario.replay_log,
             RealSensorSnapshotBuilder{},
             replay_options);
-        if (!replay->ready()) {
+        return run_once_with_sensor(scenario, replay);
+    }
+
+    FullAutonomousSlamPipelineReport run_once_with_sensor(
+        const FullAutonomousSlamScenario &scenario,
+        std::shared_ptr<RobotSlamSensorPort> sensor_port) const {
+        FullAutonomousSlamPipelineReport report;
+        report.stage = FullAutonomousSlamPipelineStage::BuildingScenario;
+        report.scenario = scenario.kind;
+        auto options = effective_options(scenario);
+        if (!options.enabled) {
+            return fail(report,
+                        FullAutonomousSlamPipelineFault::ScenarioInvalid,
+                        "full_pipeline_disabled");
+        }
+
+        if (!sensor_port || !sensor_port->ready()) {
             return fail(report,
                         FullAutonomousSlamPipelineFault::SensorReplayNotReady,
                         "full_pipeline_sensor_replay_not_ready");
@@ -68,7 +85,7 @@ public:
         coordinator_options.max_active_scan_commands =
             options.max_active_scan_commands;
         AutonomousSlamCoordinator coordinator(
-            replay,
+            sensor_port,
             motion_port,
             map_port,
             coordinator_options);
@@ -93,10 +110,8 @@ public:
                 should_consume_sensor_for_state(state_before, step);
             if (consume_sensor) {
                 report.stage = FullAutonomousSlamPipelineStage::RunningSensorReplay;
-                step_snapshot = replay->latest_snapshot(now_s);
-                if (!step_snapshot.has_tof &&
-                    !step_snapshot.has_imu &&
-                    !step_snapshot.has_wheel) {
+                step_snapshot = sensor_port->latest_snapshot(now_s);
+                if (!snapshot_has_any_payload(step_snapshot)) {
                     return fail(report,
                                 FullAutonomousSlamPipelineFault::SensorSnapshotMissing,
                                 "full_pipeline_sensor_snapshot_missing",
@@ -108,6 +123,7 @@ public:
                 has_last_snapshot = true;
                 report.sensor_snapshot_count++;
                 report.sensor_consumed_count++;
+                record_sensor_payload(report, step_snapshot);
                 append_trace(report,
                              FullAutonomousSlamTraceEventKind::SensorConsumed,
                              step,
@@ -315,6 +331,36 @@ private:
             return false;
         }
         return false;
+    }
+
+    static void record_sensor_payload(
+        FullAutonomousSlamPipelineReport &report,
+        const RobotSlamSensorSnapshot &snapshot) {
+        if (snapshot.has_tof) {
+            report.legacy_tof_snapshot_count++;
+            if (snapshot.tof.ranges_m.size() == 1 &&
+                snapshot.tof.source.find("legacy_scalar_tof_projection") !=
+                    std::string::npos) {
+                report.saw_legacy_scalar_projection = true;
+            }
+        }
+        if (!snapshot.has_multi_tof) {
+            return;
+        }
+        report.multi_tof_snapshot_count++;
+        report.saw_multi_tof_snapshot = true;
+        if (snapshot.multi_tof.has_front) {
+            report.snapshots_with_front++;
+        }
+        if (snapshot.multi_tof.has_left) {
+            report.snapshots_with_left++;
+        }
+        if (snapshot.multi_tof.has_right) {
+            report.snapshots_with_right++;
+        }
+        if (snapshot.multi_tof.degraded) {
+            report.degraded_multi_tof_snapshot_count++;
+        }
     }
 
     static void update_backend_counts(

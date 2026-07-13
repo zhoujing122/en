@@ -127,6 +127,14 @@ struct RobotSlamSensorSnapshot {
     WheelOdomFrame wheel;
 };
 
+inline bool snapshot_has_any_payload(
+    const RobotSlamSensorSnapshot &snapshot) {
+    return snapshot.has_tof ||
+           snapshot.has_multi_tof ||
+           snapshot.has_imu ||
+           snapshot.has_wheel;
+}
+
 struct RobotSlamMapQuality {
     bool good_enough = false;
     double coverage_ratio = 0.0;

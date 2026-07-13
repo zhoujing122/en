@@ -24,9 +24,7 @@ public:
 
     bool ready() const {
         return replay_options_.enabled && !records_.empty() &&
-               packet_count() > 0 &&
-               (!replay_options_.reject_invalid_records ||
-                invalid_record_count() == 0);
+               packet_count() > 0;
     }
 
     MultiTofReplayReadResult latest_snapshot(double external_now_s) {
