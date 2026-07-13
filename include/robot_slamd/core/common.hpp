@@ -208,6 +208,8 @@ struct Config {
     int max_cells_per_tof_update = 4096;
     int static_scan_stable_required = 3;
     double static_scan_boost = 1.5;
+    std::string slam_runtime_mode = "legacy";
+    std::string sparse_shadow_sensor_source = "deterministic_simulation";
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;

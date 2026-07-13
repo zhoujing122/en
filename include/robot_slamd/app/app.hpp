@@ -21,6 +21,7 @@
 #include "robot_slamd/active_scan/yaw_correction_gate.hpp"
 #include "robot_slamd/active_scan/yaw_correction_apply.hpp"
 #include "robot_slamd/active_scan/yaw_correction_post_apply_validator.hpp"
+#include "robot_slamd/runtime/sparse_shadow_runtime.hpp"
 
 namespace robot_slamd {
 
@@ -56,6 +57,16 @@ int real_main(int argc, char **argv) {
     write_resolved_config(cfg, run_dir + "/config.resolved.yaml");
     std::ifstream src(config_path, std::ios::binary);
     std::ofstream(run_dir + "/config.input.yaml", std::ios::binary) << src.rdbuf();
+
+    if (resolved_slam_runtime_mode(cfg.slam_runtime_mode) == SlamRuntimeMode::SparseShadow) {
+        const auto report = run_sparse_shadow_runtime(cfg, duration_s, run_dir);
+        if (!report.ok) {
+            std::cerr << report.last_message << "\n";
+            return 1;
+        }
+        std::cout << "robot_slamd sparse_shadow run_dir=" << run_dir << "\n";
+        return 0;
+    }
 
     std::ofstream traj(run_dir + "/trajectory.csv");
     std::ofstream loclog(run_dir + "/localization_log.csv");

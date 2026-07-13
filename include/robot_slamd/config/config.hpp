@@ -159,6 +159,10 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.max_cells_per_tof_update = get_int(kv, "mapping.max_cells_per_tof_update", c.max_cells_per_tof_update);
     c.static_scan_stable_required = get_int(kv, "mapping.static_scan_stable_required", c.static_scan_stable_required);
     c.static_scan_boost = get_double(kv, "mapping.static_scan_boost", c.static_scan_boost);
+    c.slam_runtime_mode = get_string(kv, "runtime.slam_runtime_mode", c.slam_runtime_mode);
+    c.slam_runtime_mode = get_string(kv, "slam_runtime.mode", c.slam_runtime_mode);
+    c.sparse_shadow_sensor_source = get_string(kv, "runtime.sparse_shadow_sensor_source", c.sparse_shadow_sensor_source);
+    c.sparse_shadow_sensor_source = get_string(kv, "slam_runtime.sparse_shadow_sensor_source", c.sparse_shadow_sensor_source);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -744,6 +748,9 @@ void validate_config(const Config &c) {
     if (c.static_scan_stable_required <= 0) errors.push_back("mapping.static_scan_stable_required must be > 0");
     positive("mapping.static_scan_boost", c.static_scan_boost);
 
+    if (!one_of(c.slam_runtime_mode, {"legacy", "sparse_shadow"})) errors.push_back("slam_runtime.mode must be legacy or sparse_shadow");
+    if (!one_of(c.sparse_shadow_sensor_source, {"deterministic_simulation", "hardware", "replay"})) errors.push_back("slam_runtime.sparse_shadow_sensor_source must be deterministic_simulation, replay, or hardware");
+    if (c.slam_runtime_mode == "sparse_shadow" && c.sparse_shadow_sensor_source != "deterministic_simulation") errors.push_back("SparseShadow supports only deterministic_simulation source in M3-D1.1; hardware and replay are fail-closed");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1721,6 +1728,9 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  gyro_bias_static_calib_s: " << c.gyro_bias_static_calib_s << "\n"
       << "  static_gyro_max_abs_rad_s: " << c.static_gyro_max_abs_rad_s << "\n"
       << "  yaw_fusion_alpha: " << c.yaw_fusion_alpha << "\n";
+    o << "slam_runtime:\n"
+      << "  mode: " << c.slam_runtime_mode << "\n"
+      << "  sparse_shadow_sensor_source: " << c.sparse_shadow_sensor_source << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"
