@@ -361,7 +361,7 @@ private:
         }
     }
 
-    const Config &cfg_;
+    Config cfg_;
     double last_log_s_ = -1.0;
     SparseScanYawMatchSummary latest_summary_;
     SparseScanYawMatchRunStats stats_;
