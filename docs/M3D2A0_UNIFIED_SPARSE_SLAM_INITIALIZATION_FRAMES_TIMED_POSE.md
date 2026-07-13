@@ -32,3 +32,11 @@ this stage. Loading an existing map with a configured pose returns
 
 M3-D2A0 does not implement local matching, keyframes, sparse map save/load,
 relocalization, Frontier, A*, real hardware, or real motion.
+
+## Timed Pose Alignment
+
+TimedOdomPoseBuffer stores a bounded, strictly monotonic sequence of odom_T_base samples. It rejects non-finite timestamps, non-finite poses, duplicate timestamps, and non-monotonic timestamps. Lookup never extrapolates: queries before the oldest sample, after the newest sample, or across a gap larger than the configured interpolation limit are rejected. Interpolation is linear for x_m and y_m; yaw uses the shortest angular delta across the +/-pi boundary.
+
+MultiTofMeasurementPoseResolver resolves each scalar ToF route independently: front uses front.effective_timestamp_s, left uses left.effective_timestamp_s, and right uses right.effective_timestamp_s. The resolver returns the robot base pose in the map frame at each measurement time. Sensor extrinsics remain in the sparse ToF observation builder/backend path and are not applied by the resolver.
+
+RobotSlamMapUpdateInput and SlamBackendInputFrame now carry an explicit MultiTofMeasurementPoseSet. The sparse backend can run in strict measurement-time mode, where missing or timestamp-mismatched per-route poses reject the update. The legacy D1 single-pose fallback remains available only as an explicit compatibility option; the unified sparse runtime must disable it.

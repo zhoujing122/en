@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot_slamd/autonomy/autonomous_slam_types.hpp"
+#include "robot_slamd/runtime/multi_tof_measurement_pose_types.hpp"
 
 #include <string>
 
@@ -11,6 +12,8 @@ struct RobotSlamMapUpdateInput {
     RobotSlamSensorSnapshot snapshot;
     RobotPose2D predicted_map_pose;
     bool has_predicted_map_pose = false;
+    MultiTofMeasurementPoseSet multi_tof_measurement_poses;
+    bool has_multi_tof_measurement_poses = false;
     bool mapping_commit_allowed = true;
     std::string source;
 };

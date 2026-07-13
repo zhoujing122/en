@@ -70,6 +70,9 @@ struct SparseMultiTofOccupancyBackendOptions {
     int minimum_angular_bins_for_good_quality = 2;
     SparseOccupancyGridConfig grid;
     SparseTofObservationBuilderOptions observation_builder;
+    bool require_multi_tof_measurement_poses = false;
+    bool allow_single_pose_fallback = true;
+    double measurement_pose_timestamp_tolerance_s = 1e-6;
 };
 
 struct SparseMultiTofOccupancyBackendReport {
@@ -77,6 +80,8 @@ struct SparseMultiTofOccupancyBackendReport {
     bool native_multi_tof_backend_consumption = false;
     bool legacy_projection_consumed = false;
     bool ground_truth_consumed = false;
+    bool measurement_time_pose_consumed = false;
+    bool single_pose_fallback_consumed = false;
     int snapshot_update_attempt_count = 0;
     int accepted_snapshot_count = 0;
     int rejected_snapshot_count = 0;
@@ -163,19 +168,44 @@ public:
                           "sparse_multi_tof_pose_invalid");
         }
 
+        const bool use_measurement_poses =
+            input.has_multi_tof_measurement_poses &&
+            input.multi_tof_measurement_poses.complete;
+        if (!use_measurement_poses &&
+            options_.require_multi_tof_measurement_poses) {
+            report_.rejected_pose_update_count++;
+            return reject(SparseMultiTofBackendFault::PoseUnavailable,
+                          SlamBackendFault::UpdateRejected,
+                          "sparse_multi_tof_measurement_pose_unavailable");
+        }
+        if (!use_measurement_poses &&
+            !options_.allow_single_pose_fallback) {
+            report_.rejected_pose_update_count++;
+            return reject(SparseMultiTofBackendFault::PoseUnavailable,
+                          SlamBackendFault::UpdateRejected,
+                          "sparse_multi_tof_single_pose_fallback_disabled");
+        }
+        if (use_measurement_poses &&
+            !measurement_pose_set_valid(input)) {
+            report_.rejected_pose_update_count++;
+            return reject(SparseMultiTofBackendFault::PoseInvalid,
+                          SlamBackendFault::UpdateRejected,
+                          "sparse_multi_tof_measurement_pose_invalid");
+        }
+
         std::vector<SparseTofRayObservation> observations;
         observations.reserve(3);
         build_if_present(input, "front", input.snapshot.multi_tof.has_front,
                          input.snapshot.multi_tof.front,
-                         input.predicted_pose,
+                         pose_for_front(input, use_measurement_poses),
                          observations);
         build_if_present(input, "left", input.snapshot.multi_tof.has_left,
                          input.snapshot.multi_tof.left,
-                         input.predicted_pose,
+                         pose_for_left(input, use_measurement_poses),
                          observations);
         build_if_present(input, "right", input.snapshot.multi_tof.has_right,
                          input.snapshot.multi_tof.right,
-                         input.predicted_pose,
+                         pose_for_right(input, use_measurement_poses),
                          observations);
 
         const auto stats = grid_.apply_observations(observations);
@@ -190,6 +220,8 @@ public:
         report_.native_multi_tof_backend_consumption = true;
         report_.legacy_projection_consumed = false;
         report_.ground_truth_consumed = false;
+        report_.measurement_time_pose_consumed = use_measurement_poses;
+        report_.single_pose_fallback_consumed = !use_measurement_poses;
         report_.hit_ray_count += stats.hit_ray_count;
         report_.no_return_ray_count += stats.no_return_ray_count;
         report_.invalid_ray_count += stats.invalid_ray_count;
@@ -260,6 +292,46 @@ public:
     }
 
 private:
+    bool measurement_pose_set_valid(const SlamBackendInputFrame &input) const {
+        return measurement_pose_valid(input.multi_tof_measurement_poses.front,
+                                      input.snapshot.multi_tof.front) &&
+               measurement_pose_valid(input.multi_tof_measurement_poses.left,
+                                      input.snapshot.multi_tof.left) &&
+               measurement_pose_valid(input.multi_tof_measurement_poses.right,
+                                      input.snapshot.multi_tof.right);
+    }
+
+    bool measurement_pose_valid(const TimedMapBasePose2D &pose,
+                                const ScalarTofSnapshotFrame &frame) const {
+        return pose.valid &&
+               sparse_slam_frame_pose_valid(pose.base_pose_in_map) &&
+               std::isfinite(pose.measurement_timestamp_s) &&
+               std::fabs(pose.measurement_timestamp_s -
+                         frame.effective_timestamp_s) <=
+                   options_.measurement_pose_timestamp_tolerance_s;
+    }
+
+    RobotPose2D pose_for_front(const SlamBackendInputFrame &input,
+                               bool use_measurement_poses) const {
+        return use_measurement_poses
+                   ? input.multi_tof_measurement_poses.front.base_pose_in_map.map_T_base
+                   : input.predicted_pose;
+    }
+
+    RobotPose2D pose_for_left(const SlamBackendInputFrame &input,
+                              bool use_measurement_poses) const {
+        return use_measurement_poses
+                   ? input.multi_tof_measurement_poses.left.base_pose_in_map.map_T_base
+                   : input.predicted_pose;
+    }
+
+    RobotPose2D pose_for_right(const SlamBackendInputFrame &input,
+                               bool use_measurement_poses) const {
+        return use_measurement_poses
+                   ? input.multi_tof_measurement_poses.right.base_pose_in_map.map_T_base
+                   : input.predicted_pose;
+    }
+
     void build_if_present(const SlamBackendInputFrame &input,
                           const std::string &name,
                           bool present,

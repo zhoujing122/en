@@ -39,6 +39,10 @@ public:
         input.snapshot = map_update.snapshot;
         input.predicted_pose = map_update.predicted_map_pose;
         input.has_predicted_pose = map_update.has_predicted_map_pose;
+        input.multi_tof_measurement_poses =
+            map_update.multi_tof_measurement_poses;
+        input.has_multi_tof_measurement_poses =
+            map_update.has_multi_tof_measurement_poses;
         input.source = map_update.source.empty()
                            ? "robot_slam_map_port"
                            : map_update.source;

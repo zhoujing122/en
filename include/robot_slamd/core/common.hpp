@@ -216,6 +216,10 @@ struct Config {
     double sparse_slam_configured_pose_x_m = 0.0;
     double sparse_slam_configured_pose_y_m = 0.0;
     double sparse_slam_configured_pose_yaw_rad = 0.0;
+    int sparse_slam_pose_buffer_capacity = 64;
+    double sparse_slam_pose_buffer_max_age_s = 10.0;
+    double sparse_slam_pose_interpolation_max_gap_s = 0.25;
+    bool sparse_slam_require_all_measurement_poses = true;
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;

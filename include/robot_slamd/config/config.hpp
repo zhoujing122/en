@@ -169,6 +169,10 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_configured_pose_x_m = get_double(kv, "sparse_slam.configured_pose_x_m", c.sparse_slam_configured_pose_x_m);
     c.sparse_slam_configured_pose_y_m = get_double(kv, "sparse_slam.configured_pose_y_m", c.sparse_slam_configured_pose_y_m);
     c.sparse_slam_configured_pose_yaw_rad = get_double(kv, "sparse_slam.configured_pose_yaw_rad", c.sparse_slam_configured_pose_yaw_rad);
+    c.sparse_slam_pose_buffer_capacity = get_int(kv, "sparse_slam.pose_buffer_capacity", c.sparse_slam_pose_buffer_capacity);
+    c.sparse_slam_pose_buffer_max_age_s = get_double(kv, "sparse_slam.pose_buffer_max_age_s", c.sparse_slam_pose_buffer_max_age_s);
+    c.sparse_slam_pose_interpolation_max_gap_s = get_double(kv, "sparse_slam.pose_interpolation_max_gap_s", c.sparse_slam_pose_interpolation_max_gap_s);
+    c.sparse_slam_require_all_measurement_poses = get_bool(kv, "sparse_slam.require_all_measurement_poses", c.sparse_slam_require_all_measurement_poses);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -764,6 +768,10 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_configured_pose_x_m)) errors.push_back("sparse_slam.configured_pose_x_m must be finite");
     if (!std::isfinite(c.sparse_slam_configured_pose_y_m)) errors.push_back("sparse_slam.configured_pose_y_m must be finite");
     if (!std::isfinite(c.sparse_slam_configured_pose_yaw_rad)) errors.push_back("sparse_slam.configured_pose_yaw_rad must be finite");
+    if (c.sparse_slam_pose_buffer_capacity <= 1) errors.push_back("sparse_slam.pose_buffer_capacity must be > 1");
+    if (c.sparse_slam_pose_buffer_capacity > 4096) errors.push_back("sparse_slam.pose_buffer_capacity must be <= 4096");
+    if (!std::isfinite(c.sparse_slam_pose_buffer_max_age_s) || c.sparse_slam_pose_buffer_max_age_s < 0.0) errors.push_back("sparse_slam.pose_buffer_max_age_s must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_pose_interpolation_max_gap_s) || c.sparse_slam_pose_interpolation_max_gap_s < 0.0) errors.push_back("sparse_slam.pose_interpolation_max_gap_s must be finite and >= 0");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1750,7 +1758,11 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  has_configured_pose: " << bool_yaml(c.sparse_slam_has_configured_pose) << "\n"
       << "  configured_pose_x_m: " << c.sparse_slam_configured_pose_x_m << "\n"
       << "  configured_pose_y_m: " << c.sparse_slam_configured_pose_y_m << "\n"
-      << "  configured_pose_yaw_rad: " << c.sparse_slam_configured_pose_yaw_rad << "\n";
+      << "  configured_pose_yaw_rad: " << c.sparse_slam_configured_pose_yaw_rad << "\n"
+      << "  pose_buffer_capacity: " << c.sparse_slam_pose_buffer_capacity << "\n"
+      << "  pose_buffer_max_age_s: " << c.sparse_slam_pose_buffer_max_age_s << "\n"
+      << "  pose_interpolation_max_gap_s: " << c.sparse_slam_pose_interpolation_max_gap_s << "\n"
+      << "  require_all_measurement_poses: " << bool_yaml(c.sparse_slam_require_all_measurement_poses) << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"
