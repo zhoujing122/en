@@ -220,6 +220,12 @@ struct Config {
     double sparse_slam_pose_buffer_max_age_s = 10.0;
     double sparse_slam_pose_interpolation_max_gap_s = 0.25;
     bool sparse_slam_require_all_measurement_poses = true;
+    int sparse_slam_startup_min_imu_samples = 1;
+    double sparse_slam_startup_max_abs_linear_speed_mps = 0.02;
+    double sparse_slam_startup_max_abs_wheel_yaw_rate_rad_s = 0.02;
+    double sparse_slam_startup_max_abs_imu_yaw_rate_rad_s = 0.02;
+    double sparse_slam_startup_max_gyro_bias_abs_rad_s = 0.10;
+    double sparse_slam_startup_max_gyro_spread_rad_s = 0.01;
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;

@@ -173,6 +173,12 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_pose_buffer_max_age_s = get_double(kv, "sparse_slam.pose_buffer_max_age_s", c.sparse_slam_pose_buffer_max_age_s);
     c.sparse_slam_pose_interpolation_max_gap_s = get_double(kv, "sparse_slam.pose_interpolation_max_gap_s", c.sparse_slam_pose_interpolation_max_gap_s);
     c.sparse_slam_require_all_measurement_poses = get_bool(kv, "sparse_slam.require_all_measurement_poses", c.sparse_slam_require_all_measurement_poses);
+    c.sparse_slam_startup_min_imu_samples = get_int(kv, "sparse_slam.startup_min_imu_samples", c.sparse_slam_startup_min_imu_samples);
+    c.sparse_slam_startup_max_abs_linear_speed_mps = get_double(kv, "sparse_slam.startup_max_abs_linear_speed_mps", c.sparse_slam_startup_max_abs_linear_speed_mps);
+    c.sparse_slam_startup_max_abs_wheel_yaw_rate_rad_s = get_double(kv, "sparse_slam.startup_max_abs_wheel_yaw_rate_rad_s", c.sparse_slam_startup_max_abs_wheel_yaw_rate_rad_s);
+    c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s = get_double(kv, "sparse_slam.startup_max_abs_imu_yaw_rate_rad_s", c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s);
+    c.sparse_slam_startup_max_gyro_bias_abs_rad_s = get_double(kv, "sparse_slam.startup_max_gyro_bias_abs_rad_s", c.sparse_slam_startup_max_gyro_bias_abs_rad_s);
+    c.sparse_slam_startup_max_gyro_spread_rad_s = get_double(kv, "sparse_slam.startup_max_gyro_spread_rad_s", c.sparse_slam_startup_max_gyro_spread_rad_s);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -772,6 +778,12 @@ void validate_config(const Config &c) {
     if (c.sparse_slam_pose_buffer_capacity > 4096) errors.push_back("sparse_slam.pose_buffer_capacity must be <= 4096");
     if (!std::isfinite(c.sparse_slam_pose_buffer_max_age_s) || c.sparse_slam_pose_buffer_max_age_s < 0.0) errors.push_back("sparse_slam.pose_buffer_max_age_s must be finite and >= 0");
     if (!std::isfinite(c.sparse_slam_pose_interpolation_max_gap_s) || c.sparse_slam_pose_interpolation_max_gap_s < 0.0) errors.push_back("sparse_slam.pose_interpolation_max_gap_s must be finite and >= 0");
+    if (c.sparse_slam_startup_min_imu_samples <= 0) errors.push_back("sparse_slam.startup_min_imu_samples must be > 0");
+    if (!std::isfinite(c.sparse_slam_startup_max_abs_linear_speed_mps) || c.sparse_slam_startup_max_abs_linear_speed_mps < 0.0) errors.push_back("sparse_slam.startup_max_abs_linear_speed_mps must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_startup_max_abs_wheel_yaw_rate_rad_s) || c.sparse_slam_startup_max_abs_wheel_yaw_rate_rad_s < 0.0) errors.push_back("sparse_slam.startup_max_abs_wheel_yaw_rate_rad_s must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s) || c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s < 0.0) errors.push_back("sparse_slam.startup_max_abs_imu_yaw_rate_rad_s must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_startup_max_gyro_bias_abs_rad_s) || c.sparse_slam_startup_max_gyro_bias_abs_rad_s < 0.0) errors.push_back("sparse_slam.startup_max_gyro_bias_abs_rad_s must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_startup_max_gyro_spread_rad_s) || c.sparse_slam_startup_max_gyro_spread_rad_s < 0.0) errors.push_back("sparse_slam.startup_max_gyro_spread_rad_s must be finite and >= 0");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1762,7 +1774,13 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  pose_buffer_capacity: " << c.sparse_slam_pose_buffer_capacity << "\n"
       << "  pose_buffer_max_age_s: " << c.sparse_slam_pose_buffer_max_age_s << "\n"
       << "  pose_interpolation_max_gap_s: " << c.sparse_slam_pose_interpolation_max_gap_s << "\n"
-      << "  require_all_measurement_poses: " << bool_yaml(c.sparse_slam_require_all_measurement_poses) << "\n";
+      << "  require_all_measurement_poses: " << bool_yaml(c.sparse_slam_require_all_measurement_poses) << "\n"
+      << "  startup_min_imu_samples: " << c.sparse_slam_startup_min_imu_samples << "\n"
+      << "  startup_max_abs_linear_speed_mps: " << c.sparse_slam_startup_max_abs_linear_speed_mps << "\n"
+      << "  startup_max_abs_wheel_yaw_rate_rad_s: " << c.sparse_slam_startup_max_abs_wheel_yaw_rate_rad_s << "\n"
+      << "  startup_max_abs_imu_yaw_rate_rad_s: " << c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s << "\n"
+      << "  startup_max_gyro_bias_abs_rad_s: " << c.sparse_slam_startup_max_gyro_bias_abs_rad_s << "\n"
+      << "  startup_max_gyro_spread_rad_s: " << c.sparse_slam_startup_max_gyro_spread_rad_s << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"

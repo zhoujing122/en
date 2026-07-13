@@ -1,12 +1,9 @@
 #pragma once
 
-#include "robot_slamd/autonomy/map_backend/slam_backend_contract_checker.hpp"
-#include "robot_slamd/autonomy/map_backend/slam_backend_map_port_adapter.hpp"
-#include "robot_slamd/autonomy/odometry/wheel_imu_dead_reckoning_2d.hpp"
 #include "robot_slamd/autonomy/ports/robot_slam_sensor_port.hpp"
-#include "robot_slamd/autonomy/real_adapters/slam_backend/sparse_multi_tof_occupancy_backend.hpp"
 #include "robot_slamd/config/config.hpp"
 #include "robot_slamd/runtime/slam_runtime_mode.hpp"
+#include "robot_slamd/runtime/sparse_slam_runtime_core.hpp"
 
 #include <algorithm>
 #include <cmath>
@@ -26,6 +23,21 @@ struct SparseShadowRuntimeReport {
     bool initial_yaw_measured_by_imu = false;
     bool initial_yaw_defined_by_startup_frame = false;
     bool map_from_odom_assumed_identity = false;
+    bool runtime_core_constructed = false;
+    bool initialization_attempted = false;
+    bool initialization_complete = false;
+    std::string initialization_status = "uninitialized";
+    std::string map_startup_mode = "create_new";
+    std::string initial_pose_mode = "startup_zero";
+    bool configured_pose_used = false;
+    double gyro_bias_rad_s = 0.0;
+    std::size_t gyro_sample_count = 0;
+    bool stationary_check_passed = false;
+    bool wheel_baseline_established = false;
+    bool map_from_odom_initialized = false;
+    double map_from_odom_x_m = 0.0;
+    double map_from_odom_y_m = 0.0;
+    double map_from_odom_yaw_rad = 0.0;
 
     bool sensor_port_constructed = false;
     bool wheel_imu_estimator_constructed = false;
@@ -44,8 +56,21 @@ struct SparseShadowRuntimeReport {
     std::size_t predicted_pose_handoff_count = 0;
     std::size_t missing_predicted_pose_count = 0;
     std::size_t native_multi_tof_snapshot_count = 0;
+    std::size_t pose_buffer_append_count = 0;
+    std::size_t pose_buffer_reject_count = 0;
+    std::size_t pose_buffer_size = 0;
+    std::size_t front_pose_lookup_success_count = 0;
+    std::size_t left_pose_lookup_success_count = 0;
+    std::size_t right_pose_lookup_success_count = 0;
+    std::size_t measurement_pose_set_success_count = 0;
+    std::size_t measurement_pose_set_reject_count = 0;
+    std::size_t map_update_before_initialization_count = 0;
+    std::size_t matcher_attempt_count = 0;
+    std::size_t keyframe_attempt_count = 0;
 
     bool native_multi_tof_consumed = false;
+    bool measurement_time_pose_consumed = false;
+    bool single_pose_fallback_consumed = false;
     bool legacy_projection_consumed = false;
 
     bool old_chunked_grid_constructed = false;
@@ -80,6 +105,28 @@ inline std::string write_sparse_shadow_runtime_report(
         << bool_yaml(report.initial_yaw_defined_by_startup_frame) << "\n";
     out << "map_from_odom_assumed_identity="
         << bool_yaml(report.map_from_odom_assumed_identity) << "\n";
+    out << "runtime_core_constructed="
+        << bool_yaml(report.runtime_core_constructed) << "\n";
+    out << "initialization_attempted="
+        << bool_yaml(report.initialization_attempted) << "\n";
+    out << "initialization_complete="
+        << bool_yaml(report.initialization_complete) << "\n";
+    out << "initialization_status=" << report.initialization_status << "\n";
+    out << "map_startup_mode=" << report.map_startup_mode << "\n";
+    out << "initial_pose_mode=" << report.initial_pose_mode << "\n";
+    out << "configured_pose_used="
+        << bool_yaml(report.configured_pose_used) << "\n";
+    out << "gyro_bias_rad_s=" << report.gyro_bias_rad_s << "\n";
+    out << "gyro_sample_count=" << report.gyro_sample_count << "\n";
+    out << "stationary_check_passed="
+        << bool_yaml(report.stationary_check_passed) << "\n";
+    out << "wheel_baseline_established="
+        << bool_yaml(report.wheel_baseline_established) << "\n";
+    out << "map_from_odom_initialized="
+        << bool_yaml(report.map_from_odom_initialized) << "\n";
+    out << "map_from_odom=" << report.map_from_odom_x_m << ","
+        << report.map_from_odom_y_m << ","
+        << report.map_from_odom_yaw_rad << "\n";
     out << "sensor_port_constructed="
         << bool_yaml(report.sensor_port_constructed) << "\n";
     out << "wheel_imu_estimator_constructed="
@@ -104,8 +151,31 @@ inline std::string write_sparse_shadow_runtime_report(
         << report.missing_predicted_pose_count << "\n";
     out << "native_multi_tof_snapshot_count="
         << report.native_multi_tof_snapshot_count << "\n";
+    out << "pose_buffer_append_count="
+        << report.pose_buffer_append_count << "\n";
+    out << "pose_buffer_reject_count="
+        << report.pose_buffer_reject_count << "\n";
+    out << "pose_buffer_size=" << report.pose_buffer_size << "\n";
+    out << "front_pose_lookup_success_count="
+        << report.front_pose_lookup_success_count << "\n";
+    out << "left_pose_lookup_success_count="
+        << report.left_pose_lookup_success_count << "\n";
+    out << "right_pose_lookup_success_count="
+        << report.right_pose_lookup_success_count << "\n";
+    out << "measurement_pose_set_success_count="
+        << report.measurement_pose_set_success_count << "\n";
+    out << "measurement_pose_set_reject_count="
+        << report.measurement_pose_set_reject_count << "\n";
+    out << "map_update_before_initialization_count="
+        << report.map_update_before_initialization_count << "\n";
+    out << "matcher_attempt_count=" << report.matcher_attempt_count << "\n";
+    out << "keyframe_attempt_count=" << report.keyframe_attempt_count << "\n";
     out << "native_multi_tof_consumed="
         << bool_yaml(report.native_multi_tof_consumed) << "\n";
+    out << "measurement_time_pose_consumed="
+        << bool_yaml(report.measurement_time_pose_consumed) << "\n";
+    out << "single_pose_fallback_consumed="
+        << bool_yaml(report.single_pose_fallback_consumed) << "\n";
     out << "legacy_projection_consumed="
         << bool_yaml(report.legacy_projection_consumed) << "\n";
     out << "old_chunked_grid_constructed="
@@ -160,9 +230,10 @@ public:
         snapshot.multi_tof.synchronized_time_s = now_s;
         snapshot.multi_tof.source = "sparse_shadow_deterministic_simulation";
 
+        const bool startup_stationary_sample = sample_index_ == 1;
         snapshot.has_wheel = true;
         snapshot.wheel.timestamp_s = now_s;
-        snapshot.wheel.linear_mps = 0.05;
+        snapshot.wheel.linear_mps = startup_stationary_sample ? 0.0 : 0.05;
         snapshot.wheel.angular_rad_s = 0.0;
         snapshot.wheel.valid = true;
 
@@ -219,7 +290,6 @@ public:
         SparseShadowRuntimeReport report;
         report.runtime_mode = "sparse_shadow";
         report.sensor_source = config_.sparse_shadow_sensor_source;
-        report.startup_zero_used = true;
         report.initial_yaw_measured_by_imu = false;
         report.initial_yaw_defined_by_startup_frame = true;
         report.map_from_odom_assumed_identity = true;
@@ -227,7 +297,7 @@ public:
         if (config_.sparse_shadow_sensor_source != "deterministic_simulation") {
             report.ok = false;
             report.last_fault = "sparse_shadow_sensor_source_unsupported";
-            report.last_message = "SparseShadow hardware/replay source is fail-closed in M3-D1.1";
+            report.last_message = "SparseShadow hardware/replay source is fail-closed in M3-D2A0";
             report.summary = "sparse_shadow_runtime_rejected";
             write_report_file(run_dir, report);
             return report;
@@ -236,107 +306,111 @@ public:
         auto sensor_port = std::make_unique<SparseShadowDeterministicSensorPort>();
         report.sensor_port_constructed = true;
 
-        WheelImuDeadReckoningConfig odom_config;
-        odom_config.wheel_radius_m = config_.wheel_radius_left_m;
-        odom_config.wheel_base_m = config_.wheel_base_m;
-        odom_config.allow_imu_missing_wheel_yaw_fallback = false;
-        WheelImuDeadReckoning2D estimator(odom_config);
-        report.wheel_imu_estimator_constructed = true;
-        const RobotPose2D startup_zero_pose{};
-        auto reset = estimator.reset(startup_zero_pose);
-        if (!reset.ok) {
-            report.ok = false;
-            report.last_fault = to_string(reset.fault);
-            report.last_message = reset.message;
-            report.summary = "sparse_shadow_runtime_odometry_reset_failed";
-            write_report_file(run_dir, report);
-            return report;
-        }
-
-        SparseMultiTofOccupancyBackendOptions backend_options;
-        backend_options.minimum_accepted_snapshots_for_good_quality = 1;
-        backend_options.minimum_valid_rays_for_good_quality = 1;
-        backend_options.minimum_observed_cells_for_good_quality = 1;
-        backend_options.minimum_angular_bins_for_good_quality = 1;
-        auto sparse_backend = std::make_shared<SparseMultiTofOccupancyBackendBinding>(backend_options);
-        report.sparse_backend_constructed = true;
-        SlamBackendMapPortAdapter map_port(sparse_backend,
-                                           sparse_shadow_backend_checker());
+        SparseSlamRuntimeCore core(config_);
+        const auto init_request = sparse_slam_initialization_request_from_config(config_);
+        const auto init = core.initialize(init_request);
+        (void)init;
 
         const double step_s = 0.10;
         const double clamped_duration_s =
             std::isfinite(duration_s) && duration_s > 0.0 ? duration_s : step_s;
-        const int max_steps = std::max(1, std::min(20,
+        const int max_steps = std::max(2, std::min(20,
             static_cast<int>(std::ceil(clamped_duration_s / step_s))));
 
         for (int i = 0; i < max_steps; ++i) {
             const double now_s = static_cast<double>(i + 1) * step_s;
             auto snapshot = sensor_port->latest_snapshot(now_s);
-            report.sensor_snapshot_count++;
-            if (snapshot.has_multi_tof) {
-                report.native_multi_tof_snapshot_count++;
-            }
-
-            if (!snapshot.has_wheel || !snapshot.has_imu) {
-                report.wheel_imu_update_reject_count++;
-                report.missing_predicted_pose_count++;
-                continue;
-            }
-
-            report.wheel_imu_update_attempt_count++;
-            const auto odom = estimator.update(snapshot.wheel, snapshot.imu);
-            if (!odom.ok) {
-                report.wheel_imu_update_reject_count++;
-                report.last_fault = to_string(odom.fault);
-                report.last_message = odom.message;
-                continue;
-            }
-            report.wheel_imu_update_success_count++;
-
-            const RobotPose2D odom_pose = estimator.estimated_pose();
-            const RobotPose2D predicted_map_pose = odom_pose;
-            report.last_odom_pose = odom_pose;
-            report.last_predicted_map_pose = predicted_map_pose;
-
-            RobotSlamMapUpdateInput update;
-            update.timestamp_s = now_s;
-            update.snapshot = snapshot;
-            update.predicted_map_pose = predicted_map_pose;
-            update.has_predicted_map_pose = true;
-            update.mapping_commit_allowed = true;
-            update.source = "sparse_shadow_runtime";
-            report.predicted_pose_handoff_count++;
-            report.backend_update_attempt_count++;
-            const bool accepted = map_port.integrate_map_update(update);
-            if (accepted) {
-                report.backend_accept_count++;
-            } else {
-                report.backend_reject_count++;
-            }
+            const auto step = core.step(snapshot, now_s);
+            (void)step;
         }
 
-        const auto backend_report = sparse_backend->report();
-        report.native_multi_tof_consumed =
-            backend_report.native_multi_tof_backend_consumption;
-        report.legacy_projection_consumed = backend_report.legacy_projection_consumed;
-        report.sparse_map_cell_count = backend_report.active_cell_count;
+        merge_core_report(core.report(), report);
         report.ok = report.sensor_port_constructed &&
+                    report.runtime_core_constructed &&
+                    report.initialization_complete &&
                     report.wheel_imu_estimator_constructed &&
                     report.sparse_backend_constructed &&
                     report.predicted_pose_handoff_count > 0 &&
                     report.backend_accept_count > 0 &&
                     report.native_multi_tof_consumed &&
+                    report.measurement_time_pose_consumed &&
+                    !report.single_pose_fallback_consumed &&
                     !report.legacy_projection_consumed;
-        report.last_fault = report.ok ? "none" : "sparse_shadow_runtime_failed";
+        report.last_fault = report.ok ? "none" : report.last_fault;
         report.last_message = report.ok ? "sparse_shadow_runtime_ok"
-                                        : "sparse_shadow_runtime_failed";
-        report.summary = report.ok ? "Sparse Shadow runtime reached sparse backend"
-                                   : "Sparse Shadow runtime did not reach sparse backend";
+                                        : report.last_message;
+        report.summary = report.ok
+            ? "Sparse Shadow wrapper reached sparse runtime core"
+            : "Sparse Shadow wrapper did not reach sparse runtime core";
         write_report_file(run_dir, report);
         return report;
     }
 
 private:
+    static void merge_core_report(const SparseSlamRuntimeCoreReport &core,
+                                  SparseShadowRuntimeReport &report) {
+        report.runtime_core_constructed = core.runtime_core_constructed;
+        report.initialization_attempted = core.initialization_attempted;
+        report.initialization_complete = core.initialization_complete;
+        report.initialization_status = core.initialization_status;
+        report.map_startup_mode = core.map_startup_mode;
+        report.initial_pose_mode = core.initial_pose_mode;
+        report.startup_zero_used = core.startup_zero_used;
+        report.configured_pose_used = core.configured_pose_used;
+        report.initial_yaw_measured_by_imu = core.initial_yaw_measured_by_imu;
+        report.initial_yaw_defined_by_startup_frame =
+            core.initial_yaw_defined_by_startup_frame;
+        report.gyro_bias_rad_s = core.gyro_bias_rad_s;
+        report.gyro_sample_count = core.gyro_sample_count;
+        report.stationary_check_passed = core.stationary_check_passed;
+        report.wheel_baseline_established = core.wheel_baseline_established;
+        report.map_from_odom_initialized = core.map_from_odom_initialized;
+        report.map_from_odom_x_m = core.map_from_odom_x_m;
+        report.map_from_odom_y_m = core.map_from_odom_y_m;
+        report.map_from_odom_yaw_rad = core.map_from_odom_yaw_rad;
+        report.wheel_imu_estimator_constructed =
+            core.wheel_imu_estimator_constructed;
+        report.sparse_backend_constructed = core.sparse_backend_constructed;
+        report.sensor_snapshot_count = core.sensor_snapshot_count;
+        report.wheel_imu_update_attempt_count = core.odom_update_attempt_count;
+        report.wheel_imu_update_success_count = core.odom_update_success_count;
+        report.wheel_imu_update_reject_count = core.odom_update_reject_count;
+        report.backend_update_attempt_count = core.backend_update_attempt_count;
+        report.backend_accept_count = core.backend_accept_count;
+        report.backend_reject_count = core.backend_reject_count;
+        report.backend_fault_count = core.backend_fault_count;
+        report.predicted_pose_handoff_count = core.predicted_pose_handoff_count;
+        report.missing_predicted_pose_count = core.missing_predicted_pose_count;
+        report.native_multi_tof_snapshot_count = core.native_multi_tof_snapshot_count;
+        report.pose_buffer_append_count = core.pose_buffer_append_count;
+        report.pose_buffer_reject_count = core.pose_buffer_reject_count;
+        report.pose_buffer_size = core.pose_buffer_size;
+        report.front_pose_lookup_success_count = core.front_pose_lookup_success_count;
+        report.left_pose_lookup_success_count = core.left_pose_lookup_success_count;
+        report.right_pose_lookup_success_count = core.right_pose_lookup_success_count;
+        report.measurement_pose_set_success_count =
+            core.measurement_pose_set_success_count;
+        report.measurement_pose_set_reject_count =
+            core.measurement_pose_set_reject_count;
+        report.map_update_before_initialization_count =
+            core.map_update_before_initialization_count;
+        report.matcher_attempt_count = core.matcher_attempt_count;
+        report.keyframe_attempt_count = core.keyframe_attempt_count;
+        report.native_multi_tof_consumed = core.native_multi_tof_consumed;
+        report.measurement_time_pose_consumed = core.measurement_time_pose_consumed;
+        report.single_pose_fallback_consumed = core.single_pose_fallback_consumed;
+        report.legacy_projection_consumed = core.legacy_projection_consumed;
+        report.real_hardware_accessed = core.real_hardware_accessed;
+        report.real_motion_attempted = core.real_motion_attempted;
+        report.real_map_write_attempted = core.real_map_write_attempted;
+        report.real_pose_writeback_attempted = core.real_pose_writeback_attempted;
+        report.last_odom_pose = core.last_odom_pose;
+        report.last_predicted_map_pose = core.last_predicted_map_pose;
+        report.sparse_map_cell_count = core.sparse_map_cell_count;
+        report.last_fault = core.last_fault;
+        report.last_message = core.last_message;
+    }
+
     static void write_report_file(const std::string &run_dir,
                                   const SparseShadowRuntimeReport &report) {
         if (run_dir.empty()) {

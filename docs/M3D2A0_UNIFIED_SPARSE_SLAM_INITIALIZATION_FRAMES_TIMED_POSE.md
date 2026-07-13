@@ -40,3 +40,54 @@ TimedOdomPoseBuffer stores a bounded, strictly monotonic sequence of odom_T_base
 MultiTofMeasurementPoseResolver resolves each scalar ToF route independently: front uses front.effective_timestamp_s, left uses left.effective_timestamp_s, and right uses right.effective_timestamp_s. The resolver returns the robot base pose in the map frame at each measurement time. Sensor extrinsics remain in the sparse ToF observation builder/backend path and are not applied by the resolver.
 
 RobotSlamMapUpdateInput and SlamBackendInputFrame now carry an explicit MultiTofMeasurementPoseSet. The sparse backend can run in strict measurement-time mode, where missing or timestamp-mismatched per-route poses reject the update. The legacy D1 single-pose fallback remains available only as an explicit compatibility option; the unified sparse runtime must disable it.
+
+
+## Unified Runtime Core
+
+`SparseSlamRuntimeCore` is the single sparse SLAM algorithm owner for this
+migration path. It owns initialization state, `WheelImuDeadReckoning2D`,
+`MapOdomFrameState`, `TimedOdomPoseBuffer`, `MultiTofMeasurementPoseResolver`,
+`SlamBackendMapPortAdapter`, and `SparseMultiTofOccupancyBackendBinding`.
+Replay, simulation, and future production sparse runtime modes must reuse this
+core instead of creating separate estimator, frame, backend, or pose handoff
+logic.
+
+`SparseShadowRuntime` is transitional. It constructs a deterministic canonical
+sensor source, creates the core, calls `initialize`, steps snapshots through the
+core, and writes a report. It does not own a second estimator, a second sparse
+backend, matcher state, keyframes, map save/load, relocalization, hardware, or
+motion.
+
+## Startup Gate
+
+Startup initialization is sensor based. Wheel and IMU samples must be fresh and
+finite. The startup sample must be stationary according to configured linear
+speed, wheel yaw-rate, and IMU yaw-rate thresholds. Gyro bias is computed from a
+bounded startup sample window and checked against absolute-bias and spread
+limits. The wheel baseline is established before mapping begins. No sparse map
+update is allowed before initialization is complete.
+
+## Runtime Step
+
+After initialization, each legal Wheel/IMU sample updates odometry and appends an
+`odom_T_base(t)` sample to the timed pose buffer. If a native three-ToF snapshot
+is present, the core resolves front, left, and right measurement-time base poses
+separately, composes them through `map_T_odom`, and sends the resulting
+`MultiTofMeasurementPoseSet` through `RobotSlamMapUpdateInput` and
+`SlamBackendInputFrame` to the sparse backend. The core runs the backend in
+strict measurement-time mode, so the D1 single-pose fallback is disabled in the
+unified runtime.
+
+Odometry update and map update are separate transactions. A valid odometry update
+may remain committed when a ToF pose lookup or backend update is rejected. A map
+failure does not write back into `WheelImuDeadReckoning2D`, and this stage does
+not apply any matcher correction to `map_T_odom`.
+
+## Migration Target
+
+`SparseSlamRuntimeCore` becomes the single production runtime core. Legacy SLAM
+and Sparse Shadow remain only for regression and safe migration. The legacy
+Localizer, ChunkedGrid, TofPoseCorrector, SparseScanYawMatcher, and yaw
+correction writeback remain outside the new sparse core and are expected to be
+removed only after the D2 matcher/keyframe work, D3 map lifecycle work, and M3-F
+simulation acceptance gates pass.
