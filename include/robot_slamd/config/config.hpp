@@ -187,6 +187,12 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_active_bundle_min_matchable_rays = get_int(kv, "sparse_slam.active_bundle_min_matchable_rays", c.sparse_slam_active_bundle_min_matchable_rays);
     c.sparse_slam_active_bundle_min_yaw_span_rad = get_double(kv, "sparse_slam.active_bundle_min_yaw_span_rad", c.sparse_slam_active_bundle_min_yaw_span_rad);
     c.sparse_slam_active_bundle_require_all_measurement_poses = get_bool(kv, "sparse_slam.active_bundle_require_all_measurement_poses", c.sparse_slam_active_bundle_require_all_measurement_poses);
+    c.sparse_slam_settle_max_abs_linear_speed_mps = get_double(kv, "sparse_slam.settle_max_abs_linear_speed_mps", c.sparse_slam_settle_max_abs_linear_speed_mps);
+    c.sparse_slam_settle_max_abs_wheel_yaw_rate_rad_s = get_double(kv, "sparse_slam.settle_max_abs_wheel_yaw_rate_rad_s", c.sparse_slam_settle_max_abs_wheel_yaw_rate_rad_s);
+    c.sparse_slam_settle_max_abs_imu_yaw_rate_rad_s = get_double(kv, "sparse_slam.settle_max_abs_imu_yaw_rate_rad_s", c.sparse_slam_settle_max_abs_imu_yaw_rate_rad_s);
+    c.sparse_slam_settle_min_consecutive_samples = get_int(kv, "sparse_slam.settle_min_consecutive_samples", c.sparse_slam_settle_min_consecutive_samples);
+    c.sparse_slam_settle_min_stable_duration_s = get_double(kv, "sparse_slam.settle_min_stable_duration_s", c.sparse_slam_settle_min_stable_duration_s);
+    c.sparse_slam_settle_max_sample_gap_s = get_double(kv, "sparse_slam.settle_max_sample_gap_s", c.sparse_slam_settle_max_sample_gap_s);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -804,6 +810,12 @@ void validate_config(const Config &c) {
     if (c.sparse_slam_active_bundle_min_matchable_rays < 0) errors.push_back("sparse_slam.active_bundle_min_matchable_rays must be >= 0");
     if (c.sparse_slam_active_bundle_min_matchable_rays > c.sparse_slam_active_bundle_max_rays) errors.push_back("sparse_slam.active_bundle_min_matchable_rays must be <= max_rays");
     if (!std::isfinite(c.sparse_slam_active_bundle_min_yaw_span_rad) || c.sparse_slam_active_bundle_min_yaw_span_rad < 0.0 || c.sparse_slam_active_bundle_min_yaw_span_rad > 6.28318530717958647692) errors.push_back("sparse_slam.active_bundle_min_yaw_span_rad must be finite and within [0, 2pi]");
+    if (!std::isfinite(c.sparse_slam_settle_max_abs_linear_speed_mps) || c.sparse_slam_settle_max_abs_linear_speed_mps < 0.0) errors.push_back("sparse_slam.settle_max_abs_linear_speed_mps must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_settle_max_abs_wheel_yaw_rate_rad_s) || c.sparse_slam_settle_max_abs_wheel_yaw_rate_rad_s < 0.0) errors.push_back("sparse_slam.settle_max_abs_wheel_yaw_rate_rad_s must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_settle_max_abs_imu_yaw_rate_rad_s) || c.sparse_slam_settle_max_abs_imu_yaw_rate_rad_s < 0.0) errors.push_back("sparse_slam.settle_max_abs_imu_yaw_rate_rad_s must be finite and >= 0");
+    if (c.sparse_slam_settle_min_consecutive_samples <= 0) errors.push_back("sparse_slam.settle_min_consecutive_samples must be > 0");
+    if (!std::isfinite(c.sparse_slam_settle_min_stable_duration_s) || c.sparse_slam_settle_min_stable_duration_s < 0.0) errors.push_back("sparse_slam.settle_min_stable_duration_s must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_settle_max_sample_gap_s) || c.sparse_slam_settle_max_sample_gap_s <= 0.0) errors.push_back("sparse_slam.settle_max_sample_gap_s must be finite and > 0");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1808,7 +1820,13 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  active_bundle_min_snapshots: " << c.sparse_slam_active_bundle_min_snapshots << "\n"
       << "  active_bundle_min_matchable_rays: " << c.sparse_slam_active_bundle_min_matchable_rays << "\n"
       << "  active_bundle_min_yaw_span_rad: " << c.sparse_slam_active_bundle_min_yaw_span_rad << "\n"
-      << "  active_bundle_require_all_measurement_poses: " << bool_yaml(c.sparse_slam_active_bundle_require_all_measurement_poses) << "\n";
+      << "  active_bundle_require_all_measurement_poses: " << bool_yaml(c.sparse_slam_active_bundle_require_all_measurement_poses) << "\n"
+      << "  settle_max_abs_linear_speed_mps: " << c.sparse_slam_settle_max_abs_linear_speed_mps << "\n"
+      << "  settle_max_abs_wheel_yaw_rate_rad_s: " << c.sparse_slam_settle_max_abs_wheel_yaw_rate_rad_s << "\n"
+      << "  settle_max_abs_imu_yaw_rate_rad_s: " << c.sparse_slam_settle_max_abs_imu_yaw_rate_rad_s << "\n"
+      << "  settle_min_consecutive_samples: " << c.sparse_slam_settle_min_consecutive_samples << "\n"
+      << "  settle_min_stable_duration_s: " << c.sparse_slam_settle_min_stable_duration_s << "\n"
+      << "  settle_max_sample_gap_s: " << c.sparse_slam_settle_max_sample_gap_s << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"
