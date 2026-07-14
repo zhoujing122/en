@@ -212,6 +212,17 @@ public:
         return result;
     }
 
+    ActiveMultiTofObservationResult abort_matcher_input(
+        const std::string &reason) {
+        if (report_.state != ActiveObservationBundleState::FrozenReady) {
+            return invalid_transition("matcher_input_abort_requires_frozen_ready");
+        }
+        builder_.abort(ActiveObservationBundleFault::MatcherInputRejected, reason);
+        report_.abort_count++;
+        sync_report(reason);
+        return {false, ActiveObservationBundleFault::MatcherInputRejected, reason};
+    }
+
     const PhaseAwareObservationControllerReport &report() const {
         return report_;
     }

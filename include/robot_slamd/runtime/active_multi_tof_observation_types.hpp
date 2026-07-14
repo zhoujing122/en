@@ -55,7 +55,8 @@ enum class ActiveObservationBundleFault {
     InsufficientYawCoverage,
     BundleIdMismatch,
     FrozenImmutable,
-    ReferenceMapChangedDuringActiveBundle
+    ReferenceMapChangedDuringActiveBundle,
+    MatcherInputRejected
 };
 
 inline std::string to_string(ActiveObservationBundleFault fault) {
@@ -96,6 +97,8 @@ inline std::string to_string(ActiveObservationBundleFault fault) {
         return "frozen_immutable";
     case ActiveObservationBundleFault::ReferenceMapChangedDuringActiveBundle:
         return "reference_map_changed_during_active_bundle";
+    case ActiveObservationBundleFault::MatcherInputRejected:
+        return "matcher_input_rejected";
     }
     return "unknown";
 }

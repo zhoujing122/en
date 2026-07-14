@@ -5,6 +5,7 @@
 #include "robot_slamd/autonomy/odometry/wheel_imu_dead_reckoning_2d.hpp"
 #include "robot_slamd/autonomy/real_adapters/slam_backend/sparse_multi_tof_occupancy_backend.hpp"
 #include "robot_slamd/config/config.hpp"
+#include "robot_slamd/localization/sparse_tof/sparse_tof_local_match_input_validator.hpp"
 #include "robot_slamd/runtime/multi_tof_measurement_pose_resolver.hpp"
 #include "robot_slamd/runtime/phase_aware_observation_controller.hpp"
 #include "robot_slamd/runtime/sparse_slam_initialization.hpp"
@@ -135,6 +136,29 @@ struct SparseSlamRuntimeCoreReport {
     bool frozen_bundle_available = false;
     bool frozen_bundle_immutable = true;
     std::string last_bundle_fault = "none";
+    std::size_t reference_snapshot_capture_attempt_count = 0;
+    std::size_t reference_snapshot_capture_success_count = 0;
+    std::size_t reference_snapshot_capture_reject_count = 0;
+    std::uint64_t reference_snapshot_revision = 0;
+    std::size_t reference_snapshot_cell_count = 0;
+    std::size_t reference_snapshot_occupied_cell_count = 0;
+    std::size_t reference_snapshot_free_cell_count = 0;
+    std::size_t reference_snapshot_uncertain_cell_count = 0;
+    double reference_snapshot_resolution_m = 0.0;
+    bool reference_snapshot_ready = false;
+    std::size_t matcher_input_prepare_attempt_count = 0;
+    std::size_t matcher_input_prepare_success_count = 0;
+    std::size_t matcher_input_prepare_reject_count = 0;
+    bool matcher_input_ready = false;
+    std::uint64_t matcher_input_bundle_id = 0;
+    std::uint64_t matcher_input_reference_revision = 0;
+    std::size_t matcher_input_bundle_frame_count = 0;
+    std::size_t matcher_input_matchable_ray_count = 0;
+    std::string matcher_input_requested_mode = "yaw_only";
+    std::string matcher_input_status = "not_prepared";
+    bool matcher_executed = false;
+    std::size_t matcher_evaluated_candidate_count = 0;
+    std::string last_matcher_input_fault = "none";
     bool real_hardware_accessed = false;
     bool real_motion_attempted = false;
     bool real_map_write_attempted = false;
@@ -390,6 +414,18 @@ public:
                         make_motion_settle_sample(snapshot, imu),
                         current_map_revision_);
                     (void)settle;
+                    if (observation_controller_.state() ==
+                        ActiveObservationBundleState::FrozenReady) {
+                        const auto prepared = prepare_local_match_input(
+                            snapshot.multi_tof.synchronized_time_s);
+                        if (!prepared.ready) {
+                            sync_observation_report();
+                            report_.last_fault = "matcher_input_rejected";
+                            report_.last_message = prepared.reason;
+                            return {false, true, true, false, false,
+                                    report_.last_fault, report_.last_message};
+                        }
+                    }
                 }
                 sync_observation_report();
                 report_.last_fault = bundle_append.ok ? "none" : to_string(bundle_append.fault);
@@ -454,6 +490,12 @@ public:
     const SparseSlamRuntimeCoreReport &report() const { return report_; }
     const MapOdomFrameState &frame_state() const { return frame_state_; }
     const TimedOdomPoseBuffer &pose_buffer() const { return pose_buffer_; }
+    const PreparedSparseTofLocalMatchInput &prepared_local_match_input() const {
+        return prepared_local_match_input_;
+    }
+    const SparseOccupancyGridSnapshot *reference_map_snapshot() const {
+        return reference_map_snapshot_.get();
+    }
 
 private:
     static WheelImuDeadReckoningConfig make_odom_config(
@@ -515,6 +557,34 @@ private:
         return out;
     }
 
+    static SparseTofLocalMatchConfig make_local_match_config(
+        const Config &config) {
+        SparseTofLocalMatchConfig out;
+        (void)parse_sparse_tof_local_match_mode(
+            config.sparse_slam_local_match_mode, out.mode);
+        out.max_abs_yaw_rad = config.sparse_slam_local_match_max_abs_yaw_rad;
+        out.coarse_yaw_step_rad = config.sparse_slam_local_match_coarse_yaw_step_rad;
+        out.fine_yaw_step_rad = config.sparse_slam_local_match_fine_yaw_step_rad;
+        out.max_abs_translation_x_m = config.sparse_slam_local_match_max_abs_translation_x_m;
+        out.max_abs_translation_y_m = config.sparse_slam_local_match_max_abs_translation_y_m;
+        out.max_candidate_count = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_max_candidate_count));
+        out.min_bundle_frames = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_min_bundle_frames));
+        out.min_matchable_rays = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_min_matchable_rays));
+        out.min_reference_cells = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_min_reference_cells));
+        out.min_reference_occupied_cells = static_cast<std::size_t>(
+            std::max(0, config.sparse_slam_local_match_min_reference_occupied_cells));
+        out.min_reference_free_cells = static_cast<std::size_t>(
+            std::max(0, config.sparse_slam_local_match_min_reference_free_cells));
+        out.max_bundle_duration_s = config.sparse_slam_active_bundle_max_duration_s;
+        out.require_revision_match = config.sparse_slam_local_match_require_revision_match;
+        out.require_immutable_snapshot = config.sparse_slam_local_match_require_immutable_snapshot;
+        return out;
+    }
+
     static SparseMultiTofOccupancyBackendOptions make_backend_options() {
         SparseMultiTofOccupancyBackendOptions out;
         out.minimum_accepted_snapshots_for_good_quality = 1;
@@ -552,6 +622,9 @@ private:
                 ? request.bundle_id
                 : observation_controller_.report().bundle_id;
             result = observation_controller_.discard(id);
+            if (result.ok) {
+                clear_prepared_local_match_input();
+            }
         }
         sync_observation_report();
         if (!result.ok) {
@@ -564,6 +637,127 @@ private:
         report_.last_message = result.message;
         return {true, true, false, false, false,
                 to_string(request.observation_control), result.message};
+    }
+
+
+    struct PrepareLocalMatchInputResult {
+        bool ready = false;
+        std::string reason;
+    };
+
+    PrepareLocalMatchInputResult prepare_local_match_input(
+        double match_request_timestamp_s) {
+        report_.matcher_input_prepare_attempt_count++;
+        report_.reference_snapshot_capture_attempt_count++;
+        const auto &frozen = observation_controller_.frozen_bundle();
+        const auto &summary = frozen.summary();
+        if (!frozen.available() ||
+            current_map_revision_ != summary.reference_map_revision ||
+            report_.sparse_map_cell_count != summary.reference_map_cell_count) {
+            return reject_local_match_input(
+                SparseTofLocalMatchInputStatus::ReferenceRevisionMismatch,
+                "matcher_input_reference_metadata_mismatch", true);
+        }
+
+        const auto capture = sparse_backend_->capture_grid_snapshot(
+            current_map_revision_, static_cast<std::size_t>(
+                std::max(1, config_.sparse_slam_reference_snapshot_max_cells)));
+        if (!capture.ok || capture.snapshot.revision() != current_map_revision_ ||
+            capture.snapshot.cell_count() != summary.reference_map_cell_count) {
+            return reject_local_match_input(
+                SparseTofLocalMatchInputStatus::ReferenceMapInvalid,
+                capture.ok ? "matcher_input_snapshot_metadata_mismatch"
+                           : capture.message,
+                true);
+        }
+        report_.reference_snapshot_capture_success_count++;
+
+        SparseTofLocalMatchInput input;
+        input.bundle_id = summary.bundle_id;
+        input.frozen_bundle =
+            std::make_shared<const FrozenMultiTofObservationBundle>(frozen);
+        input.reference_map =
+            std::make_shared<const SparseOccupancyGridSnapshot>(capture.snapshot);
+        input.expected_reference_map_revision = summary.reference_map_revision;
+        input.current_runtime_map_revision = current_map_revision_;
+        input.predicted_map_from_odom = frame_state_.current_map_from_odom();
+        input.map_from_odom_at_collection_start = summary.map_from_odom_at_start;
+        input.match_request_timestamp_s = match_request_timestamp_s;
+        input.source = "sparse_slam_runtime_core";
+        input.config = make_local_match_config(config_);
+
+        const auto validation = local_match_input_validator_.validate(input);
+        if (!validation.ready) {
+            return reject_local_match_input(
+                validation.status, validation.reason, false);
+        }
+
+        reference_map_snapshot_ = input.reference_map;
+        prepared_local_match_input_ =
+            PreparedSparseTofLocalMatchInput::ready(std::move(input));
+        const auto *prepared = prepared_local_match_input_.input();
+        report_.matcher_input_prepare_success_count++;
+        report_.reference_snapshot_ready = true;
+        report_.reference_snapshot_revision = reference_map_snapshot_->revision();
+        report_.reference_snapshot_cell_count = reference_map_snapshot_->cell_count();
+        report_.reference_snapshot_occupied_cell_count =
+            reference_map_snapshot_->occupied_cell_count();
+        report_.reference_snapshot_free_cell_count =
+            reference_map_snapshot_->free_cell_count();
+        report_.reference_snapshot_uncertain_cell_count =
+            reference_map_snapshot_->uncertain_cell_count();
+        report_.reference_snapshot_resolution_m =
+            reference_map_snapshot_->resolution_m();
+        report_.matcher_input_ready = true;
+        report_.matcher_input_bundle_id = prepared->bundle_id;
+        report_.matcher_input_reference_revision =
+            prepared->expected_reference_map_revision;
+        report_.matcher_input_bundle_frame_count =
+            prepared->frozen_bundle->frames().size();
+        report_.matcher_input_matchable_ray_count =
+            prepared->frozen_bundle->summary().matchable_ray_count;
+        report_.matcher_input_requested_mode = to_string(prepared->config.mode);
+        report_.matcher_input_status = "ready";
+        report_.last_matcher_input_fault = "none";
+        return {true, "local_match_input_ready"};
+    }
+
+    PrepareLocalMatchInputResult reject_local_match_input(
+        SparseTofLocalMatchInputStatus status,
+        const std::string &reason,
+        bool snapshot_rejected) {
+        if (snapshot_rejected) {
+            report_.reference_snapshot_capture_reject_count++;
+        }
+        report_.matcher_input_prepare_reject_count++;
+        reference_map_snapshot_.reset();
+        prepared_local_match_input_ =
+            PreparedSparseTofLocalMatchInput::rejected(status, reason);
+        report_.reference_snapshot_ready = false;
+        report_.matcher_input_ready = false;
+        report_.matcher_input_status = to_string(status);
+        report_.last_matcher_input_fault = reason;
+        (void)observation_controller_.abort_matcher_input(reason);
+        return {false, reason};
+    }
+
+    void clear_prepared_local_match_input() {
+        reference_map_snapshot_.reset();
+        prepared_local_match_input_ = PreparedSparseTofLocalMatchInput{};
+        report_.reference_snapshot_ready = false;
+        report_.reference_snapshot_revision = 0;
+        report_.reference_snapshot_cell_count = 0;
+        report_.reference_snapshot_occupied_cell_count = 0;
+        report_.reference_snapshot_free_cell_count = 0;
+        report_.reference_snapshot_uncertain_cell_count = 0;
+        report_.reference_snapshot_resolution_m = 0.0;
+        report_.matcher_input_ready = false;
+        report_.matcher_input_bundle_id = 0;
+        report_.matcher_input_reference_revision = 0;
+        report_.matcher_input_bundle_frame_count = 0;
+        report_.matcher_input_matchable_ray_count = 0;
+        report_.matcher_input_status = "not_prepared";
+        report_.last_matcher_input_fault = "none";
     }
 
     struct ObservationAppendBuildResult {
@@ -774,6 +968,9 @@ private:
     TimedOdomPoseBuffer pose_buffer_;
     MultiTofMeasurementPoseResolver resolver_;
     PhaseAwareObservationController observation_controller_;
+    SparseTofLocalMatchInputValidator local_match_input_validator_;
+    std::shared_ptr<const SparseOccupancyGridSnapshot> reference_map_snapshot_;
+    PreparedSparseTofLocalMatchInput prepared_local_match_input_;
     std::shared_ptr<SparseMultiTofOccupancyBackendBinding> sparse_backend_;
     SlamBackendMapPortAdapter map_port_;
     SparseSlamRuntimeCoreReport report_;

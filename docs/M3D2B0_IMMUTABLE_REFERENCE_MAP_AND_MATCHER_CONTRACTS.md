@@ -36,3 +36,18 @@ SparseTofLocalMatchResult defaults to NotRun. Scores, proposed transforms and
 correction deltas are optional and absent until a matcher actually executes.
 The B0 placeholder returns NotImplemented with matcher_executed=false and zero
 evaluated candidates; SparseSlamRuntimeCore does not call it.
+
+## Runtime preparation
+
+`SparseSlamRuntimeCore` prepares the matcher input only on the transition from
+WaitingForMotionSettle to FrozenReady. It first revalidates the begin-time map
+revision and cell count, captures one immutable snapshot, copies the frozen
+bundle into const shared ownership, reads the current map_T_odom prediction and
+validates the complete input. Collecting and Waiting never capture the map.
+
+A preparation failure leaves no ready snapshot or partial input, changes the
+active phase to Aborted and keeps the map commit gate closed. Explicit Discard
+clears only the frozen matcher foundation state; it preserves the live sparse
+map, frame state, estimator, initialization and timed pose buffer. B0 never
+calls the matcher, generates candidates, scores observations, applies a
+correction or creates a keyframe.
