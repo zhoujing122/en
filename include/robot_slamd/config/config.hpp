@@ -194,6 +194,20 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_settle_min_stable_duration_s = get_double(kv, "sparse_slam.settle_min_stable_duration_s", c.sparse_slam_settle_min_stable_duration_s);
     c.sparse_slam_settle_max_sample_gap_s = get_double(kv, "sparse_slam.settle_max_sample_gap_s", c.sparse_slam_settle_max_sample_gap_s);
     c.sparse_slam_reference_snapshot_max_cells = get_int(kv, "sparse_slam.reference_snapshot_max_cells", c.sparse_slam_reference_snapshot_max_cells);
+    c.sparse_slam_local_match_mode = get_string(kv, "sparse_slam.local_match_mode", c.sparse_slam_local_match_mode);
+    c.sparse_slam_local_match_max_abs_yaw_rad = get_double(kv, "sparse_slam.local_match_max_abs_yaw_rad", c.sparse_slam_local_match_max_abs_yaw_rad);
+    c.sparse_slam_local_match_coarse_yaw_step_rad = get_double(kv, "sparse_slam.local_match_coarse_yaw_step_rad", c.sparse_slam_local_match_coarse_yaw_step_rad);
+    c.sparse_slam_local_match_fine_yaw_step_rad = get_double(kv, "sparse_slam.local_match_fine_yaw_step_rad", c.sparse_slam_local_match_fine_yaw_step_rad);
+    c.sparse_slam_local_match_max_abs_translation_x_m = get_double(kv, "sparse_slam.local_match_max_abs_translation_x_m", c.sparse_slam_local_match_max_abs_translation_x_m);
+    c.sparse_slam_local_match_max_abs_translation_y_m = get_double(kv, "sparse_slam.local_match_max_abs_translation_y_m", c.sparse_slam_local_match_max_abs_translation_y_m);
+    c.sparse_slam_local_match_max_candidate_count = get_int(kv, "sparse_slam.local_match_max_candidate_count", c.sparse_slam_local_match_max_candidate_count);
+    c.sparse_slam_local_match_min_bundle_frames = get_int(kv, "sparse_slam.local_match_min_bundle_frames", c.sparse_slam_local_match_min_bundle_frames);
+    c.sparse_slam_local_match_min_matchable_rays = get_int(kv, "sparse_slam.local_match_min_matchable_rays", c.sparse_slam_local_match_min_matchable_rays);
+    c.sparse_slam_local_match_min_reference_cells = get_int(kv, "sparse_slam.local_match_min_reference_cells", c.sparse_slam_local_match_min_reference_cells);
+    c.sparse_slam_local_match_min_reference_occupied_cells = get_int(kv, "sparse_slam.local_match_min_reference_occupied_cells", c.sparse_slam_local_match_min_reference_occupied_cells);
+    c.sparse_slam_local_match_min_reference_free_cells = get_int(kv, "sparse_slam.local_match_min_reference_free_cells", c.sparse_slam_local_match_min_reference_free_cells);
+    c.sparse_slam_local_match_require_revision_match = get_bool(kv, "sparse_slam.local_match_require_revision_match", c.sparse_slam_local_match_require_revision_match);
+    c.sparse_slam_local_match_require_immutable_snapshot = get_bool(kv, "sparse_slam.local_match_require_immutable_snapshot", c.sparse_slam_local_match_require_immutable_snapshot);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -818,6 +832,19 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_settle_min_stable_duration_s) || c.sparse_slam_settle_min_stable_duration_s < 0.0) errors.push_back("sparse_slam.settle_min_stable_duration_s must be finite and >= 0");
     if (!std::isfinite(c.sparse_slam_settle_max_sample_gap_s) || c.sparse_slam_settle_max_sample_gap_s <= 0.0) errors.push_back("sparse_slam.settle_max_sample_gap_s must be finite and > 0");
     if (c.sparse_slam_reference_snapshot_max_cells <= 0 || c.sparse_slam_reference_snapshot_max_cells > 100000) errors.push_back("sparse_slam.reference_snapshot_max_cells must be in [1, 100000]");
+    if (!one_of(c.sparse_slam_local_match_mode, {"yaw_only", "full_se2"})) errors.push_back("sparse_slam.local_match_mode must be yaw_only or full_se2");
+    if (!std::isfinite(c.sparse_slam_local_match_max_abs_yaw_rad) || c.sparse_slam_local_match_max_abs_yaw_rad < 0.0 || c.sparse_slam_local_match_max_abs_yaw_rad > 3.14159265358979323846) errors.push_back("sparse_slam.local_match_max_abs_yaw_rad must be finite and within [0, pi]");
+    if (!std::isfinite(c.sparse_slam_local_match_coarse_yaw_step_rad) || c.sparse_slam_local_match_coarse_yaw_step_rad <= 0.0) errors.push_back("sparse_slam.local_match_coarse_yaw_step_rad must be finite and > 0");
+    if (!std::isfinite(c.sparse_slam_local_match_fine_yaw_step_rad) || c.sparse_slam_local_match_fine_yaw_step_rad <= 0.0 || c.sparse_slam_local_match_fine_yaw_step_rad > c.sparse_slam_local_match_coarse_yaw_step_rad) errors.push_back("sparse_slam.local_match_fine_yaw_step_rad must be in (0, coarse_step]");
+    if (!std::isfinite(c.sparse_slam_local_match_max_abs_translation_x_m) || c.sparse_slam_local_match_max_abs_translation_x_m < 0.0) errors.push_back("sparse_slam.local_match_max_abs_translation_x_m must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_local_match_max_abs_translation_y_m) || c.sparse_slam_local_match_max_abs_translation_y_m < 0.0) errors.push_back("sparse_slam.local_match_max_abs_translation_y_m must be finite and >= 0");
+    if (c.sparse_slam_local_match_mode == "yaw_only" && (c.sparse_slam_local_match_max_abs_translation_x_m != 0.0 || c.sparse_slam_local_match_max_abs_translation_y_m != 0.0)) errors.push_back("sparse_slam yaw_only mode requires zero translation ranges");
+    if (c.sparse_slam_local_match_max_candidate_count <= 0 || c.sparse_slam_local_match_max_candidate_count > 100000) errors.push_back("sparse_slam.local_match_max_candidate_count must be in [1, 100000]");
+    if (c.sparse_slam_local_match_min_bundle_frames <= 0) errors.push_back("sparse_slam.local_match_min_bundle_frames must be > 0");
+    if (c.sparse_slam_local_match_min_matchable_rays <= 0) errors.push_back("sparse_slam.local_match_min_matchable_rays must be > 0");
+    if (c.sparse_slam_local_match_min_reference_cells <= 0) errors.push_back("sparse_slam.local_match_min_reference_cells must be > 0");
+    if (c.sparse_slam_local_match_min_reference_occupied_cells < 0 || c.sparse_slam_local_match_min_reference_occupied_cells > c.sparse_slam_local_match_min_reference_cells) errors.push_back("sparse_slam.local_match_min_reference_occupied_cells invalid");
+    if (c.sparse_slam_local_match_min_reference_free_cells < 0 || c.sparse_slam_local_match_min_reference_free_cells > c.sparse_slam_local_match_min_reference_cells) errors.push_back("sparse_slam.local_match_min_reference_free_cells invalid");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1829,7 +1856,21 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  settle_min_consecutive_samples: " << c.sparse_slam_settle_min_consecutive_samples << "\n"
       << "  settle_min_stable_duration_s: " << c.sparse_slam_settle_min_stable_duration_s << "\n"
       << "  settle_max_sample_gap_s: " << c.sparse_slam_settle_max_sample_gap_s << "\n"
-      << "  reference_snapshot_max_cells: " << c.sparse_slam_reference_snapshot_max_cells << "\n";
+      << "  reference_snapshot_max_cells: " << c.sparse_slam_reference_snapshot_max_cells << "\n"
+      << "  local_match_mode: " << c.sparse_slam_local_match_mode << "\n"
+      << "  local_match_max_abs_yaw_rad: " << c.sparse_slam_local_match_max_abs_yaw_rad << "\n"
+      << "  local_match_coarse_yaw_step_rad: " << c.sparse_slam_local_match_coarse_yaw_step_rad << "\n"
+      << "  local_match_fine_yaw_step_rad: " << c.sparse_slam_local_match_fine_yaw_step_rad << "\n"
+      << "  local_match_max_abs_translation_x_m: " << c.sparse_slam_local_match_max_abs_translation_x_m << "\n"
+      << "  local_match_max_abs_translation_y_m: " << c.sparse_slam_local_match_max_abs_translation_y_m << "\n"
+      << "  local_match_max_candidate_count: " << c.sparse_slam_local_match_max_candidate_count << "\n"
+      << "  local_match_min_bundle_frames: " << c.sparse_slam_local_match_min_bundle_frames << "\n"
+      << "  local_match_min_matchable_rays: " << c.sparse_slam_local_match_min_matchable_rays << "\n"
+      << "  local_match_min_reference_cells: " << c.sparse_slam_local_match_min_reference_cells << "\n"
+      << "  local_match_min_reference_occupied_cells: " << c.sparse_slam_local_match_min_reference_occupied_cells << "\n"
+      << "  local_match_min_reference_free_cells: " << c.sparse_slam_local_match_min_reference_free_cells << "\n"
+      << "  local_match_require_revision_match: " << bool_yaml(c.sparse_slam_local_match_require_revision_match) << "\n"
+      << "  local_match_require_immutable_snapshot: " << bool_yaml(c.sparse_slam_local_match_require_immutable_snapshot) << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"
