@@ -22,6 +22,7 @@
 #include "robot_slamd/active_scan/yaw_correction_apply.hpp"
 #include "robot_slamd/active_scan/yaw_correction_post_apply_validator.hpp"
 #include "robot_slamd/runtime/sparse_shadow_runtime.hpp"
+#include "robot_slamd/simulation/exploration/m3e_exploration_runner.hpp"
 
 namespace robot_slamd {
 
@@ -57,6 +58,18 @@ int real_main(int argc, char **argv) {
     write_resolved_config(cfg, run_dir + "/config.resolved.yaml");
     std::ifstream src(config_path, std::ios::binary);
     std::ofstream(run_dir + "/config.input.yaml", std::ios::binary) << src.rdbuf();
+
+    if (resolved_slam_runtime_mode(cfg.slam_runtime_mode) ==
+        SlamRuntimeMode::SparseSimulationExploration) {
+        const auto report = M3EExplorationRunner{}.run(cfg, run_dir, duration_s);
+        if (!report.ok) {
+            std::cerr << report.termination_reason << "\n";
+            return 1;
+        }
+        std::cout << "robot_slamd sparse_sim_exploration run_dir="
+                  << run_dir << "\n";
+        return 0;
+    }
 
     if (resolved_slam_runtime_mode(cfg.slam_runtime_mode) == SlamRuntimeMode::SparseShadow) {
         const auto report = run_sparse_shadow_runtime(cfg, duration_s, run_dir);

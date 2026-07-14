@@ -605,6 +605,16 @@ public:
     }
 
     const SparseSlamRuntimeCoreReport &report() const { return report_; }
+    MapPose2D current_map_pose() const {
+        return frame_state_.map_pose_from_odom(
+            make_odom_pose(estimator_.estimated_pose()));
+    }
+    ActiveObservationBundleState active_observation_state() const {
+        return observation_controller_.state();
+    }
+    std::uint64_t active_bundle_id() const {
+        return observation_controller_.report().bundle_id;
+    }
     const MapOdomFrameState &frame_state() const { return frame_state_; }
     const TimedOdomPoseBuffer &pose_buffer() const { return pose_buffer_; }
     const PreparedSparseTofLocalMatchInput &prepared_local_match_input() const {
@@ -853,6 +863,18 @@ private:
         out.use_planar_tof_extrinsics =
             config.sparse_slam_planar_tof_extrinsics_configured;
         out.planar_tof_extrinsics = make_planar_tof_extrinsics(config);
+        out.observation_builder.protocol_min_range_m =
+            config.tof_protocol_min_range_m;
+        out.observation_builder.protocol_max_range_m =
+            config.tof_protocol_max_range_m;
+        out.observation_builder.mapping_min_range_m =
+            config.tof_mapping_min_range_m;
+        out.observation_builder.mapping_max_range_m =
+            config.tof_mapping_max_range_m;
+        out.observation_builder.no_return_free_space_range_m =
+            config.tof_mapping_max_range_m;
+        out.observation_builder.mapping_min_confidence =
+            config.tof_mapping_min_confidence;
         return out;
     }
 

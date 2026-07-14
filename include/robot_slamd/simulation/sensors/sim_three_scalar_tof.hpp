@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot_slamd/autonomy/real_adapters/multi_tof/multi_tof_contract_types.hpp"
+#include "robot_slamd/mapping/sparse_tof/planar_tof_extrinsics.hpp"
 #include "robot_slamd/simulation/robot/sim_robot_plant.hpp"
 #include "robot_slamd/simulation/world/fake_world_2d.hpp"
 
@@ -27,6 +28,9 @@ struct SimThreeScalarTofConfig {
     bool right_dropout = false;
     bool low_confidence_front = false;
     double injected_pairwise_skew_s = 0.0;
+    PlanarThreeTofExtrinsics extrinsics{
+        {0.04, 0.0, 0.0}, {0.0, 0.04, kSimPi * 0.5},
+        {0.0, -0.04, -kSimPi * 0.5}};
 };
 
 struct SimThreeScalarTofSample {
@@ -60,7 +64,10 @@ public:
                config_.right_latency_s >= 0.0 &&
                sim_finite(config_.left_response_offset_s) &&
                sim_finite(config_.right_response_offset_s) &&
-               sim_finite(config_.injected_pairwise_skew_s);
+               sim_finite(config_.injected_pairwise_skew_s) &&
+               planar_tof_extrinsic_valid(config_.extrinsics.front) &&
+               planar_tof_extrinsic_valid(config_.extrinsics.left) &&
+               planar_tof_extrinsic_valid(config_.extrinsics.right);
     }
 
     SimThreeScalarTofSample sample(const FakeWorld2D &world,
@@ -75,7 +82,7 @@ public:
         sample.packet.packet_source = "sim_three_scalar_tof";
         if (!config_.front_dropout) {
             sample.packet.front = make_frame(world, state, now_s, MultiTofMountId::Front,
-                                             "tof_front_frame", 0.0,
+                                             "tof_front_frame", config_.extrinsics.front,
                                              config_.front_latency_s, 0.0,
                                              0x100000000000ULL, front_sequence_++);
             if (config_.low_confidence_front) {
@@ -87,7 +94,7 @@ public:
         }
         if (!config_.left_dropout) {
             sample.packet.left = make_frame(world, state, now_s, MultiTofMountId::Left,
-                                            "tof_left_frame", kSimPi * 0.5,
+                                            "tof_left_frame", config_.extrinsics.left,
                                             config_.left_latency_s,
                                             config_.left_response_offset_s +
                                                 config_.injected_pairwise_skew_s,
@@ -98,7 +105,7 @@ public:
         }
         if (!config_.right_dropout) {
             sample.packet.right = make_frame(world, state, now_s, MultiTofMountId::Right,
-                                             "tof_right_frame", -kSimPi * 0.5,
+                                             "tof_right_frame", config_.extrinsics.right,
                                              config_.right_latency_s,
                                              config_.right_response_offset_s,
                                              0x300000000000ULL, right_sequence_++);
@@ -117,13 +124,14 @@ private:
                                 double now_s,
                                 MultiTofMountId mount_id,
                                 const std::string &frame_id,
-                                double mount_yaw_rad,
+                                const PlanarTofExtrinsic &extrinsic,
                                 double latency_s,
                                 double response_offset_s,
                                 uint64_t echo_prefix,
                                 int sequence) const {
-        const double ray_yaw = sim_normalize_yaw(state.pose.yaw_rad + mount_yaw_rad);
-        const auto hit = world.raycast(state.pose.x_m, state.pose.y_m, ray_yaw,
+        const auto sensor_pose = compose_base_with_tof_extrinsic(state.pose, extrinsic);
+        const double ray_yaw = sim_normalize_yaw(sensor_pose.yaw_rad);
+        const auto hit = world.raycast(sensor_pose.x_m, sensor_pose.y_m, ray_yaw,
                                        config_.min_range_m, config_.max_range_m);
         const double distance_m = hit.hit ? hit.distance_m : config_.max_range_m;
         const auto distance_mm = static_cast<uint16_t>(
@@ -141,7 +149,7 @@ private:
                                            response,
                                            "sim_tof_request_midpoint");
         frame.frame_id = frame_id;
-        frame.mount_yaw_rad = mount_yaw_rad;
+        frame.mount_yaw_rad = extrinsic.yaw_rad;
         frame.full_fov_rad = sim_degrees_to_radians(config_.full_fov_deg);
         frame.sequence = sequence;
         frame.source = hit.hit ? "sim_center_raycast_hit"

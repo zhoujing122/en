@@ -5,6 +5,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -134,6 +135,24 @@ public:
 
     bool traversable(const SparseGridCellKey &key) const {
         return cell(key) == NavigationCellClass::Free;
+    }
+
+    std::optional<SparseGridCellKey> nearest_traversable(
+        const SparseGridCellKey &origin, int maximum_manhattan_radius) const {
+        if (!valid_ || maximum_manhattan_radius < 0) return std::nullopt;
+        if (traversable(origin)) return origin;
+        for (int radius = 1; radius <= maximum_manhattan_radius; ++radius) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                const int dy = radius - std::abs(dx);
+                const SparseGridCellKey first{origin.x + dx, origin.y - dy};
+                if (traversable(first)) return first;
+                if (dy != 0) {
+                    const SparseGridCellKey second{origin.x + dx, origin.y + dy};
+                    if (traversable(second)) return second;
+                }
+            }
+        }
+        return std::nullopt;
     }
 
     SparseGridCellKey world_to_cell(double x_m, double y_m) const {

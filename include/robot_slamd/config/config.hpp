@@ -250,6 +250,24 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_max_total_keyframe_rays = get_int(kv, "sparse_slam.max_total_keyframe_rays", c.sparse_slam_max_total_keyframe_rays);
     c.sparse_slam_max_cells_per_keyframe_transaction = get_int(kv, "sparse_slam.max_cells_per_keyframe_transaction", c.sparse_slam_max_cells_per_keyframe_transaction);
     c.sparse_slam_rejected_match_requires_discard = get_bool(kv, "sparse_slam.rejected_match_requires_discard", c.sparse_slam_rejected_match_requires_discard);
+    c.exploration_min_x_m = get_double(kv, "exploration.min_x_m", c.exploration_min_x_m);
+    c.exploration_max_x_m = get_double(kv, "exploration.max_x_m", c.exploration_max_x_m);
+    c.exploration_min_y_m = get_double(kv, "exploration.min_y_m", c.exploration_min_y_m);
+    c.exploration_max_y_m = get_double(kv, "exploration.max_y_m", c.exploration_max_y_m);
+    c.exploration_robot_radius_m = get_double(kv, "exploration.robot_radius_m", c.exploration_robot_radius_m);
+    c.exploration_safety_margin_m = get_double(kv, "exploration.safety_margin_m", c.exploration_safety_margin_m);
+    c.exploration_maximum_navigation_cells = get_int(kv, "exploration.maximum_navigation_cells", c.exploration_maximum_navigation_cells);
+    c.exploration_minimum_frontier_cluster_cells = get_int(kv, "exploration.minimum_frontier_cluster_cells", c.exploration_minimum_frontier_cluster_cells);
+    c.exploration_information_gain_weight = get_double(kv, "exploration.information_gain_weight", c.exploration_information_gain_weight);
+    c.exploration_maximum_astar_nodes = get_int(kv, "exploration.maximum_astar_nodes", c.exploration_maximum_astar_nodes);
+    c.exploration_no_frontier_confirmation_cycles = get_int(kv, "exploration.no_frontier_confirmation_cycles", c.exploration_no_frontier_confirmation_cycles);
+    c.exploration_bootstrap_minimum_known_cells = get_int(kv, "exploration.bootstrap_minimum_known_cells", c.exploration_bootstrap_minimum_known_cells);
+    c.exploration_bootstrap_minimum_yaw_rad = get_double(kv, "exploration.bootstrap_minimum_yaw_rad", c.exploration_bootstrap_minimum_yaw_rad);
+    c.exploration_bootstrap_max_duration_s = get_double(kv, "exploration.bootstrap_max_duration_s", c.exploration_bootstrap_max_duration_s);
+    c.exploration_max_duration_s = get_double(kv, "exploration.max_duration_s", c.exploration_max_duration_s);
+    c.exploration_maximum_planning_failures = get_int(kv, "exploration.maximum_planning_failures", c.exploration_maximum_planning_failures);
+    c.exploration_simulation_fixed_dt_s = get_double(kv, "exploration.simulation_fixed_dt_s", c.exploration_simulation_fixed_dt_s);
+    c.exploration_simulation_tof_max_range_m = get_double(kv, "exploration.simulation_tof_max_range_m", c.exploration_simulation_tof_max_range_m);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -835,7 +853,7 @@ void validate_config(const Config &c) {
     if (c.static_scan_stable_required <= 0) errors.push_back("mapping.static_scan_stable_required must be > 0");
     positive("mapping.static_scan_boost", c.static_scan_boost);
 
-    if (!one_of(c.slam_runtime_mode, {"legacy", "sparse_shadow"})) errors.push_back("slam_runtime.mode must be legacy or sparse_shadow");
+    if (!one_of(c.slam_runtime_mode, {"legacy", "sparse_shadow", "sparse_sim_exploration"})) errors.push_back("slam_runtime.mode must be legacy, sparse_shadow, or sparse_sim_exploration");
     if (!one_of(c.sparse_shadow_sensor_source, {"deterministic_simulation", "hardware", "replay"})) errors.push_back("slam_runtime.sparse_shadow_sensor_source must be deterministic_simulation, replay, or hardware");
     if (c.slam_runtime_mode == "sparse_shadow" && c.sparse_shadow_sensor_source != "deterministic_simulation") errors.push_back("SparseShadow supports only deterministic_simulation source in M3-D1.1; hardware and replay are fail-closed");
     if (!one_of(c.sparse_slam_map_startup_mode, {"create_new", "load_existing"})) errors.push_back("sparse_slam.map_startup_mode must be create_new or load_existing");
@@ -932,6 +950,26 @@ void validate_config(const Config &c) {
     if (c.sparse_slam_max_total_keyframe_rays <= 0 || c.sparse_slam_max_total_keyframe_rays > 12582912) errors.push_back("sparse_slam.max_total_keyframe_rays must be in [1, 12582912]");
     if (c.sparse_slam_max_cells_per_keyframe_transaction <= 0 || c.sparse_slam_max_cells_per_keyframe_transaction > 100000) errors.push_back("sparse_slam.max_cells_per_keyframe_transaction must be in [1, 100000]");
     if (!c.sparse_slam_rejected_match_requires_discard) errors.push_back("sparse_slam.rejected_match_requires_discard must remain true");
+    if (!std::isfinite(c.exploration_min_x_m) || !std::isfinite(c.exploration_max_x_m) || c.exploration_max_x_m <= c.exploration_min_x_m) errors.push_back("exploration x bounds invalid");
+    if (!std::isfinite(c.exploration_min_y_m) || !std::isfinite(c.exploration_max_y_m) || c.exploration_max_y_m <= c.exploration_min_y_m) errors.push_back("exploration y bounds invalid");
+    if (!std::isfinite(c.exploration_robot_radius_m) || c.exploration_robot_radius_m < 0.0) errors.push_back("exploration.robot_radius_m must be finite and >= 0");
+    if (!std::isfinite(c.exploration_safety_margin_m) || c.exploration_safety_margin_m < 0.0) errors.push_back("exploration.safety_margin_m must be finite and >= 0");
+    if (c.exploration_maximum_navigation_cells <= 0 || c.exploration_maximum_navigation_cells > 1000000) errors.push_back("exploration.maximum_navigation_cells must be in [1, 1000000]");
+    if (c.exploration_minimum_frontier_cluster_cells <= 0 || c.exploration_minimum_frontier_cluster_cells > 100000) errors.push_back("exploration.minimum_frontier_cluster_cells must be in [1, 100000]");
+    if (!std::isfinite(c.exploration_information_gain_weight) || c.exploration_information_gain_weight < 0.0) errors.push_back("exploration.information_gain_weight must be finite and >= 0");
+    if (c.exploration_maximum_astar_nodes <= 0 || c.exploration_maximum_astar_nodes > 1000000) errors.push_back("exploration.maximum_astar_nodes must be in [1, 1000000]");
+    if (c.exploration_no_frontier_confirmation_cycles <= 0 || c.exploration_no_frontier_confirmation_cycles > 1000) errors.push_back("exploration.no_frontier_confirmation_cycles must be in [1, 1000]");
+    if (c.exploration_bootstrap_minimum_known_cells <= 0) errors.push_back("exploration.bootstrap_minimum_known_cells must be > 0");
+    if (!std::isfinite(c.exploration_bootstrap_minimum_yaw_rad) || c.exploration_bootstrap_minimum_yaw_rad <= 0.0 || c.exploration_bootstrap_minimum_yaw_rad > 12.566370614359172) errors.push_back("exploration.bootstrap_minimum_yaw_rad must be finite and in (0, 4pi]");
+    if (!std::isfinite(c.exploration_bootstrap_max_duration_s) || c.exploration_bootstrap_max_duration_s <= 0.0) errors.push_back("exploration.bootstrap_max_duration_s must be finite and > 0");
+    if (!std::isfinite(c.exploration_max_duration_s) || c.exploration_max_duration_s <= c.exploration_bootstrap_max_duration_s || c.exploration_max_duration_s > 3600.0) errors.push_back("exploration.max_duration_s must exceed bootstrap duration and be <= 3600");
+    if (c.exploration_maximum_planning_failures <= 0 || c.exploration_maximum_planning_failures > 10000) errors.push_back("exploration.maximum_planning_failures must be in [1, 10000]");
+    if (!std::isfinite(c.exploration_simulation_fixed_dt_s) || c.exploration_simulation_fixed_dt_s <= 0.0 || c.exploration_simulation_fixed_dt_s > 0.2) errors.push_back("exploration.simulation_fixed_dt_s must be in (0, 0.2]");
+    if (!std::isfinite(c.exploration_simulation_tof_max_range_m) || c.exploration_simulation_tof_max_range_m <= 0.05 || c.exploration_simulation_tof_max_range_m > 12.0) errors.push_back("exploration.simulation_tof_max_range_m must be in (0.05, 12]");
+    const double exploration_width = c.exploration_max_x_m - c.exploration_min_x_m;
+    const double exploration_height = c.exploration_max_y_m - c.exploration_min_y_m;
+    if (exploration_width <= 2.0 * (c.exploration_robot_radius_m + c.exploration_safety_margin_m)) errors.push_back("exploration bounds too small for robot footprint");
+    if (exploration_height <= 2.0 * (c.exploration_robot_radius_m + c.exploration_safety_margin_m)) errors.push_back("exploration bounds too small for robot footprint");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -2000,6 +2038,25 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  max_total_keyframe_rays: " << c.sparse_slam_max_total_keyframe_rays << "\n"
       << "  max_cells_per_keyframe_transaction: " << c.sparse_slam_max_cells_per_keyframe_transaction << "\n"
       << "  rejected_match_requires_discard: " << bool_yaml(c.sparse_slam_rejected_match_requires_discard) << "\n";
+    o << "exploration:\n"
+      << "  min_x_m: " << c.exploration_min_x_m << "\n"
+      << "  max_x_m: " << c.exploration_max_x_m << "\n"
+      << "  min_y_m: " << c.exploration_min_y_m << "\n"
+      << "  max_y_m: " << c.exploration_max_y_m << "\n"
+      << "  robot_radius_m: " << c.exploration_robot_radius_m << "\n"
+      << "  safety_margin_m: " << c.exploration_safety_margin_m << "\n"
+      << "  maximum_navigation_cells: " << c.exploration_maximum_navigation_cells << "\n"
+      << "  minimum_frontier_cluster_cells: " << c.exploration_minimum_frontier_cluster_cells << "\n"
+      << "  information_gain_weight: " << c.exploration_information_gain_weight << "\n"
+      << "  maximum_astar_nodes: " << c.exploration_maximum_astar_nodes << "\n"
+      << "  no_frontier_confirmation_cycles: " << c.exploration_no_frontier_confirmation_cycles << "\n"
+      << "  bootstrap_minimum_known_cells: " << c.exploration_bootstrap_minimum_known_cells << "\n"
+      << "  bootstrap_minimum_yaw_rad: " << c.exploration_bootstrap_minimum_yaw_rad << "\n"
+      << "  bootstrap_max_duration_s: " << c.exploration_bootstrap_max_duration_s << "\n"
+      << "  max_duration_s: " << c.exploration_max_duration_s << "\n"
+      << "  maximum_planning_failures: " << c.exploration_maximum_planning_failures << "\n"
+      << "  simulation_fixed_dt_s: " << c.exploration_simulation_fixed_dt_s << "\n"
+      << "  simulation_tof_max_range_m: " << c.exploration_simulation_tof_max_range_m << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"

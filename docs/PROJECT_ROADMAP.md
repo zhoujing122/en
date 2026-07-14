@@ -14,9 +14,12 @@
 - M3-D3A: complete. Full planar three-ToF extrinsics and deterministic,
   versioned sparse-map atomic save/transactional load are integrated; existing
   maps start with an explicit ConfiguredPose and continue local SLAM.
+- M3-E: complete. Bounded sparse-map planning views, deterministic Frontier
+  selection, A*, safe waypoint tracking, active local SLAM alignment,
+  obstacle replanning, exploration completion, and final map save run through
+  the formal deterministic simulation runtime.
 - M3-D3B: next stage. Add bounded relocalization and lost-recovery foundations.
-- M3-E: future. Add Frontier and A* exploration.
-- M3-F: complete simulation acceptance.
+- M3-F: future production-readiness and hardware acceptance.
 
 M3-C4 is not real hardware enablement, production SLAM, native three-ToF map fusion, real map writing, pose writeback, or autonomous exploration.
 

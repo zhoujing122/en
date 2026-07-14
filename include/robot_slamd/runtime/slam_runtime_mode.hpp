@@ -6,7 +6,8 @@ namespace robot_slamd {
 
 enum class SlamRuntimeMode {
     Legacy,
-    SparseShadow
+    SparseShadow,
+    SparseSimulationExploration
 };
 
 inline const char *to_string(SlamRuntimeMode mode) {
@@ -15,6 +16,8 @@ inline const char *to_string(SlamRuntimeMode mode) {
         return "legacy";
     case SlamRuntimeMode::SparseShadow:
         return "sparse_shadow";
+    case SlamRuntimeMode::SparseSimulationExploration:
+        return "sparse_sim_exploration";
     }
     return "unknown";
 }
@@ -27,6 +30,10 @@ inline bool parse_slam_runtime_mode(const std::string &value,
     }
     if (value == "sparse_shadow") {
         mode = SlamRuntimeMode::SparseShadow;
+        return true;
+    }
+    if (value == "sparse_sim_exploration") {
+        mode = SlamRuntimeMode::SparseSimulationExploration;
         return true;
     }
     return false;

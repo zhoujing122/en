@@ -1,0 +1,79 @@
+robot:
+  wheel_base_m: 0.180
+  wheel_radius_left_m: 0.032
+  wheel_radius_right_m: 0.032
+  encoder_ticks_per_rev: 1024
+
+slam_runtime:
+  mode: sparse_sim_exploration
+
+tof:
+  protocol_min_range_m: 0.02
+  protocol_max_range_m: 2.00
+  mapping_min_range_m: 0.05
+  mapping_max_range_m: 2.00
+  mapping_min_confidence: 70
+
+sparse_slam:
+  map_startup_mode: create_new
+  initial_pose_mode: startup_zero
+  planar_tof_extrinsics_configured: true
+  allow_legacy_mount_yaw_extrinsics: false
+  front_tof_x_m: 0.040
+  front_tof_y_m: 0.000
+  front_tof_yaw_rad: 0.000000
+  left_tof_x_m: 0.000
+  left_tof_y_m: 0.040
+  left_tof_yaw_rad: 1.570796
+  right_tof_x_m: 0.000
+  right_tof_y_m: -0.040
+  right_tof_yaw_rad: -1.570796
+  map_id: m3e_deterministic_room
+  map_run_id: m3e_simulation
+  save_map_on_exit: false
+  active_bundle_max_snapshots: 512
+  active_bundle_max_rays: 1536
+  active_bundle_max_duration_s: 30.0
+  active_bundle_max_snapshot_gap_s: 0.20
+  active_bundle_min_snapshots: 3
+  active_bundle_min_matchable_rays: 6
+  active_bundle_min_yaw_span_rad: 0.05
+  settle_max_abs_linear_speed_mps: 0.03
+  settle_max_abs_wheel_yaw_rate_rad_s: 0.03
+  settle_max_abs_imu_yaw_rate_rad_s: 0.03
+  settle_min_consecutive_samples: 3
+  settle_min_stable_duration_s: 0.10
+  settle_max_sample_gap_s: 0.20
+  local_match_min_bundle_frames: 3
+  local_match_min_matchable_rays: 6
+  local_match_min_used_rays: 6
+  local_match_min_known_cells: 4
+  local_match_max_unknown_ratio: 0.95
+  local_match_max_contradiction_ratio: 0.90
+  local_match_min_normalized_score: -0.50
+  local_match_min_score_margin: 0.00
+  local_match_min_score_range: 0.00
+  local_match_multimodal_max_score_drop: 0.00
+
+exploration:
+  min_x_m: -1.50
+  max_x_m: 1.50
+  min_y_m: -1.00
+  max_y_m: 1.00
+  robot_radius_m: 0.08
+  safety_margin_m: 0.04
+  maximum_navigation_cells: 200000
+  minimum_frontier_cluster_cells: 2
+  information_gain_weight: 0.02
+  maximum_astar_nodes: 50000
+  no_frontier_confirmation_cycles: 3
+  bootstrap_minimum_known_cells: 60
+  bootstrap_minimum_yaw_rad: 5.50
+  bootstrap_max_duration_s: 22.0
+  max_duration_s: 120.0
+  maximum_planning_failures: 30
+  simulation_fixed_dt_s: 0.05
+  simulation_tof_max_range_m: 2.00
+
+logging:
+  output_dir: /tmp/en_m3e_runs

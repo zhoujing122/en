@@ -280,6 +280,10 @@ public:
     }
 
     const SafeWaypointTrackerReport &report() const { return report_; }
+    const RobotPose2D *current_waypoint() const {
+        return waypoint_index_ < waypoints_.size()
+            ? &waypoints_[waypoint_index_] : nullptr;
+    }
 
 private:
     static bool finite_pose(const RobotPose2D &pose) {
