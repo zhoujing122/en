@@ -141,36 +141,68 @@ public:
         return stats;
     }
 
-    SparseOccupancyGridSnapshot snapshot() const {
+
+    SparseOccupancyGridSnapshotCaptureResult capture_snapshot(
+        std::uint64_t revision,
+        std::size_t maximum_snapshot_cells) const {
+        SparseOccupancyGridSnapshotCaptureResult result;
+        if (!valid()) {
+            result.fault = SparseOccupancyGridSnapshotFault::InvalidGrid;
+            result.message = "reference_snapshot_grid_invalid";
+            return result;
+        }
+        if (maximum_snapshot_cells == 0) {
+            result.fault = SparseOccupancyGridSnapshotFault::InvalidLimit;
+            result.message = "reference_snapshot_limit_invalid";
+            return result;
+        }
+        if (cells_.size() > maximum_snapshot_cells) {
+            result.fault = SparseOccupancyGridSnapshotFault::CapacityExceeded;
+            result.message = "reference_snapshot_capacity_exceeded";
+            return result;
+        }
+
         SparseOccupancyGridSnapshot out;
-        out.resolution_m = config_.resolution_m;
+        out.valid_ = true;
+        out.revision_ = revision;
+        out.resolution_m_ = config_.resolution_m;
+        out.free_threshold_ = config_.free_threshold;
+        out.occupied_threshold_ = config_.occupied_threshold;
+        out.cells_.reserve(cells_.size());
         bool first = true;
         for (const auto &entry : cells_) {
             SparseOccupancyCell cell;
             cell.key = entry.first;
             cell.evidence = entry.second.evidence;
-            cell.free = cell.evidence <= config_.free_threshold;
-            cell.occupied = cell.evidence >= config_.occupied_threshold;
-            if (cell.free) {
-                out.free_cell_count++;
-            } else if (cell.occupied) {
-                out.occupied_cell_count++;
+            if (cell.evidence <= config_.free_threshold) {
+                out.free_cell_count_++;
+            } else if (cell.evidence >= config_.occupied_threshold) {
+                out.occupied_cell_count_++;
             } else {
-                out.uncertain_cell_count++;
+                out.uncertain_cell_count_++;
             }
             if (first) {
-                out.min_x = out.max_x = cell.key.x;
-                out.min_y = out.max_y = cell.key.y;
+                out.min_x_ = out.max_x_ = cell.key.x;
+                out.min_y_ = out.max_y_ = cell.key.y;
+                out.has_bounds_ = true;
                 first = false;
             } else {
-                out.min_x = std::min(out.min_x, cell.key.x);
-                out.max_x = std::max(out.max_x, cell.key.x);
-                out.min_y = std::min(out.min_y, cell.key.y);
-                out.max_y = std::max(out.max_y, cell.key.y);
+                out.min_x_ = std::min(out.min_x_, cell.key.x);
+                out.max_x_ = std::max(out.max_x_, cell.key.x);
+                out.min_y_ = std::min(out.min_y_, cell.key.y);
+                out.max_y_ = std::max(out.max_y_, cell.key.y);
             }
-            out.cells.push_back(cell);
+            out.cells_.push_back(cell);
         }
-        return out;
+        result.ok = true;
+        result.snapshot = std::move(out);
+        result.message = "reference_snapshot_captured";
+        return result;
+    }
+
+    SparseOccupancyGridSnapshot snapshot() const {
+        const auto captured = capture_snapshot(0, config_.maximum_active_cells);
+        return captured.snapshot;
     }
 
     std::size_t active_cell_count() const {

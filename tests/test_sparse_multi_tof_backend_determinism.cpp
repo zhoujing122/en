@@ -64,11 +64,11 @@ int main() {
     }
     const auto sa = a.grid_snapshot();
     const auto sb = b.grid_snapshot();
-    expect(sa.cells.size() == sb.cells.size(), "cell count deterministic");
-    bool same = sa.cells.size() == sb.cells.size();
-    for (std::size_t i = 0; i < sa.cells.size() && i < sb.cells.size(); ++i) {
-        same = same && sa.cells[i].key == sb.cells[i].key &&
-               sa.cells[i].evidence == sb.cells[i].evidence;
+    expect(sa.cells().size() == sb.cells().size(), "cell count deterministic");
+    bool same = sa.cells().size() == sb.cells().size();
+    for (std::size_t i = 0; i < sa.cells().size() && i < sb.cells().size(); ++i) {
+        same = same && sa.cells()[i].key == sb.cells()[i].key &&
+               sa.cells()[i].evidence == sb.cells()[i].evidence;
     }
     expect(same, "cell order and evidence deterministic");
     expect(a.report().hit_ray_count == b.report().hit_ray_count,

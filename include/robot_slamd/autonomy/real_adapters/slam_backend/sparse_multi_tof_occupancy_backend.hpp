@@ -232,10 +232,10 @@ public:
         report_.occupied_over_free_resolution_count +=
             stats.occupied_over_free_resolution_count;
         const auto snapshot = grid_.snapshot();
-        report_.active_cell_count = snapshot.cells.size();
-        report_.free_cell_count = snapshot.free_cell_count;
-        report_.occupied_cell_count = snapshot.occupied_cell_count;
-        report_.uncertain_cell_count = snapshot.uncertain_cell_count;
+        report_.active_cell_count = snapshot.cell_count();
+        report_.free_cell_count = snapshot.free_cell_count();
+        report_.occupied_cell_count = snapshot.occupied_cell_count();
+        report_.uncertain_cell_count = snapshot.uncertain_cell_count();
         report_.map_capacity_ratio =
             options_.grid.maximum_active_cells == 0
                 ? 1.0
@@ -289,6 +289,12 @@ public:
 
     SparseOccupancyGridSnapshot grid_snapshot() const {
         return grid_.snapshot();
+    }
+
+    SparseOccupancyGridSnapshotCaptureResult capture_grid_snapshot(
+        std::uint64_t revision,
+        std::size_t maximum_snapshot_cells) const {
+        return grid_.capture_snapshot(revision, maximum_snapshot_cells);
     }
 
 private:

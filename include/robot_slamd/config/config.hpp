@@ -193,6 +193,7 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_settle_min_consecutive_samples = get_int(kv, "sparse_slam.settle_min_consecutive_samples", c.sparse_slam_settle_min_consecutive_samples);
     c.sparse_slam_settle_min_stable_duration_s = get_double(kv, "sparse_slam.settle_min_stable_duration_s", c.sparse_slam_settle_min_stable_duration_s);
     c.sparse_slam_settle_max_sample_gap_s = get_double(kv, "sparse_slam.settle_max_sample_gap_s", c.sparse_slam_settle_max_sample_gap_s);
+    c.sparse_slam_reference_snapshot_max_cells = get_int(kv, "sparse_slam.reference_snapshot_max_cells", c.sparse_slam_reference_snapshot_max_cells);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -816,6 +817,7 @@ void validate_config(const Config &c) {
     if (c.sparse_slam_settle_min_consecutive_samples <= 0) errors.push_back("sparse_slam.settle_min_consecutive_samples must be > 0");
     if (!std::isfinite(c.sparse_slam_settle_min_stable_duration_s) || c.sparse_slam_settle_min_stable_duration_s < 0.0) errors.push_back("sparse_slam.settle_min_stable_duration_s must be finite and >= 0");
     if (!std::isfinite(c.sparse_slam_settle_max_sample_gap_s) || c.sparse_slam_settle_max_sample_gap_s <= 0.0) errors.push_back("sparse_slam.settle_max_sample_gap_s must be finite and > 0");
+    if (c.sparse_slam_reference_snapshot_max_cells <= 0 || c.sparse_slam_reference_snapshot_max_cells > 100000) errors.push_back("sparse_slam.reference_snapshot_max_cells must be in [1, 100000]");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1826,7 +1828,8 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  settle_max_abs_imu_yaw_rate_rad_s: " << c.sparse_slam_settle_max_abs_imu_yaw_rate_rad_s << "\n"
       << "  settle_min_consecutive_samples: " << c.sparse_slam_settle_min_consecutive_samples << "\n"
       << "  settle_min_stable_duration_s: " << c.sparse_slam_settle_min_stable_duration_s << "\n"
-      << "  settle_max_sample_gap_s: " << c.sparse_slam_settle_max_sample_gap_s << "\n";
+      << "  settle_max_sample_gap_s: " << c.sparse_slam_settle_max_sample_gap_s << "\n"
+      << "  reference_snapshot_max_cells: " << c.sparse_slam_reference_snapshot_max_cells << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"

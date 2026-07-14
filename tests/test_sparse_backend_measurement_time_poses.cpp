@@ -87,7 +87,7 @@ int main() {
            "all three rays built");
     const auto snapshot = backend.grid_snapshot();
     bool saw_far_x = false;
-    for (const auto &cell : snapshot.cells) {
+    for (const auto &cell : snapshot.cells()) {
         if (cell.key.x >= 90) {
             saw_far_x = true;
         }

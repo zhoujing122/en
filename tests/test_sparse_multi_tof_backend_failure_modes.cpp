@@ -102,7 +102,7 @@ int main() {
     auto low_result = low_backend.update(input(low));
     expect(low_result.status == SlamBackendUpdateStatus::Rejected,
            "confidence zero rejected");
-    expect(low_backend.grid_snapshot().cells.empty(),
+    expect(low_backend.grid_snapshot().cells().empty(),
            "invalid ray no map update");
 
     SparseMultiTofOccupancyBackendOptions tiny = options;
@@ -114,7 +114,7 @@ int main() {
     expect(cap_backend.report().last_fault ==
                SparseMultiTofBackendFault::MapCapacityReached,
            "capacity fault surfaced");
-    expect(cap_backend.grid_snapshot().cells.empty(),
+    expect(cap_backend.grid_snapshot().cells().empty(),
            "capacity failure transactional");
 
     expect(!cap_backend.report().real_hardware_accessed &&

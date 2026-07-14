@@ -240,6 +240,7 @@ struct Config {
     int sparse_slam_settle_min_consecutive_samples = 3;
     double sparse_slam_settle_min_stable_duration_s = 0.20;
     double sparse_slam_settle_max_sample_gap_s = 0.20;
+    int sparse_slam_reference_snapshot_max_cells = 100000;
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;

@@ -81,7 +81,7 @@ int main() {
     expect(backend.report().front_ray_count == 1, "front ray counted");
     expect(backend.report().hit_ray_count == 1, "hit ray counted");
     auto map = backend.grid_snapshot();
-    expect(map.occupied_cell_count > 0, "hit endpoint occupied");
+    expect(map.occupied_cell_count() > 0, "hit endpoint occupied");
     expect(backend.report().free_cell_update_count > 0, "hit path free updates");
 
     SparseMultiTofOccupancyBackendBinding three(options);
@@ -105,7 +105,7 @@ int main() {
            "explicit no return accepted");
     expect(nr_backend.report().no_return_ray_count == 1,
            "no return counted");
-    expect(nr_backend.grid_snapshot().occupied_cell_count == 0,
+    expect(nr_backend.grid_snapshot().occupied_cell_count() == 0,
            "no return has no occupied endpoint");
 
     auto missing_right = snapshot(true, true, false);

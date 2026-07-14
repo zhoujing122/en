@@ -64,7 +64,7 @@ int main() {
     invalid_obs.usable_for_mapping = false;
     auto inv = invalid_grid.apply_observations({invalid_obs});
     expect(!inv.accepted, "invalid-only snapshot rejected");
-    expect(invalid_grid.snapshot().cells.empty(), "invalid does not update map");
+    expect(invalid_grid.snapshot().cells().empty(), "invalid does not update map");
 
     SparseOccupancyGrid overlap_a(config);
     SparseOccupancyGrid overlap_b(config);
@@ -74,7 +74,7 @@ int main() {
            "overlap order A accepted");
     expect(overlap_b.apply_observations({a2, a1}).accepted,
            "overlap order B accepted");
-    expect(overlap_a.snapshot().cells.size() == overlap_b.snapshot().cells.size(),
+    expect(overlap_a.snapshot().cells().size() == overlap_b.snapshot().cells().size(),
            "overlap cell count order independent");
     expect(overlap_a.evidence(occupied_cell) == overlap_b.evidence(occupied_cell),
            "occupied over free order independent");
@@ -86,7 +86,7 @@ int main() {
     expect(!cap.accepted &&
                cap.fault == SparseOccupancyGridFault::MapCapacityReached,
            "capacity failure rejected");
-    expect(tiny_grid.snapshot().cells.empty(), "capacity failure transactional");
+    expect(tiny_grid.snapshot().cells().empty(), "capacity failure transactional");
 
     return failures ? 1 : 0;
 }

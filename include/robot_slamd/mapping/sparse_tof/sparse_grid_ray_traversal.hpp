@@ -33,15 +33,6 @@ inline bool sparse_grid_config_valid(
            config.maximum_ray_cells > 0;
 }
 
-inline SparseGridCellKey sparse_grid_cell_for_world(double x_m,
-                                                    double y_m,
-                                                    double resolution_m) {
-    SparseGridCellKey key;
-    key.x = static_cast<std::int32_t>(std::floor(x_m / resolution_m));
-    key.y = static_cast<std::int32_t>(std::floor(y_m / resolution_m));
-    return key;
-}
-
 inline bool sparse_key_present(const std::vector<SparseGridCellKey> &cells,
                                const SparseGridCellKey &key) {
     return std::find(cells.begin(), cells.end(), key) != cells.end();
