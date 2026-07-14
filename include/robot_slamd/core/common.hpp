@@ -226,6 +226,14 @@ struct Config {
     double sparse_slam_startup_max_abs_imu_yaw_rate_rad_s = 0.02;
     double sparse_slam_startup_max_gyro_bias_abs_rad_s = 0.10;
     double sparse_slam_startup_max_gyro_spread_rad_s = 0.01;
+    int sparse_slam_active_bundle_max_snapshots = 64;
+    int sparse_slam_active_bundle_max_rays = 192;
+    double sparse_slam_active_bundle_max_duration_s = 8.0;
+    double sparse_slam_active_bundle_max_snapshot_gap_s = 0.50;
+    int sparse_slam_active_bundle_min_snapshots = 2;
+    int sparse_slam_active_bundle_min_matchable_rays = 3;
+    double sparse_slam_active_bundle_min_yaw_span_rad = 0.0;
+    bool sparse_slam_active_bundle_require_all_measurement_poses = true;
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;

@@ -179,6 +179,14 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s = get_double(kv, "sparse_slam.startup_max_abs_imu_yaw_rate_rad_s", c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s);
     c.sparse_slam_startup_max_gyro_bias_abs_rad_s = get_double(kv, "sparse_slam.startup_max_gyro_bias_abs_rad_s", c.sparse_slam_startup_max_gyro_bias_abs_rad_s);
     c.sparse_slam_startup_max_gyro_spread_rad_s = get_double(kv, "sparse_slam.startup_max_gyro_spread_rad_s", c.sparse_slam_startup_max_gyro_spread_rad_s);
+    c.sparse_slam_active_bundle_max_snapshots = get_int(kv, "sparse_slam.active_bundle_max_snapshots", c.sparse_slam_active_bundle_max_snapshots);
+    c.sparse_slam_active_bundle_max_rays = get_int(kv, "sparse_slam.active_bundle_max_rays", c.sparse_slam_active_bundle_max_rays);
+    c.sparse_slam_active_bundle_max_duration_s = get_double(kv, "sparse_slam.active_bundle_max_duration_s", c.sparse_slam_active_bundle_max_duration_s);
+    c.sparse_slam_active_bundle_max_snapshot_gap_s = get_double(kv, "sparse_slam.active_bundle_max_snapshot_gap_s", c.sparse_slam_active_bundle_max_snapshot_gap_s);
+    c.sparse_slam_active_bundle_min_snapshots = get_int(kv, "sparse_slam.active_bundle_min_snapshots", c.sparse_slam_active_bundle_min_snapshots);
+    c.sparse_slam_active_bundle_min_matchable_rays = get_int(kv, "sparse_slam.active_bundle_min_matchable_rays", c.sparse_slam_active_bundle_min_matchable_rays);
+    c.sparse_slam_active_bundle_min_yaw_span_rad = get_double(kv, "sparse_slam.active_bundle_min_yaw_span_rad", c.sparse_slam_active_bundle_min_yaw_span_rad);
+    c.sparse_slam_active_bundle_require_all_measurement_poses = get_bool(kv, "sparse_slam.active_bundle_require_all_measurement_poses", c.sparse_slam_active_bundle_require_all_measurement_poses);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -784,6 +792,18 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s) || c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s < 0.0) errors.push_back("sparse_slam.startup_max_abs_imu_yaw_rate_rad_s must be finite and >= 0");
     if (!std::isfinite(c.sparse_slam_startup_max_gyro_bias_abs_rad_s) || c.sparse_slam_startup_max_gyro_bias_abs_rad_s < 0.0) errors.push_back("sparse_slam.startup_max_gyro_bias_abs_rad_s must be finite and >= 0");
     if (!std::isfinite(c.sparse_slam_startup_max_gyro_spread_rad_s) || c.sparse_slam_startup_max_gyro_spread_rad_s < 0.0) errors.push_back("sparse_slam.startup_max_gyro_spread_rad_s must be finite and >= 0");
+    if (c.sparse_slam_active_bundle_max_snapshots <= 0) errors.push_back("sparse_slam.active_bundle_max_snapshots must be > 0");
+    if (c.sparse_slam_active_bundle_max_snapshots > 1024) errors.push_back("sparse_slam.active_bundle_max_snapshots must be <= 1024");
+    if (c.sparse_slam_active_bundle_max_rays <= 0) errors.push_back("sparse_slam.active_bundle_max_rays must be > 0");
+    if (c.sparse_slam_active_bundle_max_rays > 3072) errors.push_back("sparse_slam.active_bundle_max_rays must be <= 3072");
+    if (c.sparse_slam_active_bundle_max_rays < c.sparse_slam_active_bundle_max_snapshots * 3) errors.push_back("sparse_slam.active_bundle_max_rays must cover max_snapshots * 3");
+    if (!std::isfinite(c.sparse_slam_active_bundle_max_duration_s) || c.sparse_slam_active_bundle_max_duration_s <= 0.0) errors.push_back("sparse_slam.active_bundle_max_duration_s must be finite and > 0");
+    if (!std::isfinite(c.sparse_slam_active_bundle_max_snapshot_gap_s) || c.sparse_slam_active_bundle_max_snapshot_gap_s <= 0.0) errors.push_back("sparse_slam.active_bundle_max_snapshot_gap_s must be finite and > 0");
+    if (c.sparse_slam_active_bundle_min_snapshots < 0) errors.push_back("sparse_slam.active_bundle_min_snapshots must be >= 0");
+    if (c.sparse_slam_active_bundle_min_snapshots > c.sparse_slam_active_bundle_max_snapshots) errors.push_back("sparse_slam.active_bundle_min_snapshots must be <= max_snapshots");
+    if (c.sparse_slam_active_bundle_min_matchable_rays < 0) errors.push_back("sparse_slam.active_bundle_min_matchable_rays must be >= 0");
+    if (c.sparse_slam_active_bundle_min_matchable_rays > c.sparse_slam_active_bundle_max_rays) errors.push_back("sparse_slam.active_bundle_min_matchable_rays must be <= max_rays");
+    if (!std::isfinite(c.sparse_slam_active_bundle_min_yaw_span_rad) || c.sparse_slam_active_bundle_min_yaw_span_rad < 0.0 || c.sparse_slam_active_bundle_min_yaw_span_rad > 6.28318530717958647692) errors.push_back("sparse_slam.active_bundle_min_yaw_span_rad must be finite and within [0, 2pi]");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1780,7 +1800,15 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  startup_max_abs_wheel_yaw_rate_rad_s: " << c.sparse_slam_startup_max_abs_wheel_yaw_rate_rad_s << "\n"
       << "  startup_max_abs_imu_yaw_rate_rad_s: " << c.sparse_slam_startup_max_abs_imu_yaw_rate_rad_s << "\n"
       << "  startup_max_gyro_bias_abs_rad_s: " << c.sparse_slam_startup_max_gyro_bias_abs_rad_s << "\n"
-      << "  startup_max_gyro_spread_rad_s: " << c.sparse_slam_startup_max_gyro_spread_rad_s << "\n";
+      << "  startup_max_gyro_spread_rad_s: " << c.sparse_slam_startup_max_gyro_spread_rad_s << "\n"
+      << "  active_bundle_max_snapshots: " << c.sparse_slam_active_bundle_max_snapshots << "\n"
+      << "  active_bundle_max_rays: " << c.sparse_slam_active_bundle_max_rays << "\n"
+      << "  active_bundle_max_duration_s: " << c.sparse_slam_active_bundle_max_duration_s << "\n"
+      << "  active_bundle_max_snapshot_gap_s: " << c.sparse_slam_active_bundle_max_snapshot_gap_s << "\n"
+      << "  active_bundle_min_snapshots: " << c.sparse_slam_active_bundle_min_snapshots << "\n"
+      << "  active_bundle_min_matchable_rays: " << c.sparse_slam_active_bundle_min_matchable_rays << "\n"
+      << "  active_bundle_min_yaw_span_rad: " << c.sparse_slam_active_bundle_min_yaw_span_rad << "\n"
+      << "  active_bundle_require_all_measurement_poses: " << bool_yaml(c.sparse_slam_active_bundle_require_all_measurement_poses) << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"
