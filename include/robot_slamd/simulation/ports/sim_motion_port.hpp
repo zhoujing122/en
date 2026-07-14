@@ -17,6 +17,8 @@ struct SimMotionPortConfig {
     double settle_linear_speed_mps = 0.005;
     double settle_angular_speed_rad_s = 0.01;
     int settle_required_ticks = 3;
+    double maximum_algorithm_speed_normalized = 0.40;
+    double maximum_algorithm_duration_s = 0.50;
 };
 
 class SimMotionPort final : public RobotSlamMotionPort {
@@ -28,6 +30,8 @@ public:
         options.allow_translation_commands = config_.allow_translation;
         options.allow_rotation_commands = true;
         options.allow_manual_test_commands = true;
+        options.max_manual_test_speed = config_.maximum_algorithm_speed_normalized;
+        options.max_manual_test_duration_s = config_.maximum_algorithm_duration_s;
         adapter_ = AlgorithmMotionCommandAdapter(options);
     }
 
@@ -41,7 +45,12 @@ public:
                sim_finite(config_.settle_angular_speed_rad_s) &&
                config_.settle_linear_speed_mps >= 0.0 &&
                config_.settle_angular_speed_rad_s >= 0.0 &&
-               config_.settle_required_ticks > 0;
+               config_.settle_required_ticks > 0 &&
+               sim_finite(config_.maximum_algorithm_speed_normalized) &&
+               config_.maximum_algorithm_speed_normalized > 0.0 &&
+               config_.maximum_algorithm_speed_normalized <= 1.0 &&
+               sim_finite(config_.maximum_algorithm_duration_s) &&
+               config_.maximum_algorithm_duration_s > 0.0;
     }
 
     AlgorithmMotionFacadeResult send_algorithm_command(
