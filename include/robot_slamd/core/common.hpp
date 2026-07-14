@@ -216,6 +216,17 @@ struct Config {
     double sparse_slam_configured_pose_x_m = 0.0;
     double sparse_slam_configured_pose_y_m = 0.0;
     double sparse_slam_configured_pose_yaw_rad = 0.0;
+    bool sparse_slam_planar_tof_extrinsics_configured = false;
+    bool sparse_slam_allow_legacy_mount_yaw_extrinsics = true;
+    double sparse_slam_front_tof_x_m = 0.0;
+    double sparse_slam_front_tof_y_m = 0.0;
+    double sparse_slam_front_tof_yaw_rad = 0.0;
+    double sparse_slam_left_tof_x_m = 0.0;
+    double sparse_slam_left_tof_y_m = 0.0;
+    double sparse_slam_left_tof_yaw_rad = 0.0;
+    double sparse_slam_right_tof_x_m = 0.0;
+    double sparse_slam_right_tof_y_m = 0.0;
+    double sparse_slam_right_tof_yaw_rad = 0.0;
     int sparse_slam_pose_buffer_capacity = 64;
     double sparse_slam_pose_buffer_max_age_s = 10.0;
     double sparse_slam_pose_interpolation_max_gap_s = 0.25;

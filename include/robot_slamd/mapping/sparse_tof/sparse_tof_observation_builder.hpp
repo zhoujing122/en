@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot_slamd/autonomy/autonomous_slam_types.hpp"
+#include "robot_slamd/mapping/sparse_tof/planar_tof_extrinsics.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_tof_ray_observation.hpp"
 
 #include <cmath>
@@ -22,6 +23,8 @@ struct SparseTofObservationBuilderOptions {
 struct SparseTofObservationBuildInput {
     ScalarTofSnapshotFrame frame;
     RobotPose2D estimated_pose;
+    bool has_planar_extrinsic = false;
+    PlanarTofExtrinsic planar_extrinsic;
     ScalarTofReturnKind explicit_return_kind = ScalarTofReturnKind::Unspecified;
     bool synchronized = true;
     double now_s = 0.0;
@@ -36,11 +39,14 @@ public:
     SparseTofObservationBuildResult build(
         const SparseTofObservationBuildInput &input) const {
         SparseTofObservationBuildResult result;
-        result.observation.sensor_origin_x_m = input.estimated_pose.x_m;
-        result.observation.sensor_origin_y_m = input.estimated_pose.y_m;
-        result.observation.ray_yaw_rad =
-            normalize_yaw(input.estimated_pose.yaw_rad +
-                          input.frame.mount_yaw_rad);
+        const PlanarTofExtrinsic extrinsic = input.has_planar_extrinsic
+            ? input.planar_extrinsic
+            : PlanarTofExtrinsic{0.0, 0.0, input.frame.mount_yaw_rad};
+        const auto sensor_pose =
+            compose_base_with_tof_extrinsic(input.estimated_pose, extrinsic);
+        result.observation.sensor_origin_x_m = sensor_pose.x_m;
+        result.observation.sensor_origin_y_m = sensor_pose.y_m;
+        result.observation.ray_yaw_rad = normalize_yaw(sensor_pose.yaw_rad);
         result.observation.measured_range_m = input.frame.distance_m;
         result.observation.free_space_range_m = input.frame.distance_m;
         result.observation.confidence = input.frame.confidence;
@@ -115,7 +121,9 @@ private:
         if (!std::isfinite(input.now_s) ||
             !std::isfinite(input.estimated_pose.x_m) ||
             !std::isfinite(input.estimated_pose.y_m) ||
-            !std::isfinite(input.estimated_pose.yaw_rad)) {
+            !std::isfinite(input.estimated_pose.yaw_rad) ||
+            (input.has_planar_extrinsic &&
+             !planar_tof_extrinsic_valid(input.planar_extrinsic))) {
             return "pose_or_time_invalid";
         }
         if (!input.synchronized) {

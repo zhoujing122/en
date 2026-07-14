@@ -72,6 +72,17 @@ int main() {
     bad = robot_slamd::Config{};
     bad.sparse_slam_rejected_match_requires_discard = false;
     expect(rejects(bad), "automatic recovery from rejected match rejects");
+    bad = robot_slamd::Config{};
+    bad.sparse_slam_allow_legacy_mount_yaw_extrinsics = false;
+    expect(rejects(bad), "formal sparse mode requires configured extrinsics");
+    bad.sparse_slam_planar_tof_extrinsics_configured = true;
+    bad.sparse_slam_front_tof_x_m = 0.12;
+    bad.sparse_slam_left_tof_y_m = 0.09;
+    bad.sparse_slam_right_tof_y_m = -0.09;
+    robot_slamd::validate_config(bad);
+    bad.sparse_slam_right_tof_yaw_rad =
+        std::numeric_limits<double>::quiet_NaN();
+    expect(rejects(bad), "non-finite planar extrinsic rejects");
 
     const std::string resolved = "/tmp/m3d2a0_slam_initialization_resolved.yaml";
     robot_slamd::write_resolved_config(cfg, resolved);
@@ -89,6 +100,10 @@ int main() {
            "resolved atomic commit flag");
     expect(text.find("max_keyframes: 64") != std::string::npos,
            "resolved keyframe capacity");
+    expect(text.find("planar_tof_extrinsics_configured:") !=
+               std::string::npos &&
+               text.find("front_tof_x_m:") != std::string::npos,
+           "resolved planar extrinsic contract");
 
     return 0;
 }

@@ -103,6 +103,7 @@ public:
 private:
     struct RayRef {
         const ResolvedScalarTofObservationRoute *route = nullptr;
+        PlanarTofRoute sensor_route = PlanarTofRoute::Front;
     };
 
     struct CandidateEvaluation {
@@ -171,9 +172,9 @@ private:
         std::vector<RayRef> all;
         all.reserve(input.frozen_bundle->frames().size() * 3U);
         for (const auto &frame : input.frozen_bundle->frames()) {
-            all.push_back({&frame.front});
-            all.push_back({&frame.left});
-            all.push_back({&frame.right});
+            all.push_back({&frame.front, PlanarTofRoute::Front});
+            all.push_back({&frame.left, PlanarTofRoute::Left});
+            all.push_back({&frame.right, PlanarTofRoute::Right});
         }
         if (all.size() <= input.config.max_scored_rays) {
             return all;
@@ -287,6 +288,9 @@ private:
             SparseTofObservationBuildInput build;
             build.frame = route.frame;
             build.estimated_pose = candidate_base.map_T_base;
+            build.has_planar_extrinsic = input.config.use_planar_tof_extrinsics;
+            build.planar_extrinsic = planar_tof_extrinsic_for(
+                input.config.planar_tof_extrinsics, ray.sensor_route);
             build.explicit_return_kind = route.return_kind;
             build.synchronized = true;
             build.now_s = route.effective_timestamp_s;

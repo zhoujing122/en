@@ -7,7 +7,11 @@ int main() {
     const auto frames = asymmetric_frames(true);
     const auto bundle = frozen_bundle(frames, frames.size() * 3);
     SparseOccupancyGrid grid;
-    SparseTofKeyframeMapTransactionBuilder builder;
+    PlanarThreeTofExtrinsics extrinsics;
+    extrinsics.front = {0.40, -0.20, 0.10};
+    extrinsics.left = {-0.10, 0.30, 1.20};
+    extrinsics.right = {-0.20, -0.25, -1.10};
+    SparseTofKeyframeMapTransactionBuilder builder({}, true, extrinsics);
     const auto proposed = make_map_from_odom({0.0, 0.0, 0.20});
 
     auto prepared = builder.prepare(bundle, proposed, 11, 11, grid, 4096);
@@ -21,9 +25,17 @@ int main() {
                prepared.transaction.stats.no_return_ray_count > 0,
            "hit and no-return semantics retained");
 
+    const auto corrected_base = compose(
+        proposed, frames.front().front.odom_pose_at_measurement);
+    const auto corrected_sensor = compose_base_with_tof_extrinsic(
+        corrected_base.map_T_base, extrinsics.front);
     const auto corrected_endpoint = grid.cell_for_world(
-        std::cos(0.20) * frames.front().front.frame.distance_m,
-        std::sin(0.20) * frames.front().front.frame.distance_m);
+        corrected_sensor.x_m +
+            std::cos(corrected_sensor.yaw_rad) *
+                frames.front().front.frame.distance_m,
+        corrected_sensor.y_m +
+            std::sin(corrected_sensor.yaw_rad) *
+                frames.front().front.frame.distance_m);
     const auto old_endpoint = grid.cell_for_world(
         frames.front().front.frame.distance_m, 0.0);
     expect(grid.commit_prepared_batch(

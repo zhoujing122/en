@@ -68,6 +68,10 @@ int main() {
     options.minimum_valid_rays_for_good_quality = 1;
     options.minimum_observed_cells_for_good_quality = 1;
     options.minimum_angular_bins_for_good_quality = 1;
+    options.use_planar_tof_extrinsics = true;
+    options.planar_tof_extrinsics.front = {0.5, 0.5, 0.0};
+    options.planar_tof_extrinsics.left = {-0.5, 0.5, 1.5707963267948966};
+    options.planar_tof_extrinsics.right = {-0.5, -0.5, -1.5707963267948966};
 
     SparseMultiTofOccupancyBackendBinding backend(options);
     auto result = backend.update(input(snapshot(true, false, false)));
@@ -82,6 +86,8 @@ int main() {
     expect(backend.report().hit_ray_count == 1, "hit ray counted");
     auto map = backend.grid_snapshot();
     expect(map.occupied_cell_count() > 0, "hit endpoint occupied");
+    expect(map.query_cell({3, 1}).evidence > 0,
+           "backend applies translated front sensor origin once");
     expect(backend.report().free_cell_update_count > 0, "hit path free updates");
 
     SparseMultiTofOccupancyBackendBinding three(options);

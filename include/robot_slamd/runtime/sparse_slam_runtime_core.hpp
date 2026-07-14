@@ -270,7 +270,7 @@ public:
           observation_controller_(make_observation_controller_config(config_)),
           keyframe_manager_(make_keyframe_config(config_)),
           sparse_backend_(std::make_shared<SparseMultiTofOccupancyBackendBinding>(
-              make_backend_options())),
+              make_backend_options(config_))),
           map_port_(sparse_backend_,
                     sparse_slam_runtime_core_backend_checker()) {
         report_.runtime_core_constructed = true;
@@ -622,6 +622,9 @@ private:
     static SparseTofLocalMatchConfig make_local_match_config(
         const Config &config) {
         SparseTofLocalMatchConfig out;
+        out.use_planar_tof_extrinsics =
+            config.sparse_slam_planar_tof_extrinsics_configured;
+        out.planar_tof_extrinsics = make_planar_tof_extrinsics(config);
         (void)parse_sparse_tof_local_match_mode(
             config.sparse_slam_local_match_mode, out.mode);
         out.max_abs_yaw_rad = config.sparse_slam_local_match_max_abs_yaw_rad;
@@ -682,7 +685,22 @@ private:
         return out;
     }
 
-    static SparseMultiTofOccupancyBackendOptions make_backend_options() {
+    static PlanarThreeTofExtrinsics make_planar_tof_extrinsics(
+        const Config &config) {
+        return {
+            {config.sparse_slam_front_tof_x_m,
+             config.sparse_slam_front_tof_y_m,
+             config.sparse_slam_front_tof_yaw_rad},
+            {config.sparse_slam_left_tof_x_m,
+             config.sparse_slam_left_tof_y_m,
+             config.sparse_slam_left_tof_yaw_rad},
+            {config.sparse_slam_right_tof_x_m,
+             config.sparse_slam_right_tof_y_m,
+             config.sparse_slam_right_tof_yaw_rad}};
+    }
+
+    static SparseMultiTofOccupancyBackendOptions make_backend_options(
+        const Config &config) {
         SparseMultiTofOccupancyBackendOptions out;
         out.minimum_accepted_snapshots_for_good_quality = 1;
         out.minimum_valid_rays_for_good_quality = 1;
@@ -690,6 +708,9 @@ private:
         out.minimum_angular_bins_for_good_quality = 1;
         out.require_multi_tof_measurement_poses = true;
         out.allow_single_pose_fallback = false;
+        out.use_planar_tof_extrinsics =
+            config.sparse_slam_planar_tof_extrinsics_configured;
+        out.planar_tof_extrinsics = make_planar_tof_extrinsics(config);
         return out;
     }
 

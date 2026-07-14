@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot_slamd/mapping/sparse_tof/sparse_grid_types.hpp"
+#include "robot_slamd/mapping/sparse_tof/planar_tof_extrinsics.hpp"
 #include "robot_slamd/runtime/active_multi_tof_observation_types.hpp"
 #include "robot_slamd/runtime/sparse_slam_frames.hpp"
 
@@ -44,6 +45,8 @@ inline bool parse_sparse_tof_local_match_mode(
 }
 
 struct SparseTofLocalMatchConfig {
+    bool use_planar_tof_extrinsics = false;
+    PlanarThreeTofExtrinsics planar_tof_extrinsics;
     SparseTofLocalMatchMode mode = SparseTofLocalMatchMode::YawOnly;
     double max_abs_yaw_rad = 0.2617993877991494;
     double coarse_yaw_step_rad = 0.03490658503988659;

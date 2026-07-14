@@ -71,6 +71,8 @@ struct SparseMultiTofOccupancyBackendOptions {
     int minimum_angular_bins_for_good_quality = 2;
     SparseOccupancyGridConfig grid;
     SparseTofObservationBuilderOptions observation_builder;
+    bool use_planar_tof_extrinsics = false;
+    PlanarThreeTofExtrinsics planar_tof_extrinsics;
     bool require_multi_tof_measurement_poses = false;
     bool allow_single_pose_fallback = true;
     double measurement_pose_timestamp_tolerance_s = 1e-6;
@@ -196,15 +198,15 @@ public:
 
         std::vector<SparseTofRayObservation> observations;
         observations.reserve(3);
-        build_if_present(input, "front", input.snapshot.multi_tof.has_front,
+        build_if_present(input, "front", PlanarTofRoute::Front, input.snapshot.multi_tof.has_front,
                          input.snapshot.multi_tof.front,
                          pose_for_front(input, use_measurement_poses),
                          observations);
-        build_if_present(input, "left", input.snapshot.multi_tof.has_left,
+        build_if_present(input, "left", PlanarTofRoute::Left, input.snapshot.multi_tof.has_left,
                          input.snapshot.multi_tof.left,
                          pose_for_left(input, use_measurement_poses),
                          observations);
-        build_if_present(input, "right", input.snapshot.multi_tof.has_right,
+        build_if_present(input, "right", PlanarTofRoute::Right, input.snapshot.multi_tof.has_right,
                          input.snapshot.multi_tof.right,
                          pose_for_right(input, use_measurement_poses),
                          observations);
@@ -305,7 +307,9 @@ public:
         std::uint64_t current_map_revision,
         std::size_t maximum_changed_cells) const {
         const SparseTofKeyframeMapTransactionBuilder transaction_builder(
-            options_.observation_builder);
+            options_.observation_builder,
+            options_.use_planar_tof_extrinsics,
+            options_.planar_tof_extrinsics);
         return transaction_builder.prepare(
             bundle, proposed_map_from_odom, expected_reference_revision,
             current_map_revision, grid_, maximum_changed_cells);
@@ -383,6 +387,7 @@ private:
 
     void build_if_present(const SlamBackendInputFrame &input,
                           const std::string &name,
+                          PlanarTofRoute sensor_route,
                           bool present,
                           const ScalarTofSnapshotFrame &frame,
                           const RobotPose2D &pose,
@@ -393,6 +398,9 @@ private:
         SparseTofObservationBuildInput build;
         build.frame = frame;
         build.estimated_pose = pose;
+        build.has_planar_extrinsic = options_.use_planar_tof_extrinsics;
+        build.planar_extrinsic = planar_tof_extrinsic_for(
+            options_.planar_tof_extrinsics, sensor_route);
         build.now_s = input.timestamp_s;
         build.synchronized = true;
         const auto built = builder_.build(build);

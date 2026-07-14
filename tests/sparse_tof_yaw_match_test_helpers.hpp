@@ -100,15 +100,24 @@ inline std::vector<ResolvedMultiTofObservationFrame> symmetric_frames() {
 inline SparseTofRayObservation map_observation(
     const ResolvedScalarTofObservationRoute &route,
     double no_return_range_m,
-    const MapFromOdom2D &true_map_from_odom) {
+    const MapFromOdom2D &true_map_from_odom,
+    const PlanarTofExtrinsic *extrinsic = nullptr) {
     const auto base = compose(true_map_from_odom,
                               route.odom_pose_at_measurement);
+    const auto sensor = extrinsic
+                            ? compose_base_with_tof_extrinsic(
+                                  base.map_T_base, *extrinsic)
+                            : RobotPose2D{
+                                  base.map_T_base.x_m,
+                                  base.map_T_base.y_m,
+                                  sparse_slam_normalize_yaw(
+                                      base.map_T_base.yaw_rad +
+                                      route.frame.mount_yaw_rad)};
     SparseTofRayObservation out;
     out.return_kind = route.return_kind;
-    out.sensor_origin_x_m = base.map_T_base.x_m;
-    out.sensor_origin_y_m = base.map_T_base.y_m;
-    out.ray_yaw_rad = sparse_slam_normalize_yaw(
-        base.map_T_base.yaw_rad + route.frame.mount_yaw_rad);
+    out.sensor_origin_x_m = sensor.x_m;
+    out.sensor_origin_y_m = sensor.y_m;
+    out.ray_yaw_rad = sensor.yaw_rad;
     out.measured_range_m = route.frame.distance_m;
     out.free_space_range_m = route.return_kind == ScalarTofReturnKind::NoReturn
                                  ? no_return_range_m
@@ -124,7 +133,8 @@ inline SparseTofRayObservation map_observation(
 inline SparseOccupancyGridSnapshot reference_map(
     const std::vector<ResolvedMultiTofObservationFrame> &frames,
     double no_return_range_m = 3.0,
-    const MapFromOdom2D &true_map_from_odom = identity_map_from_odom()) {
+    const MapFromOdom2D &true_map_from_odom = identity_map_from_odom(),
+    const PlanarThreeTofExtrinsics *extrinsics = nullptr) {
     SparseOccupancyGridConfig config;
     config.resolution_m = 0.05;
     config.maximum_mapping_range_m = 12.1;
@@ -132,9 +142,15 @@ inline SparseOccupancyGridSnapshot reference_map(
     SparseOccupancyGrid grid(config);
     std::vector<SparseTofRayObservation> observations;
     for (const auto &f : frames) {
-        observations.push_back(map_observation(f.front, no_return_range_m, true_map_from_odom));
-        observations.push_back(map_observation(f.left, no_return_range_m, true_map_from_odom));
-        observations.push_back(map_observation(f.right, no_return_range_m, true_map_from_odom));
+        observations.push_back(map_observation(
+            f.front, no_return_range_m, true_map_from_odom,
+            extrinsics ? &extrinsics->front : nullptr));
+        observations.push_back(map_observation(
+            f.left, no_return_range_m, true_map_from_odom,
+            extrinsics ? &extrinsics->left : nullptr));
+        observations.push_back(map_observation(
+            f.right, no_return_range_m, true_map_from_odom,
+            extrinsics ? &extrinsics->right : nullptr));
     }
     for (int i = 0; i < 3; ++i) {
         expect(grid.apply_observations(observations).accepted,
@@ -166,7 +182,8 @@ inline FrozenMultiTofObservationBundle frozen_bundle(
 inline SparseTofLocalMatchInput input_from_frames(
     const std::vector<ResolvedMultiTofObservationFrame> &frames,
     double predicted_yaw_error_rad,
-    double no_return_range_m = 3.0) {
+    double no_return_range_m = 3.0,
+    const PlanarThreeTofExtrinsics *extrinsics = nullptr) {
     SparseTofLocalMatchInput input;
     std::size_t matchable = 0;
     for (const auto &f : frames) {
@@ -180,7 +197,7 @@ inline SparseTofLocalMatchInput input_from_frames(
         frozen_bundle(frames, matchable));
     input.reference_map = std::make_shared<const SparseOccupancyGridSnapshot>(
         reference_map(frames, no_return_range_m,
-                      make_map_from_odom({0.35, -0.20, 0.0})));
+                      make_map_from_odom({0.35, -0.20, 0.0}), extrinsics));
     input.expected_reference_map_revision = 11;
     input.current_runtime_map_revision = 11;
     input.predicted_map_from_odom =
@@ -212,6 +229,10 @@ inline SparseTofLocalMatchInput input_from_frames(
     input.config.minimum_score_range = 0.001;
     input.config.runner_up_exclusion_yaw_rad = 0.05;
     input.config.multimodal_max_score_drop = 0.001;
+    if (extrinsics) {
+        input.config.use_planar_tof_extrinsics = true;
+        input.config.planar_tof_extrinsics = *extrinsics;
+    }
     return input;
 }
 

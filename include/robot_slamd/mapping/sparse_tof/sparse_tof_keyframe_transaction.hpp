@@ -28,8 +28,12 @@ struct SparseTofKeyframeMapPrepareResult {
 class SparseTofKeyframeMapTransactionBuilder {
 public:
     explicit SparseTofKeyframeMapTransactionBuilder(
-        SparseTofObservationBuilderOptions options = {})
-        : observation_builder_(options) {}
+        SparseTofObservationBuilderOptions options = {},
+        bool use_planar_tof_extrinsics = false,
+        PlanarThreeTofExtrinsics planar_tof_extrinsics = {})
+        : observation_builder_(options),
+          use_planar_tof_extrinsics_(use_planar_tof_extrinsics),
+          planar_tof_extrinsics_(planar_tof_extrinsics) {}
 
     SparseTofKeyframeMapPrepareResult prepare(
         const FrozenMultiTofObservationBundle &bundle,
@@ -54,11 +58,11 @@ public:
         for (const auto &frame : bundle.frames()) {
             std::vector<SparseTofRayObservation> observations;
             observations.reserve(3);
-            if (!append_route(frame.front, proposed_map_from_odom,
+            if (!append_route(frame.front, PlanarTofRoute::Front, proposed_map_from_odom,
                               frame.snapshot_timestamp_s, observations) ||
-                !append_route(frame.left, proposed_map_from_odom,
+                !append_route(frame.left, PlanarTofRoute::Left, proposed_map_from_odom,
                               frame.snapshot_timestamp_s, observations) ||
-                !append_route(frame.right, proposed_map_from_odom,
+                !append_route(frame.right, PlanarTofRoute::Right, proposed_map_from_odom,
                               frame.snapshot_timestamp_s, observations)) {
                 result.reason = "keyframe_corrected_observation_invalid";
                 return result;
@@ -93,6 +97,7 @@ public:
 private:
     bool append_route(
         const ResolvedScalarTofObservationRoute &route,
+        PlanarTofRoute sensor_route,
         const MapFromOdom2D &proposed_map_from_odom,
         double now_s,
         std::vector<SparseTofRayObservation> &observations) const {
@@ -109,6 +114,9 @@ private:
         SparseTofObservationBuildInput input;
         input.frame = route.frame;
         input.estimated_pose = corrected_base.map_T_base;
+        input.has_planar_extrinsic = use_planar_tof_extrinsics_;
+        input.planar_extrinsic = planar_tof_extrinsic_for(
+            planar_tof_extrinsics_, sensor_route);
         input.explicit_return_kind = route.return_kind;
         input.synchronized = true;
         input.now_s = now_s;
@@ -122,6 +130,8 @@ private:
     }
 
     SparseTofObservationBuilder observation_builder_;
+    bool use_planar_tof_extrinsics_ = false;
+    PlanarThreeTofExtrinsics planar_tof_extrinsics_;
 };
 
 } // namespace robot_slamd

@@ -24,5 +24,19 @@ int main() {
     expect(std::fabs(input.predicted_map_from_odom.map_T_odom.yaw_rad -
                      prediction_error) < 1e-12,
            "input prediction remains unchanged");
+
+    PlanarThreeTofExtrinsics extrinsics;
+    extrinsics.front = {0.30, 0.05, 0.08};
+    extrinsics.left = {-0.10, 0.25, 1.48};
+    extrinsics.right = {-0.15, -0.20, -1.42};
+    auto planar_input = input_from_frames(
+        asymmetric_frames(), prediction_error, 3.0, &extrinsics);
+    const auto planar_result = matcher.match(planar_input);
+    expect(planar_result.status == SparseTofLocalMatchStatus::AcceptedYawOnly,
+           "matcher uses configured planar extrinsics");
+    expect(planar_result.best_delta_yaw_rad.has_value() &&
+               std::fabs(*planar_result.best_delta_yaw_rad + prediction_error) <=
+                   planar_input.config.fine_yaw_step_rad + 1e-12,
+           "planar extrinsic matcher recovers yaw error");
     return 0;
 }

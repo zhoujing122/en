@@ -169,6 +169,17 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_configured_pose_x_m = get_double(kv, "sparse_slam.configured_pose_x_m", c.sparse_slam_configured_pose_x_m);
     c.sparse_slam_configured_pose_y_m = get_double(kv, "sparse_slam.configured_pose_y_m", c.sparse_slam_configured_pose_y_m);
     c.sparse_slam_configured_pose_yaw_rad = get_double(kv, "sparse_slam.configured_pose_yaw_rad", c.sparse_slam_configured_pose_yaw_rad);
+    c.sparse_slam_planar_tof_extrinsics_configured = get_bool(kv, "sparse_slam.planar_tof_extrinsics_configured", c.sparse_slam_planar_tof_extrinsics_configured);
+    c.sparse_slam_allow_legacy_mount_yaw_extrinsics = get_bool(kv, "sparse_slam.allow_legacy_mount_yaw_extrinsics", c.sparse_slam_allow_legacy_mount_yaw_extrinsics);
+    c.sparse_slam_front_tof_x_m = get_double(kv, "sparse_slam.front_tof_x_m", c.sparse_slam_front_tof_x_m);
+    c.sparse_slam_front_tof_y_m = get_double(kv, "sparse_slam.front_tof_y_m", c.sparse_slam_front_tof_y_m);
+    c.sparse_slam_front_tof_yaw_rad = get_double(kv, "sparse_slam.front_tof_yaw_rad", c.sparse_slam_front_tof_yaw_rad);
+    c.sparse_slam_left_tof_x_m = get_double(kv, "sparse_slam.left_tof_x_m", c.sparse_slam_left_tof_x_m);
+    c.sparse_slam_left_tof_y_m = get_double(kv, "sparse_slam.left_tof_y_m", c.sparse_slam_left_tof_y_m);
+    c.sparse_slam_left_tof_yaw_rad = get_double(kv, "sparse_slam.left_tof_yaw_rad", c.sparse_slam_left_tof_yaw_rad);
+    c.sparse_slam_right_tof_x_m = get_double(kv, "sparse_slam.right_tof_x_m", c.sparse_slam_right_tof_x_m);
+    c.sparse_slam_right_tof_y_m = get_double(kv, "sparse_slam.right_tof_y_m", c.sparse_slam_right_tof_y_m);
+    c.sparse_slam_right_tof_yaw_rad = get_double(kv, "sparse_slam.right_tof_yaw_rad", c.sparse_slam_right_tof_yaw_rad);
     c.sparse_slam_pose_buffer_capacity = get_int(kv, "sparse_slam.pose_buffer_capacity", c.sparse_slam_pose_buffer_capacity);
     c.sparse_slam_pose_buffer_max_age_s = get_double(kv, "sparse_slam.pose_buffer_max_age_s", c.sparse_slam_pose_buffer_max_age_s);
     c.sparse_slam_pose_interpolation_max_gap_s = get_double(kv, "sparse_slam.pose_interpolation_max_gap_s", c.sparse_slam_pose_interpolation_max_gap_s);
@@ -857,6 +868,19 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_settle_min_stable_duration_s) || c.sparse_slam_settle_min_stable_duration_s < 0.0) errors.push_back("sparse_slam.settle_min_stable_duration_s must be finite and >= 0");
     if (!std::isfinite(c.sparse_slam_settle_max_sample_gap_s) || c.sparse_slam_settle_max_sample_gap_s <= 0.0) errors.push_back("sparse_slam.settle_max_sample_gap_s must be finite and > 0");
     if (c.sparse_slam_reference_snapshot_max_cells <= 0 || c.sparse_slam_reference_snapshot_max_cells > 100000) errors.push_back("sparse_slam.reference_snapshot_max_cells must be in [1, 100000]");
+    if (!c.sparse_slam_planar_tof_extrinsics_configured && !c.sparse_slam_allow_legacy_mount_yaw_extrinsics) errors.push_back("sparse_slam planar ToF extrinsics are required when legacy compatibility is disabled");
+    const double sparse_tof_values[] = {
+        c.sparse_slam_front_tof_x_m, c.sparse_slam_front_tof_y_m,
+        c.sparse_slam_front_tof_yaw_rad, c.sparse_slam_left_tof_x_m,
+        c.sparse_slam_left_tof_y_m, c.sparse_slam_left_tof_yaw_rad,
+        c.sparse_slam_right_tof_x_m, c.sparse_slam_right_tof_y_m,
+        c.sparse_slam_right_tof_yaw_rad};
+    for (double value : sparse_tof_values) {
+        if (!std::isfinite(value)) {
+            errors.push_back("sparse_slam planar ToF extrinsics must be finite");
+            break;
+        }
+    }
     if (!one_of(c.sparse_slam_local_match_mode, {"yaw_only", "full_se2"})) errors.push_back("sparse_slam.local_match_mode must be yaw_only or full_se2");
     if (!std::isfinite(c.sparse_slam_local_match_max_abs_yaw_rad) || c.sparse_slam_local_match_max_abs_yaw_rad < 0.0 || c.sparse_slam_local_match_max_abs_yaw_rad > 3.14159265358979323846) errors.push_back("sparse_slam.local_match_max_abs_yaw_rad must be finite and within [0, pi]");
     if (!std::isfinite(c.sparse_slam_local_match_coarse_yaw_step_rad) || c.sparse_slam_local_match_coarse_yaw_step_rad <= 0.0) errors.push_back("sparse_slam.local_match_coarse_yaw_step_rad must be finite and > 0");
@@ -1908,6 +1932,17 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  settle_min_stable_duration_s: " << c.sparse_slam_settle_min_stable_duration_s << "\n"
       << "  settle_max_sample_gap_s: " << c.sparse_slam_settle_max_sample_gap_s << "\n"
       << "  reference_snapshot_max_cells: " << c.sparse_slam_reference_snapshot_max_cells << "\n"
+      << "  planar_tof_extrinsics_configured: " << bool_yaml(c.sparse_slam_planar_tof_extrinsics_configured) << "\n"
+      << "  allow_legacy_mount_yaw_extrinsics: " << bool_yaml(c.sparse_slam_allow_legacy_mount_yaw_extrinsics) << "\n"
+      << "  front_tof_x_m: " << c.sparse_slam_front_tof_x_m << "\n"
+      << "  front_tof_y_m: " << c.sparse_slam_front_tof_y_m << "\n"
+      << "  front_tof_yaw_rad: " << c.sparse_slam_front_tof_yaw_rad << "\n"
+      << "  left_tof_x_m: " << c.sparse_slam_left_tof_x_m << "\n"
+      << "  left_tof_y_m: " << c.sparse_slam_left_tof_y_m << "\n"
+      << "  left_tof_yaw_rad: " << c.sparse_slam_left_tof_yaw_rad << "\n"
+      << "  right_tof_x_m: " << c.sparse_slam_right_tof_x_m << "\n"
+      << "  right_tof_y_m: " << c.sparse_slam_right_tof_y_m << "\n"
+      << "  right_tof_yaw_rad: " << c.sparse_slam_right_tof_yaw_rad << "\n"
       << "  local_match_mode: " << c.sparse_slam_local_match_mode << "\n"
       << "  local_match_max_abs_yaw_rad: " << c.sparse_slam_local_match_max_abs_yaw_rad << "\n"
       << "  local_match_coarse_yaw_step_rad: " << c.sparse_slam_local_match_coarse_yaw_step_rad << "\n"

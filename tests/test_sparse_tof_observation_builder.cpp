@@ -49,6 +49,22 @@ int main() {
            "origin y from estimated pose");
     expect(std::fabs(hit.observation.ray_yaw_rad - 0.75) < 1e-12,
            "ray yaw pose plus mount");
+
+    input.has_planar_extrinsic = true;
+    input.planar_extrinsic = {0.40, -0.20, -0.50};
+    auto planar = SparseTofObservationBuilder{}.build(input);
+    const auto expected_sensor = compose_base_with_tof_extrinsic(
+        input.estimated_pose, input.planar_extrinsic);
+    expect(planar.ok, "planar extrinsic observation ok");
+    expect(std::fabs(planar.observation.sensor_origin_x_m -
+                     expected_sensor.x_m) < 1e-12 &&
+               std::fabs(planar.observation.sensor_origin_y_m -
+                         expected_sensor.y_m) < 1e-12,
+           "sensor origin includes translated planar extrinsic once");
+    expect(std::fabs(planar.observation.ray_yaw_rad -
+                     expected_sensor.yaw_rad) < 1e-12,
+           "explicit extrinsic yaw replaces legacy mount yaw");
+    input.has_planar_extrinsic = false;
     expect(hit.observation.echo_tag_u48 == 0x1234,
            "echo tag preserved");
     expect(hit.observation.confidence == 100,
