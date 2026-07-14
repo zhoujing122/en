@@ -15,3 +15,11 @@ The phase-aware controller defines the transitional collection lifecycle: Idle, 
 MotionSettleGate consumes only wheel freshness, wheel linear speed, wheel angular speed, IMU freshness, IMU yaw rate, and sensor timestamps. It does not read command speed, command-completed flags, target angle, or wall-clock sleep. Stale samples, non-finite values, speed threshold violations, timestamp rollback, and sample gaps reset or reject stability deterministically.
 
 The reference map guard records map revision and cell count at BeginCollection. Any revision or cell count change during active collection aborts the bundle and keeps map commit blocked until explicit discard.
+
+## Runtime Core Integration
+
+`SparseSlamRuntimeCore` owns the phase-aware controller, active builder, frozen bundle state, settle gate, map revision, estimator, timed pose buffer, measurement pose resolver, backend adapter, and sparse backend. `SparseShadowRuntime` remains a wrapper that constructs the deterministic sensor source, constructs the core, calls `initialize`, calls `step`, and writes the report. Future production wiring must replace the sensor source and reuse the same core.
+
+The only sparse map commit gate is the active bundle state: Idle allows the existing D2A0 backend update path; CollectingDuringMotion, WaitingForMotionSettle, FrozenReady, and Aborted block `SlamBackendMapPortAdapter::integrate_map_update` before backend attempt counts increase. Odometry and the timed pose buffer continue to update while map commit is blocked. WaitingForMotionSettle continues native multi-ToF collection and uses `MotionSettleGate` before freezing.
+
+`current_map_revision` increases only after an accepted idle sparse backend update. BeginCollection records `reference_map_revision`, `reference_map_cell_count`, and `map_from_odom_at_start`; active/frozen/aborted states verify the revision and cell count remain unchanged. The frozen bundle is not committed to the sparse map in this stage, so the reference map cannot contain the bundle being prepared for the future matcher.

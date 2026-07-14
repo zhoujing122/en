@@ -7,8 +7,9 @@
 - M3-D1: algorithm complete. Invalid / Hit / NoReturn scalar ToF semantics, Wheel/IMU dead reckoning, and the lightweight sparse three-ToF occupancy backend are implemented.
 - M3-D1.1: complete. The executable has a default-off Sparse Shadow runtime wiring path for explicit predicted map pose handoff into the sparse backend.
 - M3-D2A0: complete. Unified sparse SLAM initialization, map/odom frame contracts, timed odom pose alignment, and the shared `SparseSlamRuntimeCore` are in place.
-- M3-D2A1: next stage. Add phase-aware active multi-ToF observation bundle collection.
-- M3-D2: later stage. Add sparse scan matching, pose correction, and keyframes after D2A1.
+- M3-D2A1: complete. Phase-aware active multi-ToF observation bundles, motion-settle collection, frozen bundle handoff, map commit gate, and reference map revision guard are integrated into `SparseSlamRuntimeCore`.
+- M3-D2B: next stage. Add bounded sparse multi-ToF local matching against a frozen bundle and unchanged reference sparse map; matcher/keyframe/correction remain unimplemented in D2A1.
+- M3-D2: later stage. Add sparse scan matching, pose correction, and keyframes after D2B.
 - M3-E: future. Add Frontier and A* exploration.
 - M3-F: complete simulation acceptance.
 

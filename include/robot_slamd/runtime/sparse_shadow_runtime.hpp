@@ -67,6 +67,53 @@ struct SparseShadowRuntimeReport {
     std::size_t map_update_before_initialization_count = 0;
     std::size_t matcher_attempt_count = 0;
     std::size_t keyframe_attempt_count = 0;
+    std::size_t pose_correction_attempt_count = 0;
+
+    std::string active_bundle_state = "idle";
+    std::uint64_t bundle_id = 0;
+    std::size_t bundle_begin_count = 0;
+    std::size_t bundle_end_motion_count = 0;
+    std::size_t bundle_freeze_attempt_count = 0;
+    std::size_t bundle_freeze_success_count = 0;
+    std::size_t bundle_abort_count = 0;
+    std::size_t bundle_discard_count = 0;
+    std::size_t bundle_invalid_transition_count = 0;
+    std::size_t bundle_snapshot_attempt_count = 0;
+    std::size_t bundle_snapshot_accept_count = 0;
+    std::size_t bundle_snapshot_reject_count = 0;
+    std::size_t bundle_front_ray_count = 0;
+    std::size_t bundle_left_ray_count = 0;
+    std::size_t bundle_right_ray_count = 0;
+    std::size_t bundle_hit_ray_count = 0;
+    std::size_t bundle_no_return_ray_count = 0;
+    std::size_t bundle_invalid_ray_count = 0;
+    std::size_t bundle_unspecified_ray_count = 0;
+    std::size_t bundle_matchable_ray_count = 0;
+    double bundle_start_timestamp_s = 0.0;
+    double bundle_end_timestamp_s = 0.0;
+    double bundle_duration_s = 0.0;
+    double bundle_accumulated_abs_yaw_rad = 0.0;
+    double bundle_yaw_span_rad = 0.0;
+    std::uint64_t reference_map_revision = 0;
+    std::uint64_t current_map_revision = 0;
+    std::size_t reference_map_cell_count = 0;
+    std::size_t map_commit_blocked_count = 0;
+    std::size_t map_update_during_bundle_count = 0;
+    std::size_t odom_update_during_motion_count = 0;
+    std::size_t odom_update_during_settle_count = 0;
+    std::size_t odom_update_after_freeze_count = 0;
+    std::size_t tof_snapshot_during_motion_count = 0;
+    std::size_t tof_snapshot_during_settle_count = 0;
+    std::size_t measurement_pose_set_during_motion_count = 0;
+    std::size_t measurement_pose_set_during_settle_count = 0;
+    std::size_t settle_update_count = 0;
+    std::size_t settle_reset_count = 0;
+    std::size_t settle_consecutive_sample_count = 0;
+    double settle_stable_duration_s = 0.0;
+    std::size_t settle_success_count = 0;
+    bool frozen_bundle_available = false;
+    bool frozen_bundle_immutable = true;
+    std::string last_bundle_fault = "none";
 
     bool native_multi_tof_consumed = false;
     bool measurement_time_pose_consumed = false;
@@ -170,6 +217,79 @@ inline std::string write_sparse_shadow_runtime_report(
         << report.map_update_before_initialization_count << "\n";
     out << "matcher_attempt_count=" << report.matcher_attempt_count << "\n";
     out << "keyframe_attempt_count=" << report.keyframe_attempt_count << "\n";
+    out << "pose_correction_attempt_count="
+        << report.pose_correction_attempt_count << "\n";
+    out << "active_bundle_state=" << report.active_bundle_state << "\n";
+    out << "bundle_id=" << report.bundle_id << "\n";
+    out << "bundle_begin_count=" << report.bundle_begin_count << "\n";
+    out << "bundle_end_motion_count=" << report.bundle_end_motion_count << "\n";
+    out << "bundle_freeze_attempt_count="
+        << report.bundle_freeze_attempt_count << "\n";
+    out << "bundle_freeze_success_count="
+        << report.bundle_freeze_success_count << "\n";
+    out << "bundle_abort_count=" << report.bundle_abort_count << "\n";
+    out << "bundle_discard_count=" << report.bundle_discard_count << "\n";
+    out << "bundle_invalid_transition_count="
+        << report.bundle_invalid_transition_count << "\n";
+    out << "bundle_snapshot_attempt_count="
+        << report.bundle_snapshot_attempt_count << "\n";
+    out << "bundle_snapshot_accept_count="
+        << report.bundle_snapshot_accept_count << "\n";
+    out << "bundle_snapshot_reject_count="
+        << report.bundle_snapshot_reject_count << "\n";
+    out << "bundle_front_ray_count=" << report.bundle_front_ray_count << "\n";
+    out << "bundle_left_ray_count=" << report.bundle_left_ray_count << "\n";
+    out << "bundle_right_ray_count=" << report.bundle_right_ray_count << "\n";
+    out << "bundle_hit_ray_count=" << report.bundle_hit_ray_count << "\n";
+    out << "bundle_no_return_ray_count="
+        << report.bundle_no_return_ray_count << "\n";
+    out << "bundle_invalid_ray_count="
+        << report.bundle_invalid_ray_count << "\n";
+    out << "bundle_unspecified_ray_count="
+        << report.bundle_unspecified_ray_count << "\n";
+    out << "bundle_matchable_ray_count="
+        << report.bundle_matchable_ray_count << "\n";
+    out << "bundle_start_timestamp_s="
+        << report.bundle_start_timestamp_s << "\n";
+    out << "bundle_end_timestamp_s=" << report.bundle_end_timestamp_s << "\n";
+    out << "bundle_duration_s=" << report.bundle_duration_s << "\n";
+    out << "bundle_accumulated_abs_yaw_rad="
+        << report.bundle_accumulated_abs_yaw_rad << "\n";
+    out << "bundle_yaw_span_rad=" << report.bundle_yaw_span_rad << "\n";
+    out << "reference_map_revision=" << report.reference_map_revision << "\n";
+    out << "current_map_revision=" << report.current_map_revision << "\n";
+    out << "reference_map_cell_count="
+        << report.reference_map_cell_count << "\n";
+    out << "map_commit_blocked_count="
+        << report.map_commit_blocked_count << "\n";
+    out << "map_update_during_bundle_count="
+        << report.map_update_during_bundle_count << "\n";
+    out << "odom_update_during_motion_count="
+        << report.odom_update_during_motion_count << "\n";
+    out << "odom_update_during_settle_count="
+        << report.odom_update_during_settle_count << "\n";
+    out << "odom_update_after_freeze_count="
+        << report.odom_update_after_freeze_count << "\n";
+    out << "tof_snapshot_during_motion_count="
+        << report.tof_snapshot_during_motion_count << "\n";
+    out << "tof_snapshot_during_settle_count="
+        << report.tof_snapshot_during_settle_count << "\n";
+    out << "measurement_pose_set_during_motion_count="
+        << report.measurement_pose_set_during_motion_count << "\n";
+    out << "measurement_pose_set_during_settle_count="
+        << report.measurement_pose_set_during_settle_count << "\n";
+    out << "settle_update_count=" << report.settle_update_count << "\n";
+    out << "settle_reset_count=" << report.settle_reset_count << "\n";
+    out << "settle_consecutive_sample_count="
+        << report.settle_consecutive_sample_count << "\n";
+    out << "settle_stable_duration_s="
+        << report.settle_stable_duration_s << "\n";
+    out << "settle_success_count=" << report.settle_success_count << "\n";
+    out << "frozen_bundle_available="
+        << bool_yaml(report.frozen_bundle_available) << "\n";
+    out << "frozen_bundle_immutable="
+        << bool_yaml(report.frozen_bundle_immutable) << "\n";
+    out << "last_bundle_fault=" << report.last_bundle_fault << "\n";
     out << "native_multi_tof_consumed="
         << bool_yaml(report.native_multi_tof_consumed) << "\n";
     out << "measurement_time_pose_consumed="
@@ -396,6 +516,52 @@ private:
             core.map_update_before_initialization_count;
         report.matcher_attempt_count = core.matcher_attempt_count;
         report.keyframe_attempt_count = core.keyframe_attempt_count;
+        report.pose_correction_attempt_count = core.pose_correction_attempt_count;
+        report.active_bundle_state = core.active_bundle_state;
+        report.bundle_id = core.bundle_id;
+        report.bundle_begin_count = core.bundle_begin_count;
+        report.bundle_end_motion_count = core.bundle_end_motion_count;
+        report.bundle_freeze_attempt_count = core.bundle_freeze_attempt_count;
+        report.bundle_freeze_success_count = core.bundle_freeze_success_count;
+        report.bundle_abort_count = core.bundle_abort_count;
+        report.bundle_discard_count = core.bundle_discard_count;
+        report.bundle_invalid_transition_count = core.bundle_invalid_transition_count;
+        report.bundle_snapshot_attempt_count = core.bundle_snapshot_attempt_count;
+        report.bundle_snapshot_accept_count = core.bundle_snapshot_accept_count;
+        report.bundle_snapshot_reject_count = core.bundle_snapshot_reject_count;
+        report.bundle_front_ray_count = core.bundle_front_ray_count;
+        report.bundle_left_ray_count = core.bundle_left_ray_count;
+        report.bundle_right_ray_count = core.bundle_right_ray_count;
+        report.bundle_hit_ray_count = core.bundle_hit_ray_count;
+        report.bundle_no_return_ray_count = core.bundle_no_return_ray_count;
+        report.bundle_invalid_ray_count = core.bundle_invalid_ray_count;
+        report.bundle_unspecified_ray_count = core.bundle_unspecified_ray_count;
+        report.bundle_matchable_ray_count = core.bundle_matchable_ray_count;
+        report.bundle_start_timestamp_s = core.bundle_start_timestamp_s;
+        report.bundle_end_timestamp_s = core.bundle_end_timestamp_s;
+        report.bundle_duration_s = core.bundle_duration_s;
+        report.bundle_accumulated_abs_yaw_rad = core.bundle_accumulated_abs_yaw_rad;
+        report.bundle_yaw_span_rad = core.bundle_yaw_span_rad;
+        report.reference_map_revision = core.reference_map_revision;
+        report.current_map_revision = core.current_map_revision;
+        report.reference_map_cell_count = core.reference_map_cell_count;
+        report.map_commit_blocked_count = core.map_commit_blocked_count;
+        report.map_update_during_bundle_count = core.map_update_during_bundle_count;
+        report.odom_update_during_motion_count = core.odom_update_during_motion_count;
+        report.odom_update_during_settle_count = core.odom_update_during_settle_count;
+        report.odom_update_after_freeze_count = core.odom_update_after_freeze_count;
+        report.tof_snapshot_during_motion_count = core.tof_snapshot_during_motion_count;
+        report.tof_snapshot_during_settle_count = core.tof_snapshot_during_settle_count;
+        report.measurement_pose_set_during_motion_count = core.measurement_pose_set_during_motion_count;
+        report.measurement_pose_set_during_settle_count = core.measurement_pose_set_during_settle_count;
+        report.settle_update_count = core.settle_update_count;
+        report.settle_reset_count = core.settle_reset_count;
+        report.settle_consecutive_sample_count = core.settle_consecutive_sample_count;
+        report.settle_stable_duration_s = core.settle_stable_duration_s;
+        report.settle_success_count = core.settle_success_count;
+        report.frozen_bundle_available = core.frozen_bundle_available;
+        report.frozen_bundle_immutable = core.frozen_bundle_immutable;
+        report.last_bundle_fault = core.last_bundle_fault;
         report.native_multi_tof_consumed = core.native_multi_tof_consumed;
         report.measurement_time_pose_consumed = core.measurement_time_pose_consumed;
         report.single_pose_fallback_consumed = core.single_pose_fallback_consumed;

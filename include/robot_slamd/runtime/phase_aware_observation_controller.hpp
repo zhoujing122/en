@@ -62,6 +62,8 @@ struct PhaseAwareObservationControllerReport {
     std::size_t snapshot_reject_count = 0;
     std::size_t settle_update_count = 0;
     std::size_t settle_reset_count = 0;
+    std::size_t settle_consecutive_sample_count = 0;
+    double settle_stable_duration_s = 0.0;
     std::size_t settle_success_count = 0;
     std::uint64_t reference_map_revision = 0;
     std::size_t reference_map_cell_count = 0;
@@ -158,6 +160,8 @@ public:
         if (out.reset) {
             report_.settle_reset_count++;
         }
+        report_.settle_consecutive_sample_count = out.consecutive_sample_count;
+        report_.settle_stable_duration_s = out.stable_duration_s;
         if (out.stable) {
             report_.settle_success_count++;
             report_.freeze_attempt_count++;

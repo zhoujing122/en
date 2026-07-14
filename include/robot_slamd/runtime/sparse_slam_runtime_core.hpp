@@ -6,10 +6,12 @@
 #include "robot_slamd/autonomy/real_adapters/slam_backend/sparse_multi_tof_occupancy_backend.hpp"
 #include "robot_slamd/config/config.hpp"
 #include "robot_slamd/runtime/multi_tof_measurement_pose_resolver.hpp"
+#include "robot_slamd/runtime/phase_aware_observation_controller.hpp"
 #include "robot_slamd/runtime/sparse_slam_initialization.hpp"
 #include "robot_slamd/runtime/timed_odom_pose_buffer.hpp"
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <memory>
 #include <numeric>
@@ -87,6 +89,52 @@ struct SparseSlamRuntimeCoreReport {
     std::size_t map_update_before_initialization_count = 0;
     std::size_t matcher_attempt_count = 0;
     std::size_t keyframe_attempt_count = 0;
+    std::size_t pose_correction_attempt_count = 0;
+    std::string active_bundle_state = "idle";
+    std::uint64_t bundle_id = 0;
+    std::size_t bundle_begin_count = 0;
+    std::size_t bundle_end_motion_count = 0;
+    std::size_t bundle_freeze_attempt_count = 0;
+    std::size_t bundle_freeze_success_count = 0;
+    std::size_t bundle_abort_count = 0;
+    std::size_t bundle_discard_count = 0;
+    std::size_t bundle_invalid_transition_count = 0;
+    std::size_t bundle_snapshot_attempt_count = 0;
+    std::size_t bundle_snapshot_accept_count = 0;
+    std::size_t bundle_snapshot_reject_count = 0;
+    std::size_t bundle_front_ray_count = 0;
+    std::size_t bundle_left_ray_count = 0;
+    std::size_t bundle_right_ray_count = 0;
+    std::size_t bundle_hit_ray_count = 0;
+    std::size_t bundle_no_return_ray_count = 0;
+    std::size_t bundle_invalid_ray_count = 0;
+    std::size_t bundle_unspecified_ray_count = 0;
+    std::size_t bundle_matchable_ray_count = 0;
+    double bundle_start_timestamp_s = 0.0;
+    double bundle_end_timestamp_s = 0.0;
+    double bundle_duration_s = 0.0;
+    double bundle_accumulated_abs_yaw_rad = 0.0;
+    double bundle_yaw_span_rad = 0.0;
+    std::uint64_t reference_map_revision = 0;
+    std::uint64_t current_map_revision = 0;
+    std::size_t reference_map_cell_count = 0;
+    std::size_t map_commit_blocked_count = 0;
+    std::size_t map_update_during_bundle_count = 0;
+    std::size_t odom_update_during_motion_count = 0;
+    std::size_t odom_update_during_settle_count = 0;
+    std::size_t odom_update_after_freeze_count = 0;
+    std::size_t tof_snapshot_during_motion_count = 0;
+    std::size_t tof_snapshot_during_settle_count = 0;
+    std::size_t measurement_pose_set_during_motion_count = 0;
+    std::size_t measurement_pose_set_during_settle_count = 0;
+    std::size_t settle_update_count = 0;
+    std::size_t settle_reset_count = 0;
+    std::size_t settle_consecutive_sample_count = 0;
+    double settle_stable_duration_s = 0.0;
+    std::size_t settle_success_count = 0;
+    bool frozen_bundle_available = false;
+    bool frozen_bundle_immutable = true;
+    std::string last_bundle_fault = "none";
     bool real_hardware_accessed = false;
     bool real_motion_attempted = false;
     bool real_map_write_attempted = false;
@@ -106,6 +154,13 @@ struct SparseSlamRuntimeCoreStepResult {
     bool backend_called = false;
     std::string status;
     std::string message;
+};
+
+struct SparseSlamStepRequest {
+    RobotSlamSensorSnapshot snapshot;
+    double now_s = 0.0;
+    ActiveObservationControl observation_control = ActiveObservationControl::None;
+    std::uint64_t bundle_id = 0;
 };
 
 inline SlamBackendContractChecker sparse_slam_runtime_core_backend_checker() {
@@ -142,6 +197,7 @@ public:
           estimator_(make_odom_config(config_)),
           pose_buffer_(make_pose_buffer_config(config_)),
           resolver_(make_resolver_config(config_)),
+          observation_controller_(make_observation_controller_config(config_)),
           sparse_backend_(std::make_shared<SparseMultiTofOccupancyBackendBinding>(
               make_backend_options())),
           map_port_(sparse_backend_,
@@ -179,7 +235,22 @@ public:
     SparseSlamRuntimeCoreStepResult step(
         const RobotSlamSensorSnapshot &snapshot,
         double now_s) {
-        (void)now_s;
+        SparseSlamStepRequest request;
+        request.snapshot = snapshot;
+        request.now_s = now_s;
+        request.observation_control = ActiveObservationControl::None;
+        return step(request);
+    }
+
+    SparseSlamRuntimeCoreStepResult step(const SparseSlamStepRequest &request) {
+        (void)request.now_s;
+        const auto control_result = apply_observation_control(request);
+        if (!control_result.ok) {
+            sync_observation_report();
+            return control_result;
+        }
+
+        const RobotSlamSensorSnapshot &snapshot = request.snapshot;
         report_.sensor_snapshot_count++;
         if (snapshot.has_multi_tof) {
             report_.native_multi_tof_snapshot_count++;
@@ -194,6 +265,7 @@ public:
         }
         if (phase_ == SparseSlamRuntimeCorePhase::CollectingStationarySamples) {
             const auto initialized = consume_startup_sample(snapshot);
+            sync_observation_report();
             return {initialized.ok, report_.initialization_complete, false,
                     false, false, report_.initialization_status,
                     initialized.message};
@@ -210,6 +282,7 @@ public:
 
         ImuFrame imu = snapshot.imu;
         imu.yaw_rate_rad_s -= gyro_bias_rad_s_;
+        const auto active_state_before_odom = observation_controller_.state();
         report_.odom_update_attempt_count++;
         const auto odom_result = estimator_.update(snapshot.wheel, imu);
         if (!odom_result.ok) {
@@ -220,6 +293,13 @@ public:
                     report_.last_fault, report_.last_message};
         }
         report_.odom_update_success_count++;
+        if (active_state_before_odom == ActiveObservationBundleState::CollectingDuringMotion) {
+            report_.odom_update_during_motion_count++;
+        } else if (active_state_before_odom == ActiveObservationBundleState::WaitingForMotionSettle) {
+            report_.odom_update_during_settle_count++;
+        } else if (active_state_before_odom == ActiveObservationBundleState::FrozenReady) {
+            report_.odom_update_after_freeze_count++;
+        }
 
         const OdomPose2D odom_pose = make_odom_pose(estimator_.estimated_pose());
         report_.last_odom_pose = odom_pose.odom_T_base;
@@ -243,6 +323,7 @@ public:
         if (!snapshot.has_multi_tof) {
             report_.last_fault = "none";
             report_.last_message = "sparse_slam_core_odom_only_step";
+            sync_observation_report();
             return {true, true, true, false, false,
                     "odom_only", report_.last_message};
         }
@@ -262,10 +343,67 @@ public:
             report_.measurement_pose_set_reject_count++;
             report_.last_fault = "measurement_pose_lookup_failed";
             report_.last_message = resolved.reason;
+            sync_observation_report();
             return {false, true, true, false, false,
                     report_.last_fault, report_.last_message};
         }
         report_.measurement_pose_set_success_count++;
+
+        auto active_state = observation_controller_.state();
+        if (active_state == ActiveObservationBundleState::CollectingDuringMotion ||
+            active_state == ActiveObservationBundleState::WaitingForMotionSettle ||
+            active_state == ActiveObservationBundleState::FrozenReady ||
+            active_state == ActiveObservationBundleState::Aborted) {
+            report_.map_commit_blocked_count++;
+            const auto guard = observation_controller_.verify_reference_map(
+                current_map_revision_, report_.sparse_map_cell_count);
+            if (!guard.ok) {
+                sync_observation_report();
+                report_.last_fault = "reference_map_changed_during_active_bundle";
+                report_.last_message = guard.message;
+                return {false, true, true, false, false,
+                        report_.last_fault, report_.last_message};
+            }
+            if (active_state == ActiveObservationBundleState::CollectingDuringMotion ||
+                active_state == ActiveObservationBundleState::WaitingForMotionSettle) {
+                if (active_state == ActiveObservationBundleState::CollectingDuringMotion) {
+                    report_.tof_snapshot_during_motion_count++;
+                    report_.measurement_pose_set_during_motion_count++;
+                } else {
+                    report_.tof_snapshot_during_settle_count++;
+                    report_.measurement_pose_set_during_settle_count++;
+                }
+                const auto append_input = make_observation_append_input(
+                    snapshot, resolved.poses);
+                if (!append_input.ok) {
+                    report_.measurement_pose_set_reject_count++;
+                    sync_observation_report();
+                    report_.last_fault = append_input.status;
+                    report_.last_message = append_input.message;
+                    return {false, true, true, false, false,
+                            append_input.status, append_input.message};
+                }
+                const auto bundle_append = observation_controller_.append_observation(
+                    append_input.input);
+                if (active_state == ActiveObservationBundleState::WaitingForMotionSettle) {
+                    const auto settle = observation_controller_.update_settle(
+                        make_motion_settle_sample(snapshot, imu),
+                        current_map_revision_);
+                    (void)settle;
+                }
+                sync_observation_report();
+                report_.last_fault = bundle_append.ok ? "none" : to_string(bundle_append.fault);
+                report_.last_message = bundle_append.message;
+                return {bundle_append.ok, true, true, false, false,
+                        bundle_append.ok ? "map_commit_blocked" : report_.last_fault,
+                        report_.last_message};
+            }
+            sync_observation_report();
+            report_.last_fault = "none";
+            report_.last_message = "sparse_slam_core_map_commit_blocked";
+            return {true, true, true, false, false,
+                    "map_commit_blocked", report_.last_message};
+        }
 
         RobotSlamMapUpdateInput update;
         update.timestamp_s = snapshot.multi_tof.synchronized_time_s;
@@ -274,8 +412,14 @@ public:
         update.has_predicted_map_pose = true;
         update.multi_tof_measurement_poses = resolved.poses;
         update.has_multi_tof_measurement_poses = true;
-        update.mapping_commit_allowed = true;
+        update.mapping_commit_allowed = observation_controller_.map_commit_allowed();
         update.source = "sparse_slam_runtime_core";
+        if (!update.mapping_commit_allowed) {
+            report_.map_commit_blocked_count++;
+            sync_observation_report();
+            return {true, true, true, false, false,
+                    "map_commit_blocked", "sparse_slam_core_map_commit_blocked"};
+        }
         report_.predicted_pose_handoff_count++;
         report_.backend_update_attempt_count++;
         const bool accepted = map_port_.integrate_map_update(update);
@@ -290,6 +434,8 @@ public:
             backend_report.legacy_projection_consumed;
         report_.sparse_map_cell_count = backend_report.active_cell_count;
         if (accepted) {
+            current_map_revision_++;
+            report_.current_map_revision = current_map_revision_;
             report_.backend_accept_count++;
             report_.last_fault = "none";
             report_.last_message = "sparse_slam_core_backend_accepted";
@@ -299,6 +445,7 @@ public:
             report_.last_fault = "backend_rejected";
             report_.last_message = "sparse_slam_core_backend_rejected";
         }
+        sync_observation_report();
         return {accepted, true, true, accepted, true,
                 accepted ? "map_updated" : "backend_rejected",
                 report_.last_message};
@@ -337,6 +484,37 @@ private:
         return out;
     }
 
+    static PhaseAwareObservationControllerConfig make_observation_controller_config(
+        const Config &config) {
+        PhaseAwareObservationControllerConfig out;
+        out.bundle.max_snapshots = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_active_bundle_max_snapshots));
+        out.bundle.max_rays = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_active_bundle_max_rays));
+        out.bundle.max_duration_s = config.sparse_slam_active_bundle_max_duration_s;
+        out.bundle.max_snapshot_gap_s = config.sparse_slam_active_bundle_max_snapshot_gap_s;
+        out.bundle.min_snapshots = static_cast<std::size_t>(
+            std::max(0, config.sparse_slam_active_bundle_min_snapshots));
+        out.bundle.min_matchable_rays = static_cast<std::size_t>(
+            std::max(0, config.sparse_slam_active_bundle_min_matchable_rays));
+        out.bundle.min_yaw_span_rad = config.sparse_slam_active_bundle_min_yaw_span_rad;
+        out.bundle.require_all_measurement_poses =
+            config.sparse_slam_active_bundle_require_all_measurement_poses;
+        out.settle.max_abs_linear_speed_mps =
+            config.sparse_slam_settle_max_abs_linear_speed_mps;
+        out.settle.max_abs_wheel_yaw_rate_rad_s =
+            config.sparse_slam_settle_max_abs_wheel_yaw_rate_rad_s;
+        out.settle.max_abs_imu_yaw_rate_rad_s =
+            config.sparse_slam_settle_max_abs_imu_yaw_rate_rad_s;
+        out.settle.min_consecutive_samples = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_settle_min_consecutive_samples));
+        out.settle.min_stable_duration_s =
+            config.sparse_slam_settle_min_stable_duration_s;
+        out.settle.max_sample_gap_s =
+            config.sparse_slam_settle_max_sample_gap_s;
+        return out;
+    }
+
     static SparseMultiTofOccupancyBackendOptions make_backend_options() {
         SparseMultiTofOccupancyBackendOptions out;
         out.minimum_accepted_snapshots_for_good_quality = 1;
@@ -346,6 +524,130 @@ private:
         out.require_multi_tof_measurement_poses = true;
         out.allow_single_pose_fallback = false;
         return out;
+    }
+
+    SparseSlamRuntimeCoreStepResult apply_observation_control(
+        const SparseSlamStepRequest &request) {
+        if (request.observation_control == ActiveObservationControl::None) {
+            return {true, phase_ == SparseSlamRuntimeCorePhase::Ready,
+                    false, false, false, "control_none", "control_none"};
+        }
+        if (phase_ != SparseSlamRuntimeCorePhase::Ready) {
+            report_.bundle_invalid_transition_count++;
+            report_.last_bundle_fault = "invalid_state";
+            report_.last_fault = "active_bundle_control_before_ready";
+            report_.last_message = "active_bundle_control_requires_ready_core";
+            return {false, report_.initialization_complete, false, false,
+                    false, report_.last_fault, report_.last_message};
+        }
+        ActiveMultiTofObservationResult result;
+        if (request.observation_control == ActiveObservationControl::BeginCollection) {
+            result = observation_controller_.begin_collection(
+                current_map_revision_, report_.sparse_map_cell_count,
+                frame_state_.current_map_from_odom());
+        } else if (request.observation_control == ActiveObservationControl::EndMotionAndWaitForSettle) {
+            result = observation_controller_.end_motion_and_wait_for_settle();
+        } else if (request.observation_control == ActiveObservationControl::DiscardFrozenBundle) {
+            const std::uint64_t id = request.bundle_id != 0
+                ? request.bundle_id
+                : observation_controller_.report().bundle_id;
+            result = observation_controller_.discard(id);
+        }
+        sync_observation_report();
+        if (!result.ok) {
+            report_.last_fault = to_string(result.fault);
+            report_.last_message = result.message;
+            return {false, true, false, false, false,
+                    report_.last_fault, report_.last_message};
+        }
+        report_.last_fault = "none";
+        report_.last_message = result.message;
+        return {true, true, false, false, false,
+                to_string(request.observation_control), result.message};
+    }
+
+    struct ObservationAppendBuildResult {
+        bool ok = false;
+        ActiveMultiTofObservationAppendInput input;
+        std::string status;
+        std::string message;
+    };
+
+    ObservationAppendBuildResult make_observation_append_input(
+        const RobotSlamSensorSnapshot &snapshot,
+        const MultiTofMeasurementPoseSet &poses) const {
+        const auto front = pose_buffer_.lookup(
+            snapshot.multi_tof.front.effective_timestamp_s);
+        const auto left = pose_buffer_.lookup(
+            snapshot.multi_tof.left.effective_timestamp_s);
+        const auto right = pose_buffer_.lookup(
+            snapshot.multi_tof.right.effective_timestamp_s);
+        if (!front.ok || !left.ok || !right.ok) {
+            return {false, {}, "measurement_odom_lookup_failed",
+                    "active_bundle_measurement_odom_lookup_failed"};
+        }
+        ActiveMultiTofObservationAppendInput input;
+        input.snapshot = snapshot;
+        input.measurement_poses = poses;
+        input.front_odom_pose_at_measurement = front.pose;
+        input.left_odom_pose_at_measurement = left.pose;
+        input.right_odom_pose_at_measurement = right.pose;
+        input.sequence_index = report_.bundle_snapshot_attempt_count + 1;
+        return {true, input, "ok", "active_bundle_append_input_ready"};
+    }
+
+    static MotionSettleSample make_motion_settle_sample(
+        const RobotSlamSensorSnapshot &snapshot,
+        const ImuFrame &corrected_imu) {
+        MotionSettleSample sample;
+        sample.timestamp_s = snapshot.wheel.timestamp_s;
+        sample.wheel_fresh = snapshot.has_wheel && snapshot.wheel.valid;
+        sample.linear_mps = snapshot.wheel.linear_mps;
+        sample.wheel_angular_rad_s = snapshot.wheel.angular_rad_s;
+        sample.imu_fresh = snapshot.has_imu;
+        sample.imu_yaw_rate_rad_s = corrected_imu.yaw_rate_rad_s;
+        return sample;
+    }
+
+    void sync_observation_report() {
+        const auto &controller = observation_controller_.report();
+        const auto &summary = observation_controller_.bundle_summary();
+        report_.active_bundle_state = to_string(controller.state);
+        report_.bundle_id = controller.bundle_id;
+        report_.bundle_begin_count = controller.begin_count;
+        report_.bundle_end_motion_count = controller.end_motion_count;
+        report_.bundle_freeze_attempt_count = controller.freeze_attempt_count;
+        report_.bundle_freeze_success_count = controller.freeze_success_count;
+        report_.bundle_abort_count = controller.abort_count;
+        report_.bundle_discard_count = controller.discard_count;
+        report_.bundle_invalid_transition_count = controller.invalid_transition_count;
+        report_.bundle_snapshot_attempt_count = controller.snapshot_attempt_count;
+        report_.bundle_snapshot_accept_count = controller.snapshot_accept_count;
+        report_.bundle_snapshot_reject_count = controller.snapshot_reject_count;
+        report_.bundle_front_ray_count = summary.front_ray_count;
+        report_.bundle_left_ray_count = summary.left_ray_count;
+        report_.bundle_right_ray_count = summary.right_ray_count;
+        report_.bundle_hit_ray_count = summary.hit_ray_count;
+        report_.bundle_no_return_ray_count = summary.no_return_ray_count;
+        report_.bundle_invalid_ray_count = summary.invalid_ray_count;
+        report_.bundle_unspecified_ray_count = summary.unspecified_ray_count;
+        report_.bundle_matchable_ray_count = summary.matchable_ray_count;
+        report_.bundle_start_timestamp_s = summary.collection_start_timestamp_s;
+        report_.bundle_end_timestamp_s = summary.collection_end_timestamp_s;
+        report_.bundle_duration_s = summary.duration_s;
+        report_.bundle_accumulated_abs_yaw_rad = summary.accumulated_abs_yaw_rad;
+        report_.bundle_yaw_span_rad = summary.yaw_span_rad;
+        report_.reference_map_revision = controller.reference_map_revision;
+        report_.reference_map_cell_count = controller.reference_map_cell_count;
+        report_.current_map_revision = current_map_revision_;
+        report_.settle_update_count = controller.settle_update_count;
+        report_.settle_reset_count = controller.settle_reset_count;
+        report_.settle_consecutive_sample_count = controller.settle_consecutive_sample_count;
+        report_.settle_stable_duration_s = controller.settle_stable_duration_s;
+        report_.settle_success_count = controller.settle_success_count;
+        report_.frozen_bundle_available = controller.frozen_bundle_available;
+        report_.frozen_bundle_immutable = controller.frozen_bundle_immutable;
+        report_.last_bundle_fault = controller.last_fault;
     }
 
     SparseSlamInitializationResult consume_startup_sample(
@@ -471,6 +773,7 @@ private:
     MapOdomFrameState frame_state_;
     TimedOdomPoseBuffer pose_buffer_;
     MultiTofMeasurementPoseResolver resolver_;
+    PhaseAwareObservationController observation_controller_;
     std::shared_ptr<SparseMultiTofOccupancyBackendBinding> sparse_backend_;
     SlamBackendMapPortAdapter map_port_;
     SparseSlamRuntimeCoreReport report_;
@@ -478,6 +781,7 @@ private:
     SparseSlamInitializationRequest init_request_;
     std::vector<double> gyro_samples_;
     double gyro_bias_rad_s_ = 0.0;
+    std::uint64_t current_map_revision_ = 0;
 };
 
 } // namespace robot_slamd
