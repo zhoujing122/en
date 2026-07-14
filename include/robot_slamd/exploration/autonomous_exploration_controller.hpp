@@ -44,6 +44,7 @@ struct AutonomousExplorationConfig {
     NavigationGridViewConfig navigation;
     SparseFrontierPlannerConfig frontier;
     SafeWaypointTrackerConfig tracker;
+    FrontierFailureMemoryConfig failure_memory;
     std::size_t no_frontier_confirmation_cycles = 3;
     std::size_t bootstrap_minimum_known_cells = 80;
     double bootstrap_minimum_yaw_rad = 5.5;
@@ -79,6 +80,8 @@ struct AutonomousExplorationReport {
     std::size_t commanded_turns = 0;
     std::size_t commanded_forward_segments = 0;
     std::size_t obstacle_stops = 0;
+    std::size_t cooled_frontier_clusters = 0;
+    std::size_t permanently_failed_frontier_clusters = 0;
     std::size_t matcher_attempts = 0;
     std::size_t atomic_commit_successes = 0;
     std::size_t keyframe_count = 0;
@@ -98,7 +101,7 @@ public:
     explicit AutonomousExplorationController(
         AutonomousExplorationConfig config = {})
         : config_(config), frontier_planner_(config.frontier),
-          tracker_(config.tracker) {}
+          tracker_(config.tracker), failure_memory_(config.failure_memory) {}
 
     AutonomousExplorationStepResult step(
         const RobotSlamSensorSnapshot &snapshot,
@@ -174,7 +177,7 @@ public:
                        active == ActiveObservationBundleState::Aborted) {
                 const auto *match = core.local_match_result();
                 if (match && !match->accepted) {
-                    excluded_frontiers_.insert(current_frontier_id_);
+                    record_goal_failure("matcher_rejected", core);
                     report_.failed_goals++;
                     discard_required_ = true;
                 } else if (active == ActiveObservationBundleState::Aborted) {
@@ -267,7 +270,13 @@ public:
                 return {true, false, "exploration_obstacle_waiting_settle"};
             }
             const auto *target = tracker_.current_waypoint();
-            if (!target) return fail("exploration_alignment_target_missing");
+            if (!target) {
+                report_.completed_goals++;
+                remember_completed_goal();
+                state_ = AutonomousExplorationState::Replanning;
+                sync_report(core, estimated_pose);
+                return {true, false, "exploration_goal_reached_after_pose_update"};
+            }
             const double target_yaw = std::atan2(target->y_m - estimated_pose.y_m,
                                                  target->x_m - estimated_pose.x_m);
             const double yaw_error = normalize(target_yaw - estimated_pose.yaw_rad);
@@ -285,8 +294,7 @@ public:
             if (!tracked.ok) return fail(tracked.reason);
             record_tracker_command(tracked);
             if (tracked.replan_required) {
-                excluded_frontiers_.insert(current_frontier_id_);
-                remember_failed_goal();
+                record_goal_failure(tracked.reason, core);
                 report_.failed_goals++;
                 alignment_replan_required_ = true;
             }
@@ -316,11 +324,11 @@ public:
             record_tracker_command(tracked);
             if (tracked.goal_reached) {
                 report_.completed_goals++;
+                remember_completed_goal();
                 state_ = AutonomousExplorationState::Replanning;
             } else if (tracked.replan_required) {
                 report_.failed_goals++;
-                excluded_frontiers_.insert(current_frontier_id_);
-                remember_failed_goal();
+                record_goal_failure(tracked.reason, core);
                 state_ = AutonomousExplorationState::Replanning;
             }
             sync_report(core, estimated_pose);
@@ -340,7 +348,8 @@ public:
 private:
     bool make_plan(SparseSlamRuntimeCore &core, const RobotPose2D &pose) {
         NavigationGridView view;
-        const auto built = view.build(core.sparse_map_snapshot(), config_.navigation);
+        const auto snapshot = core.sparse_map_snapshot();
+        const auto built = view.build(snapshot, config_.navigation);
         report_.plan_count++;
         if (!built.ok) {
             report_.planning_failure_count++;
@@ -358,20 +367,18 @@ private:
             report_.last_planning_reason = "no_free_start_cell_near_estimated_pose";
             return false;
         }
-        auto cycle_excluded = excluded_frontiers_;
+        failure_memory_.begin_planning_cycle(snapshot.revision());
+        std::set<std::uint64_t> cycle_excluded;
         SparseFrontierPlanResult planned;
-        for (std::size_t attempt = 0; attempt < 64; ++attempt) {
-            planned = frontier_planner_.plan(view, *start, cycle_excluded);
-            report_.expanded_astar_nodes += planned.expanded_astar_nodes;
-            if (!planned.ok || planned.no_reachable_frontier ||
-                planned.path.waypoints.empty() ||
-                !near_failed_goal(planned.path.waypoints.back())) {
-                break;
-            }
-            cycle_excluded.insert(planned.selected_frontier_id);
-        }
+        planned = frontier_planner_.plan(
+            view, *start, cycle_excluded, &failure_memory_,
+            completed_goal_cells_);
+        report_.expanded_astar_nodes += planned.expanded_astar_nodes;
         report_.frontiers_detected += planned.detected_frontier_cells;
         report_.reachable_frontiers += planned.reachable_cluster_count;
+        report_.cooled_frontier_clusters = planned.cooled_cluster_count;
+        report_.permanently_failed_frontier_clusters =
+            planned.permanently_failed_cluster_count;
         if (!planned.ok) {
             report_.planning_failure_count++;
             report_.last_planning_reason = planned.reason;
@@ -387,6 +394,7 @@ private:
         }
         no_frontier_cycles_ = 0;
         current_frontier_id_ = planned.selected_frontier_id;
+        current_goal_cell_ = planned.selected_goal_cell;
         current_goal_pose_ = planned.path.waypoints.back();
         report_.selected_goals++;
         if (!tracker_.set_path(planned.path.waypoints, pose)) {
@@ -395,7 +403,7 @@ private:
         }
         if (!tracker_.current_waypoint()) {
             report_.completed_goals++;
-            excluded_frontiers_.insert(current_frontier_id_);
+            remember_completed_goal();
             state_ = AutonomousExplorationState::Replanning;
             return true;
         }
@@ -488,25 +496,17 @@ private:
         }
     }
 
-    bool near_failed_goal(const RobotPose2D &goal) const {
-        const double radius = std::max(
-            config_.tracker.obstacle_stop_distance_m * 1.5,
-            config_.tracker.waypoint_tolerance_m * 2.0);
-        for (const auto &failed : failed_goal_positions_) {
-            if (std::hypot(goal.x_m - failed.x_m, goal.y_m - failed.y_m) <=
-                radius) {
-                return true;
-            }
-        }
-        return false;
+    void record_goal_failure(const std::string &reason,
+                             const SparseSlamRuntimeCore &core) {
+        failure_memory_.record(current_goal_cell_, reason,
+                               core.report().current_map_revision);
     }
 
-    void remember_failed_goal() {
-        if (!near_failed_goal(current_goal_pose_) &&
-            failed_goal_positions_.size() <
-                config_.maximum_planning_failures) {
-            failed_goal_positions_.push_back(current_goal_pose_);
+    void remember_completed_goal() {
+        if (completed_goal_cells_.size() >= config_.maximum_planning_failures) {
+            completed_goal_cells_.erase(completed_goal_cells_.begin());
         }
+        completed_goal_cells_.push_back(current_goal_cell_);
     }
 
     void update_bootstrap_yaw(double yaw) {
@@ -536,12 +536,13 @@ private:
     AutonomousExplorationConfig config_;
     SparseFrontierPlanner frontier_planner_;
     SafeWaypointTracker tracker_;
+    FrontierFailureMemory failure_memory_;
     AutonomousExplorationState state_ = AutonomousExplorationState::Initializing;
     AutonomousExplorationReport report_;
-    std::set<std::uint64_t> excluded_frontiers_;
     std::uint64_t current_frontier_id_ = 0;
+    SparseGridCellKey current_goal_cell_;
     RobotPose2D current_goal_pose_;
-    std::vector<RobotPose2D> failed_goal_positions_;
+    std::vector<SparseGridCellKey> completed_goal_cells_;
     std::uint64_t command_sequence_ = 0;
     std::size_t no_frontier_cycles_ = 0;
     bool begin_collection_required_ = false;

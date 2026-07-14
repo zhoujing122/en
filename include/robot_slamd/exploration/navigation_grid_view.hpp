@@ -137,6 +137,16 @@ public:
         return cell(key) == NavigationCellClass::Free;
     }
 
+    double clearance_to_blocked_m(const SparseGridCellKey &key,
+                                  int maximum_radius_cells) const {
+        return clearance_m(key, maximum_radius_cells, false);
+    }
+
+    double clearance_to_non_free_m(const SparseGridCellKey &key,
+                                   int maximum_radius_cells) const {
+        return clearance_m(key, maximum_radius_cells, true);
+    }
+
     std::optional<SparseGridCellKey> nearest_traversable(
         const SparseGridCellKey &origin, int maximum_manhattan_radius) const {
         if (!valid_ || maximum_manhattan_radius < 0) return std::nullopt;
@@ -174,6 +184,42 @@ public:
     }
 
 private:
+    double clearance_m(const SparseGridCellKey &key, int maximum_radius_cells,
+                       bool include_unknown) const {
+        if (!traversable(key) || maximum_radius_cells < 0) return 0.0;
+        for (int radius = 1; radius <= maximum_radius_cells; ++radius) {
+            for (int dx = -radius; dx <= radius; ++dx) {
+                for (int dy : {-radius, radius}) {
+                    const auto value = cell({key.x + dx, key.y + dy});
+                    if (blocks_clearance(value, include_unknown)) {
+                        return std::hypot(static_cast<double>(dx),
+                                          static_cast<double>(dy)) *
+                               resolution_m_;
+                    }
+                }
+            }
+            for (int dy = -radius + 1; dy < radius; ++dy) {
+                for (int dx : {-radius, radius}) {
+                    const auto value = cell({key.x + dx, key.y + dy});
+                    if (blocks_clearance(value, include_unknown)) {
+                        return std::hypot(static_cast<double>(dx),
+                                          static_cast<double>(dy)) *
+                               resolution_m_;
+                    }
+                }
+            }
+        }
+        return static_cast<double>(maximum_radius_cells + 1) * resolution_m_;
+    }
+
+    static bool blocks_clearance(NavigationCellClass value,
+                                 bool include_unknown) {
+        return value == NavigationCellClass::Occupied ||
+               value == NavigationCellClass::InflatedOccupied ||
+               value == NavigationCellClass::Uncertain ||
+               (include_unknown && value == NavigationCellClass::Unknown);
+    }
+
     static bool valid_config(const NavigationGridViewConfig &config) {
         return std::isfinite(config.min_x_m) &&
                std::isfinite(config.max_x_m) &&
