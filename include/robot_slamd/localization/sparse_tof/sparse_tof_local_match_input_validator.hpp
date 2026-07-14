@@ -24,11 +24,47 @@ inline bool sparse_tof_local_match_config_valid(
         config.max_abs_translation_y_m >= 0.0 &&
         config.max_candidate_count > 0 &&
         config.max_candidate_count <= kCandidateHardLimit &&
+        config.max_coarse_candidates > 0 &&
+        config.max_fine_candidates > 0 &&
+        config.max_total_candidates > 0 &&
+        config.max_total_candidates <= 1024 &&
+        config.max_total_candidates <= config.max_candidate_count &&
+        config.max_coarse_candidates <= config.max_total_candidates &&
+        config.max_fine_candidates <= config.max_total_candidates &&
+        config.max_scored_rays > 0 &&
+        config.max_cells_per_ray > 0 &&
+        config.max_cells_per_ray <= 4096 &&
         config.min_bundle_frames > 0 &&
         config.min_matchable_rays > 0 &&
         config.min_reference_cells > 0 &&
         std::isfinite(config.max_bundle_duration_s) &&
-        config.max_bundle_duration_s > 0.0;
+        config.max_bundle_duration_s > 0.0 &&
+        std::isfinite(config.no_return_free_space_range_m) &&
+        config.no_return_free_space_range_m > 0.0 &&
+        config.min_used_rays > 0 &&
+        config.min_known_cells > 0 &&
+        std::isfinite(config.max_unknown_ratio) &&
+        config.max_unknown_ratio >= 0.0 && config.max_unknown_ratio <= 1.0 &&
+        std::isfinite(config.max_contradiction_ratio) &&
+        config.max_contradiction_ratio >= 0.0 &&
+        config.max_contradiction_ratio <= 1.0 &&
+        std::isfinite(config.minimum_normalized_score) &&
+        std::isfinite(config.minimum_score_margin) &&
+        config.minimum_score_margin >= 0.0 &&
+        std::isfinite(config.minimum_score_range) &&
+        config.minimum_score_range >= 0.0 &&
+        std::isfinite(config.runner_up_exclusion_yaw_rad) &&
+        config.runner_up_exclusion_yaw_rad > 0.0 &&
+        std::isfinite(config.multimodal_max_score_drop) &&
+        config.multimodal_max_score_drop >= 0.0 &&
+        std::isfinite(config.free_agreement_weight) &&
+        config.free_agreement_weight > 0.0 &&
+        std::isfinite(config.free_contradiction_weight) &&
+        config.free_contradiction_weight < 0.0 &&
+        std::isfinite(config.occupied_endpoint_agreement_weight) &&
+        config.occupied_endpoint_agreement_weight > 0.0 &&
+        std::isfinite(config.occupied_endpoint_contradiction_weight) &&
+        config.occupied_endpoint_contradiction_weight < 0.0;
     if (!base) {
         return false;
     }

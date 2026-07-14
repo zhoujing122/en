@@ -4,13 +4,14 @@
 int main() {
     using namespace robot_slamd;
     using namespace local_match_test;
-    const auto input = valid_input();
+    auto input = valid_input();
+    input.config.mode = SparseTofLocalMatchMode::FullSE2;
     SparseTofLocalMatcher matcher;
     const auto result = matcher.match(input);
     expect(result.status == SparseTofLocalMatchStatus::NotImplemented,
-           "B0 matcher explicitly not implemented");
+           "FullSE2 explicitly not implemented");
     expect(!result.matcher_executed && !result.accepted,
-           "B0 matcher did not execute");
+           "FullSE2 matcher did not execute");
     expect(result.evaluated_candidate_count == 0, "no candidate evaluated");
     expect(!result.best_score && !result.second_best_score &&
                !result.score_margin, "no score fabricated");

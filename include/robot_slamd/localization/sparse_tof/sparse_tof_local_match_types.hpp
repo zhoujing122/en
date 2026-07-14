@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace robot_slamd {
 
@@ -50,12 +51,31 @@ struct SparseTofLocalMatchConfig {
     double max_abs_translation_x_m = 0.0;
     double max_abs_translation_y_m = 0.0;
     std::size_t max_candidate_count = 256;
+    std::size_t max_coarse_candidates = 64;
+    std::size_t max_fine_candidates = 64;
+    std::size_t max_total_candidates = 128;
+    std::size_t max_scored_rays = 96;
+    std::size_t max_cells_per_ray = 256;
     std::size_t min_bundle_frames = 2;
     std::size_t min_matchable_rays = 3;
     std::size_t min_reference_cells = 1;
     std::size_t min_reference_occupied_cells = 1;
     std::size_t min_reference_free_cells = 0;
     double max_bundle_duration_s = 30.0;
+    double no_return_free_space_range_m = 12.0;
+    std::size_t min_used_rays = 3;
+    std::size_t min_known_cells = 6;
+    double max_unknown_ratio = 0.85;
+    double max_contradiction_ratio = 0.60;
+    double minimum_normalized_score = 0.02;
+    double minimum_score_margin = 0.03;
+    double minimum_score_range = 0.02;
+    double runner_up_exclusion_yaw_rad = 0.03490658503988659;
+    double multimodal_max_score_drop = 0.04;
+    double free_agreement_weight = 1.0;
+    double free_contradiction_weight = -3.0;
+    double occupied_endpoint_agreement_weight = 4.0;
+    double occupied_endpoint_contradiction_weight = -4.0;
     bool require_revision_match = true;
     bool require_immutable_snapshot = true;
 };
@@ -120,9 +140,64 @@ enum class SparseTofLocalMatchStatus {
     InputRejected,
     NotImplemented,
     Rejected,
+    RejectedInvalidInput,
+    RejectedInsufficientInformation,
+    RejectedUnknownDominated,
+    RejectedContradictory,
+    RejectedNoValidCandidate,
+    RejectedCandidateBudget,
+    RejectedBestAtSearchEdge,
+    RejectedLowScore,
+    RejectedLowMargin,
+    RejectedFlatCurve,
+    RejectedMultimodal,
     AcceptedYawOnly,
     AcceptedFullSE2,
     Fault
+};
+
+inline std::string to_string(SparseTofLocalMatchStatus status) {
+    switch (status) {
+    case SparseTofLocalMatchStatus::NotRun: return "not_run";
+    case SparseTofLocalMatchStatus::InputRejected: return "input_rejected";
+    case SparseTofLocalMatchStatus::NotImplemented: return "not_implemented";
+    case SparseTofLocalMatchStatus::Rejected: return "rejected";
+    case SparseTofLocalMatchStatus::RejectedInvalidInput: return "rejected_invalid_input";
+    case SparseTofLocalMatchStatus::RejectedInsufficientInformation: return "rejected_insufficient_information";
+    case SparseTofLocalMatchStatus::RejectedUnknownDominated: return "rejected_unknown_dominated";
+    case SparseTofLocalMatchStatus::RejectedContradictory: return "rejected_contradictory";
+    case SparseTofLocalMatchStatus::RejectedNoValidCandidate: return "rejected_no_valid_candidate";
+    case SparseTofLocalMatchStatus::RejectedCandidateBudget: return "rejected_candidate_budget";
+    case SparseTofLocalMatchStatus::RejectedBestAtSearchEdge: return "rejected_best_at_search_edge";
+    case SparseTofLocalMatchStatus::RejectedLowScore: return "rejected_low_score";
+    case SparseTofLocalMatchStatus::RejectedLowMargin: return "rejected_low_margin";
+    case SparseTofLocalMatchStatus::RejectedFlatCurve: return "rejected_flat_curve";
+    case SparseTofLocalMatchStatus::RejectedMultimodal: return "rejected_multimodal";
+    case SparseTofLocalMatchStatus::AcceptedYawOnly: return "accepted_yaw_only";
+    case SparseTofLocalMatchStatus::AcceptedFullSE2: return "accepted_full_se2";
+    case SparseTofLocalMatchStatus::Fault: return "fault";
+    }
+    return "unknown";
+}
+
+struct SparseTofLocalMatchCandidateMetrics {
+    double delta_yaw_rad = 0.0;
+    double candidate_yaw_rad = 0.0;
+    std::size_t used_ray_count = 0;
+    std::size_t hit_ray_count = 0;
+    std::size_t no_return_ray_count = 0;
+    std::size_t ignored_ray_count = 0;
+    std::size_t traversed_cell_count = 0;
+    std::size_t known_cell_count = 0;
+    std::size_t unknown_cell_count = 0;
+    std::size_t free_agreement_count = 0;
+    std::size_t occupied_endpoint_agreement_count = 0;
+    std::size_t contradiction_count = 0;
+    double unknown_ratio = 1.0;
+    double contradiction_ratio = 1.0;
+    double raw_score = 0.0;
+    double normalized_score = 0.0;
+    bool valid = false;
 };
 
 struct SparseTofLocalMatchResult {
@@ -139,6 +214,23 @@ struct SparseTofLocalMatchResult {
     std::optional<double> second_best_score;
     std::optional<double> score_margin;
     std::size_t evaluated_candidate_count = 0;
+    std::size_t coarse_candidate_count = 0;
+    std::size_t fine_candidate_count = 0;
+    SparseTofLocalMatchCandidateMetrics best_metrics;
+    bool runner_up_available = false;
+    std::optional<double> best_delta_yaw_rad;
+    std::optional<double> best_yaw_rad;
+    std::optional<double> runner_up_yaw_rad;
+    std::optional<double> runner_up_yaw_separation_rad;
+    double score_min = 0.0;
+    double score_max = 0.0;
+    double score_mean = 0.0;
+    double score_range = 0.0;
+    bool best_at_search_edge = false;
+    bool flat_curve = false;
+    bool multimodal = false;
+    bool proposal_ready = false;
+    std::vector<SparseTofLocalMatchCandidateMetrics> candidate_metrics;
     std::string reason = "local_match_not_run";
 };
 

@@ -201,11 +201,30 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_local_match_max_abs_translation_x_m = get_double(kv, "sparse_slam.local_match_max_abs_translation_x_m", c.sparse_slam_local_match_max_abs_translation_x_m);
     c.sparse_slam_local_match_max_abs_translation_y_m = get_double(kv, "sparse_slam.local_match_max_abs_translation_y_m", c.sparse_slam_local_match_max_abs_translation_y_m);
     c.sparse_slam_local_match_max_candidate_count = get_int(kv, "sparse_slam.local_match_max_candidate_count", c.sparse_slam_local_match_max_candidate_count);
+    c.sparse_slam_local_match_max_coarse_candidates = get_int(kv, "sparse_slam.local_match_max_coarse_candidates", c.sparse_slam_local_match_max_coarse_candidates);
+    c.sparse_slam_local_match_max_fine_candidates = get_int(kv, "sparse_slam.local_match_max_fine_candidates", c.sparse_slam_local_match_max_fine_candidates);
+    c.sparse_slam_local_match_max_total_candidates = get_int(kv, "sparse_slam.local_match_max_total_candidates", c.sparse_slam_local_match_max_total_candidates);
+    c.sparse_slam_local_match_max_scored_rays = get_int(kv, "sparse_slam.local_match_max_scored_rays", c.sparse_slam_local_match_max_scored_rays);
+    c.sparse_slam_local_match_max_cells_per_ray = get_int(kv, "sparse_slam.local_match_max_cells_per_ray", c.sparse_slam_local_match_max_cells_per_ray);
     c.sparse_slam_local_match_min_bundle_frames = get_int(kv, "sparse_slam.local_match_min_bundle_frames", c.sparse_slam_local_match_min_bundle_frames);
     c.sparse_slam_local_match_min_matchable_rays = get_int(kv, "sparse_slam.local_match_min_matchable_rays", c.sparse_slam_local_match_min_matchable_rays);
     c.sparse_slam_local_match_min_reference_cells = get_int(kv, "sparse_slam.local_match_min_reference_cells", c.sparse_slam_local_match_min_reference_cells);
     c.sparse_slam_local_match_min_reference_occupied_cells = get_int(kv, "sparse_slam.local_match_min_reference_occupied_cells", c.sparse_slam_local_match_min_reference_occupied_cells);
     c.sparse_slam_local_match_min_reference_free_cells = get_int(kv, "sparse_slam.local_match_min_reference_free_cells", c.sparse_slam_local_match_min_reference_free_cells);
+    c.sparse_slam_local_match_no_return_free_space_range_m = get_double(kv, "sparse_slam.local_match_no_return_free_space_range_m", c.sparse_slam_local_match_no_return_free_space_range_m);
+    c.sparse_slam_local_match_min_used_rays = get_int(kv, "sparse_slam.local_match_min_used_rays", c.sparse_slam_local_match_min_used_rays);
+    c.sparse_slam_local_match_min_known_cells = get_int(kv, "sparse_slam.local_match_min_known_cells", c.sparse_slam_local_match_min_known_cells);
+    c.sparse_slam_local_match_max_unknown_ratio = get_double(kv, "sparse_slam.local_match_max_unknown_ratio", c.sparse_slam_local_match_max_unknown_ratio);
+    c.sparse_slam_local_match_max_contradiction_ratio = get_double(kv, "sparse_slam.local_match_max_contradiction_ratio", c.sparse_slam_local_match_max_contradiction_ratio);
+    c.sparse_slam_local_match_min_normalized_score = get_double(kv, "sparse_slam.local_match_min_normalized_score", c.sparse_slam_local_match_min_normalized_score);
+    c.sparse_slam_local_match_min_score_margin = get_double(kv, "sparse_slam.local_match_min_score_margin", c.sparse_slam_local_match_min_score_margin);
+    c.sparse_slam_local_match_min_score_range = get_double(kv, "sparse_slam.local_match_min_score_range", c.sparse_slam_local_match_min_score_range);
+    c.sparse_slam_local_match_runner_up_exclusion_yaw_rad = get_double(kv, "sparse_slam.local_match_runner_up_exclusion_yaw_rad", c.sparse_slam_local_match_runner_up_exclusion_yaw_rad);
+    c.sparse_slam_local_match_multimodal_max_score_drop = get_double(kv, "sparse_slam.local_match_multimodal_max_score_drop", c.sparse_slam_local_match_multimodal_max_score_drop);
+    c.sparse_slam_local_match_free_agreement_weight = get_double(kv, "sparse_slam.local_match_free_agreement_weight", c.sparse_slam_local_match_free_agreement_weight);
+    c.sparse_slam_local_match_free_contradiction_weight = get_double(kv, "sparse_slam.local_match_free_contradiction_weight", c.sparse_slam_local_match_free_contradiction_weight);
+    c.sparse_slam_local_match_occupied_endpoint_agreement_weight = get_double(kv, "sparse_slam.local_match_occupied_endpoint_agreement_weight", c.sparse_slam_local_match_occupied_endpoint_agreement_weight);
+    c.sparse_slam_local_match_occupied_endpoint_contradiction_weight = get_double(kv, "sparse_slam.local_match_occupied_endpoint_contradiction_weight", c.sparse_slam_local_match_occupied_endpoint_contradiction_weight);
     c.sparse_slam_local_match_require_revision_match = get_bool(kv, "sparse_slam.local_match_require_revision_match", c.sparse_slam_local_match_require_revision_match);
     c.sparse_slam_local_match_require_immutable_snapshot = get_bool(kv, "sparse_slam.local_match_require_immutable_snapshot", c.sparse_slam_local_match_require_immutable_snapshot);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
@@ -840,11 +859,32 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_local_match_max_abs_translation_y_m) || c.sparse_slam_local_match_max_abs_translation_y_m < 0.0) errors.push_back("sparse_slam.local_match_max_abs_translation_y_m must be finite and >= 0");
     if (c.sparse_slam_local_match_mode == "yaw_only" && (c.sparse_slam_local_match_max_abs_translation_x_m != 0.0 || c.sparse_slam_local_match_max_abs_translation_y_m != 0.0)) errors.push_back("sparse_slam yaw_only mode requires zero translation ranges");
     if (c.sparse_slam_local_match_max_candidate_count <= 0 || c.sparse_slam_local_match_max_candidate_count > 100000) errors.push_back("sparse_slam.local_match_max_candidate_count must be in [1, 100000]");
+    if (c.sparse_slam_local_match_max_coarse_candidates <= 0 || c.sparse_slam_local_match_max_coarse_candidates > 1024) errors.push_back("sparse_slam.local_match_max_coarse_candidates must be in [1, 1024]");
+    if (c.sparse_slam_local_match_max_fine_candidates <= 0 || c.sparse_slam_local_match_max_fine_candidates > 1024) errors.push_back("sparse_slam.local_match_max_fine_candidates must be in [1, 1024]");
+    if (c.sparse_slam_local_match_max_total_candidates <= 0 || c.sparse_slam_local_match_max_total_candidates > 1024 || c.sparse_slam_local_match_max_total_candidates > c.sparse_slam_local_match_max_candidate_count) errors.push_back("sparse_slam.local_match_max_total_candidates must be in [1, min(1024, max_candidate_count)]");
+    if (c.sparse_slam_local_match_max_coarse_candidates > c.sparse_slam_local_match_max_total_candidates) errors.push_back("sparse_slam.local_match_max_coarse_candidates must be <= max_total_candidates");
+    if (c.sparse_slam_local_match_max_fine_candidates > c.sparse_slam_local_match_max_total_candidates) errors.push_back("sparse_slam.local_match_max_fine_candidates must be <= max_total_candidates");
+    if (c.sparse_slam_local_match_max_scored_rays <= 0 || c.sparse_slam_local_match_max_scored_rays > 3072) errors.push_back("sparse_slam.local_match_max_scored_rays must be in [1, 3072]");
+    if (c.sparse_slam_local_match_max_cells_per_ray <= 0 || c.sparse_slam_local_match_max_cells_per_ray > 4096) errors.push_back("sparse_slam.local_match_max_cells_per_ray must be in [1, 4096]");
     if (c.sparse_slam_local_match_min_bundle_frames <= 0) errors.push_back("sparse_slam.local_match_min_bundle_frames must be > 0");
     if (c.sparse_slam_local_match_min_matchable_rays <= 0) errors.push_back("sparse_slam.local_match_min_matchable_rays must be > 0");
     if (c.sparse_slam_local_match_min_reference_cells <= 0) errors.push_back("sparse_slam.local_match_min_reference_cells must be > 0");
     if (c.sparse_slam_local_match_min_reference_occupied_cells < 0 || c.sparse_slam_local_match_min_reference_occupied_cells > c.sparse_slam_local_match_min_reference_cells) errors.push_back("sparse_slam.local_match_min_reference_occupied_cells invalid");
     if (c.sparse_slam_local_match_min_reference_free_cells < 0 || c.sparse_slam_local_match_min_reference_free_cells > c.sparse_slam_local_match_min_reference_cells) errors.push_back("sparse_slam.local_match_min_reference_free_cells invalid");
+    if (!std::isfinite(c.sparse_slam_local_match_no_return_free_space_range_m) || c.sparse_slam_local_match_no_return_free_space_range_m <= 0.0) errors.push_back("sparse_slam.local_match_no_return_free_space_range_m must be finite and > 0");
+    if (c.sparse_slam_local_match_min_used_rays <= 0) errors.push_back("sparse_slam.local_match_min_used_rays must be > 0");
+    if (c.sparse_slam_local_match_min_known_cells <= 0) errors.push_back("sparse_slam.local_match_min_known_cells must be > 0");
+    if (!std::isfinite(c.sparse_slam_local_match_max_unknown_ratio) || c.sparse_slam_local_match_max_unknown_ratio < 0.0 || c.sparse_slam_local_match_max_unknown_ratio > 1.0) errors.push_back("sparse_slam.local_match_max_unknown_ratio must be within [0, 1]");
+    if (!std::isfinite(c.sparse_slam_local_match_max_contradiction_ratio) || c.sparse_slam_local_match_max_contradiction_ratio < 0.0 || c.sparse_slam_local_match_max_contradiction_ratio > 1.0) errors.push_back("sparse_slam.local_match_max_contradiction_ratio must be within [0, 1]");
+    if (!std::isfinite(c.sparse_slam_local_match_min_normalized_score)) errors.push_back("sparse_slam.local_match_min_normalized_score must be finite");
+    if (!std::isfinite(c.sparse_slam_local_match_min_score_margin) || c.sparse_slam_local_match_min_score_margin < 0.0) errors.push_back("sparse_slam.local_match_min_score_margin must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_local_match_min_score_range) || c.sparse_slam_local_match_min_score_range < 0.0) errors.push_back("sparse_slam.local_match_min_score_range must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_local_match_runner_up_exclusion_yaw_rad) || c.sparse_slam_local_match_runner_up_exclusion_yaw_rad <= 0.0) errors.push_back("sparse_slam.local_match_runner_up_exclusion_yaw_rad must be finite and > 0");
+    if (!std::isfinite(c.sparse_slam_local_match_multimodal_max_score_drop) || c.sparse_slam_local_match_multimodal_max_score_drop < 0.0) errors.push_back("sparse_slam.local_match_multimodal_max_score_drop must be finite and >= 0");
+    if (!std::isfinite(c.sparse_slam_local_match_free_agreement_weight) || c.sparse_slam_local_match_free_agreement_weight <= 0.0) errors.push_back("sparse_slam.local_match_free_agreement_weight must be finite and > 0");
+    if (!std::isfinite(c.sparse_slam_local_match_free_contradiction_weight) || c.sparse_slam_local_match_free_contradiction_weight >= 0.0) errors.push_back("sparse_slam.local_match_free_contradiction_weight must be finite and < 0");
+    if (!std::isfinite(c.sparse_slam_local_match_occupied_endpoint_agreement_weight) || c.sparse_slam_local_match_occupied_endpoint_agreement_weight <= 0.0) errors.push_back("sparse_slam.local_match_occupied_endpoint_agreement_weight must be finite and > 0");
+    if (!std::isfinite(c.sparse_slam_local_match_occupied_endpoint_contradiction_weight) || c.sparse_slam_local_match_occupied_endpoint_contradiction_weight >= 0.0) errors.push_back("sparse_slam.local_match_occupied_endpoint_contradiction_weight must be finite and < 0");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1864,11 +1904,30 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  local_match_max_abs_translation_x_m: " << c.sparse_slam_local_match_max_abs_translation_x_m << "\n"
       << "  local_match_max_abs_translation_y_m: " << c.sparse_slam_local_match_max_abs_translation_y_m << "\n"
       << "  local_match_max_candidate_count: " << c.sparse_slam_local_match_max_candidate_count << "\n"
+      << "  local_match_max_coarse_candidates: " << c.sparse_slam_local_match_max_coarse_candidates << "\n"
+      << "  local_match_max_fine_candidates: " << c.sparse_slam_local_match_max_fine_candidates << "\n"
+      << "  local_match_max_total_candidates: " << c.sparse_slam_local_match_max_total_candidates << "\n"
+      << "  local_match_max_scored_rays: " << c.sparse_slam_local_match_max_scored_rays << "\n"
+      << "  local_match_max_cells_per_ray: " << c.sparse_slam_local_match_max_cells_per_ray << "\n"
       << "  local_match_min_bundle_frames: " << c.sparse_slam_local_match_min_bundle_frames << "\n"
       << "  local_match_min_matchable_rays: " << c.sparse_slam_local_match_min_matchable_rays << "\n"
       << "  local_match_min_reference_cells: " << c.sparse_slam_local_match_min_reference_cells << "\n"
       << "  local_match_min_reference_occupied_cells: " << c.sparse_slam_local_match_min_reference_occupied_cells << "\n"
       << "  local_match_min_reference_free_cells: " << c.sparse_slam_local_match_min_reference_free_cells << "\n"
+      << "  local_match_no_return_free_space_range_m: " << c.sparse_slam_local_match_no_return_free_space_range_m << "\n"
+      << "  local_match_min_used_rays: " << c.sparse_slam_local_match_min_used_rays << "\n"
+      << "  local_match_min_known_cells: " << c.sparse_slam_local_match_min_known_cells << "\n"
+      << "  local_match_max_unknown_ratio: " << c.sparse_slam_local_match_max_unknown_ratio << "\n"
+      << "  local_match_max_contradiction_ratio: " << c.sparse_slam_local_match_max_contradiction_ratio << "\n"
+      << "  local_match_min_normalized_score: " << c.sparse_slam_local_match_min_normalized_score << "\n"
+      << "  local_match_min_score_margin: " << c.sparse_slam_local_match_min_score_margin << "\n"
+      << "  local_match_min_score_range: " << c.sparse_slam_local_match_min_score_range << "\n"
+      << "  local_match_runner_up_exclusion_yaw_rad: " << c.sparse_slam_local_match_runner_up_exclusion_yaw_rad << "\n"
+      << "  local_match_multimodal_max_score_drop: " << c.sparse_slam_local_match_multimodal_max_score_drop << "\n"
+      << "  local_match_free_agreement_weight: " << c.sparse_slam_local_match_free_agreement_weight << "\n"
+      << "  local_match_free_contradiction_weight: " << c.sparse_slam_local_match_free_contradiction_weight << "\n"
+      << "  local_match_occupied_endpoint_agreement_weight: " << c.sparse_slam_local_match_occupied_endpoint_agreement_weight << "\n"
+      << "  local_match_occupied_endpoint_contradiction_weight: " << c.sparse_slam_local_match_occupied_endpoint_contradiction_weight << "\n"
       << "  local_match_require_revision_match: " << bool_yaml(c.sparse_slam_local_match_require_revision_match) << "\n"
       << "  local_match_require_immutable_snapshot: " << bool_yaml(c.sparse_slam_local_match_require_immutable_snapshot) << "\n";
     o << "localization:\n"

@@ -44,10 +44,23 @@ int main() {
     invalid.sparse_slam_local_match_max_candidate_count = 100001;
     expect(rejects(invalid), "candidate hard cap enforced");
     invalid = config;
+    invalid.sparse_slam_local_match_max_total_candidates = 1025;
+    expect(rejects(invalid), "runtime candidate budget hard cap enforced");
+    invalid = config;
+    invalid.sparse_slam_local_match_max_coarse_candidates =
+        invalid.sparse_slam_local_match_max_total_candidates + 1;
+    expect(rejects(invalid), "coarse budget bounded by total");
+    invalid = config;
+    invalid.sparse_slam_local_match_max_unknown_ratio = 1.1;
+    expect(rejects(invalid), "unknown ratio bounded");
+    invalid = config;
+    invalid.sparse_slam_local_match_free_contradiction_weight = 1.0;
+    expect(rejects(invalid), "contradiction weight must penalize");
+    invalid = config;
     invalid.sparse_slam_local_match_max_abs_translation_x_m = 0.1;
     expect(rejects(invalid), "yaw only translation ambiguity rejected");
 
-    const std::string path = "/tmp/en_m3d2b0_match_config_resolved.yaml";
+    const std::string path = "/tmp/en_m3d2b1_match_config_resolved.yaml";
     write_resolved_config(config, path);
     std::ifstream in(path);
     const std::string text((std::istreambuf_iterator<char>(in)),
@@ -57,5 +70,14 @@ int main() {
     expect(text.find("local_match_max_candidate_count: 256") !=
                std::string::npos,
            "resolved candidate cap written");
+    expect(text.find("local_match_max_total_candidates: 128") !=
+               std::string::npos,
+           "resolved runtime candidate budget written");
+    expect(text.find("local_match_max_cells_per_ray: 256") !=
+               std::string::npos,
+           "resolved ray cell budget written");
+    expect(text.find("local_match_runner_up_exclusion_yaw_rad:") !=
+               std::string::npos,
+           "resolved runner-up exclusion written");
     return 0;
 }
