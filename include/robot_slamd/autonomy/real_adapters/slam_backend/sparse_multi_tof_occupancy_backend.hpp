@@ -2,6 +2,7 @@
 
 #include "robot_slamd/autonomy/map_backend/slam_backend_binding.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_occupancy_grid.hpp"
+#include "robot_slamd/mapping/sparse_tof/sparse_tof_keyframe_transaction.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_tof_observation_builder.hpp"
 
 #include <array>
@@ -295,6 +296,48 @@ public:
         std::uint64_t revision,
         std::size_t maximum_snapshot_cells) const {
         return grid_.capture_snapshot(revision, maximum_snapshot_cells);
+    }
+
+    SparseTofKeyframeMapPrepareResult prepare_keyframe_map_transaction(
+        const FrozenMultiTofObservationBundle &bundle,
+        const MapFromOdom2D &proposed_map_from_odom,
+        std::uint64_t expected_reference_revision,
+        std::uint64_t current_map_revision,
+        std::size_t maximum_changed_cells) const {
+        const SparseTofKeyframeMapTransactionBuilder transaction_builder(
+            options_.observation_builder);
+        return transaction_builder.prepare(
+            bundle, proposed_map_from_odom, expected_reference_revision,
+            current_map_revision, grid_, maximum_changed_cells);
+    }
+
+    bool commit_keyframe_map_transaction(
+        SparseTofKeyframeMapTransaction &&transaction) noexcept {
+        if (!transaction.ready ||
+            !grid_.commit_prepared_batch(std::move(transaction.map_batch))) {
+            return false;
+        }
+        const auto snapshot = grid_.snapshot();
+        report_.active_cell_count = snapshot.cell_count();
+        report_.free_cell_count = snapshot.free_cell_count();
+        report_.occupied_cell_count = snapshot.occupied_cell_count();
+        report_.uncertain_cell_count = snapshot.uncertain_cell_count();
+        report_.hit_ray_count +=
+            static_cast<int>(transaction.stats.hit_ray_count);
+        report_.no_return_ray_count +=
+            static_cast<int>(transaction.stats.no_return_ray_count);
+        report_.free_cell_update_count +=
+            static_cast<int>(transaction.stats.free_cell_update_count);
+        report_.occupied_cell_update_count +=
+            static_cast<int>(transaction.stats.occupied_cell_update_count);
+        report_.map_capacity_ratio =
+            options_.grid.maximum_active_cells == 0
+                ? 1.0
+                : static_cast<double>(report_.active_cell_count) /
+                      static_cast<double>(options_.grid.maximum_active_cells);
+        update_quality();
+        transaction.ready = false;
+        return true;
     }
 
 private:

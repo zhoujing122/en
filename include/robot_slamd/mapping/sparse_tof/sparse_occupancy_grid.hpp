@@ -12,6 +12,9 @@
 
 namespace robot_slamd {
 
+class SparseOccupancyGridPreparedBatch;
+struct SparseOccupancyGridBatchPrepareResult;
+
 class SparseOccupancyGrid {
 public:
     explicit SparseOccupancyGrid(SparseOccupancyGridConfig config = {})
@@ -218,9 +221,115 @@ public:
         return it == cells_.end() ? 0 : it->second.evidence;
     }
 
+    SparseOccupancyGridBatchPrepareResult prepare_observation_batch(
+        const std::vector<std::vector<SparseTofRayObservation>> &batches,
+        std::size_t maximum_changed_cells) const;
+
+    bool commit_prepared_batch(
+        SparseOccupancyGridPreparedBatch &&prepared) noexcept;
+
 private:
     SparseOccupancyGridConfig config_;
     std::map<SparseGridCellKey, SparseOccupancyCellState> cells_;
 };
+
+struct SparseOccupancyGridBatchStats {
+    std::size_t batch_count = 0;
+    std::size_t valid_ray_count = 0;
+    std::size_t hit_ray_count = 0;
+    std::size_t no_return_ray_count = 0;
+    std::size_t changed_cell_count = 0;
+    std::size_t free_cell_update_count = 0;
+    std::size_t occupied_cell_update_count = 0;
+};
+
+class SparseOccupancyGridPreparedBatch {
+public:
+    bool ready() const { return ready_; }
+    const SparseOccupancyGridBatchStats &stats() const { return stats_; }
+
+private:
+    friend class SparseOccupancyGrid;
+    bool ready_ = false;
+    SparseOccupancyGrid staged_grid_;
+    std::map<SparseGridCellKey, SparseOccupancyCellState> baseline_cells_;
+    SparseOccupancyGridBatchStats stats_;
+};
+
+struct SparseOccupancyGridBatchPrepareResult {
+    bool ok = false;
+    SparseOccupancyGridPreparedBatch prepared;
+    SparseOccupancyGridFault fault = SparseOccupancyGridFault::None;
+    std::string message;
+};
+
+inline SparseOccupancyGridBatchPrepareResult
+SparseOccupancyGrid::prepare_observation_batch(
+    const std::vector<std::vector<SparseTofRayObservation>> &batches,
+    std::size_t maximum_changed_cells) const {
+    SparseOccupancyGridBatchPrepareResult result;
+    if (!valid() || batches.empty() || maximum_changed_cells == 0) {
+        result.fault = SparseOccupancyGridFault::InvalidConfig;
+        result.message = "sparse_grid_batch_invalid_request";
+        return result;
+    }
+
+    result.prepared.staged_grid_ = *this;
+    result.prepared.baseline_cells_ = cells_;
+    for (const auto &batch : batches) {
+        const auto stats = result.prepared.staged_grid_.apply_observations(batch);
+        if (!stats.accepted) {
+            result.fault = stats.fault;
+            result.message = stats.message;
+            return result;
+        }
+        result.prepared.stats_.batch_count++;
+        result.prepared.stats_.valid_ray_count +=
+            static_cast<std::size_t>(stats.valid_ray_count);
+        result.prepared.stats_.hit_ray_count +=
+            static_cast<std::size_t>(stats.hit_ray_count);
+        result.prepared.stats_.no_return_ray_count +=
+            static_cast<std::size_t>(stats.no_return_ray_count);
+        result.prepared.stats_.free_cell_update_count +=
+            static_cast<std::size_t>(stats.free_cell_update_count);
+        result.prepared.stats_.occupied_cell_update_count +=
+            static_cast<std::size_t>(stats.occupied_cell_update_count);
+    }
+
+    for (const auto &entry : result.prepared.staged_grid_.cells_) {
+        const auto before = cells_.find(entry.first);
+        if (before == cells_.end() ||
+            before->second.evidence != entry.second.evidence) {
+            result.prepared.stats_.changed_cell_count++;
+        }
+    }
+    if (result.prepared.stats_.changed_cell_count > maximum_changed_cells) {
+        result.fault = SparseOccupancyGridFault::MapCapacityReached;
+        result.message = "sparse_grid_batch_changed_cell_limit";
+        return result;
+    }
+    result.prepared.ready_ = true;
+    result.ok = true;
+    result.message = "sparse_grid_batch_prepared";
+    return result;
+}
+
+inline bool SparseOccupancyGrid::commit_prepared_batch(
+    SparseOccupancyGridPreparedBatch &&prepared) noexcept {
+    if (!prepared.ready_ || cells_.size() != prepared.baseline_cells_.size()) {
+        return false;
+    }
+    auto current = cells_.begin();
+    auto baseline = prepared.baseline_cells_.begin();
+    for (; current != cells_.end(); ++current, ++baseline) {
+        if (!(current->first == baseline->first) ||
+            current->second.evidence != baseline->second.evidence) {
+            return false;
+        }
+    }
+    cells_.swap(prepared.staged_grid_.cells_);
+    prepared.ready_ = false;
+    return true;
+}
 
 } // namespace robot_slamd
