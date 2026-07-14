@@ -227,6 +227,12 @@ struct Config {
     double sparse_slam_right_tof_x_m = 0.0;
     double sparse_slam_right_tof_y_m = 0.0;
     double sparse_slam_right_tof_yaw_rad = 0.0;
+    std::string sparse_slam_map_path;
+    std::string sparse_slam_map_id = "sparse_map";
+    std::string sparse_slam_map_run_id = "runtime";
+    bool sparse_slam_save_map_on_exit = false;
+    int sparse_slam_map_artifact_max_cells = 100000;
+    int sparse_slam_map_artifact_max_file_bytes = 16777216;
     int sparse_slam_pose_buffer_capacity = 64;
     double sparse_slam_pose_buffer_max_age_s = 10.0;
     double sparse_slam_pose_interpolation_max_gap_s = 0.25;

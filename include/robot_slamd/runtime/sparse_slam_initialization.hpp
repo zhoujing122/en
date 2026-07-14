@@ -36,6 +36,7 @@ struct SparseSlamInitializationRequest {
     bool has_configured_map_pose = false;
     MapPose2D configured_map_pose;
     std::string map_path;
+    bool existing_map_loaded = false;
 };
 
 struct SparseSlamInitializationResult {
@@ -182,9 +183,15 @@ public:
                 return failure(SparseSlamInitializationStatus::InitialPoseMissing,
                                "existing_map_configured_pose_missing");
             }
-            return failure(
-                SparseSlamInitializationStatus::ExistingMapLoadNotImplemented,
-                "existing_sparse_map_load_not_implemented");
+            if (!request.existing_map_loaded) {
+                return failure(
+                    SparseSlamInitializationStatus::ExistingMapLoadNotImplemented,
+                    "existing_sparse_map_not_loaded");
+            }
+            return commit(make_map_from_odom(
+                              request.configured_map_pose.map_T_base),
+                          false, true,
+                          "existing_map_configured_pose_ready");
         }
 
         if (request.map_startup_mode == MapStartupMode::LoadExistingMap &&

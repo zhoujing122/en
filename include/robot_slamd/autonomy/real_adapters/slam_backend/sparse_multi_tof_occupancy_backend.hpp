@@ -300,6 +300,23 @@ public:
         return grid_.capture_snapshot(revision, maximum_snapshot_cells);
     }
 
+    const SparseMultiTofOccupancyBackendOptions &options() const {
+        return options_;
+    }
+
+    bool install_map_cells_transactional(
+        const std::vector<SparseOccupancyCell> &cells) {
+        if (!grid_.replace_cells_transactional(cells)) {
+            return false;
+        }
+        const auto snapshot = grid_.snapshot();
+        report_.active_cell_count = snapshot.cell_count();
+        report_.free_cell_count = snapshot.free_cell_count();
+        report_.occupied_cell_count = snapshot.occupied_cell_count();
+        report_.uncertain_cell_count = snapshot.uncertain_cell_count();
+        return true;
+    }
+
     SparseTofKeyframeMapPrepareResult prepare_keyframe_map_transaction(
         const FrozenMultiTofObservationBundle &bundle,
         const MapFromOdom2D &proposed_map_from_odom,

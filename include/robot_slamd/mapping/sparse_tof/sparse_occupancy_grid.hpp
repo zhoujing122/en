@@ -228,6 +228,25 @@ public:
     bool commit_prepared_batch(
         SparseOccupancyGridPreparedBatch &&prepared) noexcept;
 
+    bool replace_cells_transactional(
+        const std::vector<SparseOccupancyCell> &cells) {
+        if (!valid() || cells.size() > config_.maximum_active_cells) {
+            return false;
+        }
+        std::map<SparseGridCellKey, SparseOccupancyCellState> staged;
+        for (const auto &cell : cells) {
+            if (cell.evidence < config_.minimum_evidence ||
+                cell.evidence > config_.maximum_evidence ||
+                !staged.emplace(cell.key,
+                                SparseOccupancyCellState{cell.evidence})
+                     .second) {
+                return false;
+            }
+        }
+        cells_.swap(staged);
+        return true;
+    }
+
 private:
     SparseOccupancyGridConfig config_;
     std::map<SparseGridCellKey, SparseOccupancyCellState> cells_;

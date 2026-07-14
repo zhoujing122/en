@@ -51,6 +51,10 @@ int main() {
     expect(load.status ==
                SparseSlamInitializationStatus::ExistingMapLoadNotImplemented,
            "existing map load status");
+    request.existing_map_loaded = true;
+    auto loaded = state.initialize(request);
+    expect(loaded.ok && loaded.configured_pose_used,
+           "validated existing map accepts configured pose");
 
     request.initial_pose_mode = InitialPoseMode::Relocalization;
     auto relocalize = state.initialize(request);

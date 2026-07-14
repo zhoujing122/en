@@ -180,6 +180,12 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_right_tof_x_m = get_double(kv, "sparse_slam.right_tof_x_m", c.sparse_slam_right_tof_x_m);
     c.sparse_slam_right_tof_y_m = get_double(kv, "sparse_slam.right_tof_y_m", c.sparse_slam_right_tof_y_m);
     c.sparse_slam_right_tof_yaw_rad = get_double(kv, "sparse_slam.right_tof_yaw_rad", c.sparse_slam_right_tof_yaw_rad);
+    c.sparse_slam_map_path = get_string(kv, "sparse_slam.map_path", c.sparse_slam_map_path);
+    c.sparse_slam_map_id = get_string(kv, "sparse_slam.map_id", c.sparse_slam_map_id);
+    c.sparse_slam_map_run_id = get_string(kv, "sparse_slam.map_run_id", c.sparse_slam_map_run_id);
+    c.sparse_slam_save_map_on_exit = get_bool(kv, "sparse_slam.save_map_on_exit", c.sparse_slam_save_map_on_exit);
+    c.sparse_slam_map_artifact_max_cells = get_int(kv, "sparse_slam.map_artifact_max_cells", c.sparse_slam_map_artifact_max_cells);
+    c.sparse_slam_map_artifact_max_file_bytes = get_int(kv, "sparse_slam.map_artifact_max_file_bytes", c.sparse_slam_map_artifact_max_file_bytes);
     c.sparse_slam_pose_buffer_capacity = get_int(kv, "sparse_slam.pose_buffer_capacity", c.sparse_slam_pose_buffer_capacity);
     c.sparse_slam_pose_buffer_max_age_s = get_double(kv, "sparse_slam.pose_buffer_max_age_s", c.sparse_slam_pose_buffer_max_age_s);
     c.sparse_slam_pose_interpolation_max_gap_s = get_double(kv, "sparse_slam.pose_interpolation_max_gap_s", c.sparse_slam_pose_interpolation_max_gap_s);
@@ -839,6 +845,12 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_configured_pose_x_m)) errors.push_back("sparse_slam.configured_pose_x_m must be finite");
     if (!std::isfinite(c.sparse_slam_configured_pose_y_m)) errors.push_back("sparse_slam.configured_pose_y_m must be finite");
     if (!std::isfinite(c.sparse_slam_configured_pose_yaw_rad)) errors.push_back("sparse_slam.configured_pose_yaw_rad must be finite");
+    if (c.sparse_slam_map_startup_mode == "load_existing" && c.sparse_slam_map_path.empty()) errors.push_back("sparse_slam load_existing requires map_path");
+    if (c.sparse_slam_map_startup_mode == "load_existing" && c.sparse_slam_initial_pose_mode == "startup_zero") errors.push_back("sparse_slam load_existing requires configured_pose or relocalization");
+    if (c.sparse_slam_save_map_on_exit && c.sparse_slam_map_path.empty()) errors.push_back("sparse_slam save_map_on_exit requires map_path");
+    if (c.sparse_slam_map_id.empty() || c.sparse_slam_map_run_id.empty()) errors.push_back("sparse_slam map_id and map_run_id must not be empty");
+    if (c.sparse_slam_map_artifact_max_cells <= 0 || c.sparse_slam_map_artifact_max_cells > 100000) errors.push_back("sparse_slam.map_artifact_max_cells must be in [1, 100000]");
+    if (c.sparse_slam_map_artifact_max_file_bytes < 1024 || c.sparse_slam_map_artifact_max_file_bytes > 268435456) errors.push_back("sparse_slam.map_artifact_max_file_bytes must be in [1024, 268435456]");
     if (c.sparse_slam_pose_buffer_capacity <= 1) errors.push_back("sparse_slam.pose_buffer_capacity must be > 1");
     if (c.sparse_slam_pose_buffer_capacity > 4096) errors.push_back("sparse_slam.pose_buffer_capacity must be <= 4096");
     if (!std::isfinite(c.sparse_slam_pose_buffer_max_age_s) || c.sparse_slam_pose_buffer_max_age_s < 0.0) errors.push_back("sparse_slam.pose_buffer_max_age_s must be finite and >= 0");
@@ -1943,6 +1955,12 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  right_tof_x_m: " << c.sparse_slam_right_tof_x_m << "\n"
       << "  right_tof_y_m: " << c.sparse_slam_right_tof_y_m << "\n"
       << "  right_tof_yaw_rad: " << c.sparse_slam_right_tof_yaw_rad << "\n"
+      << "  map_path: " << c.sparse_slam_map_path << "\n"
+      << "  map_id: " << c.sparse_slam_map_id << "\n"
+      << "  map_run_id: " << c.sparse_slam_map_run_id << "\n"
+      << "  save_map_on_exit: " << bool_yaml(c.sparse_slam_save_map_on_exit) << "\n"
+      << "  map_artifact_max_cells: " << c.sparse_slam_map_artifact_max_cells << "\n"
+      << "  map_artifact_max_file_bytes: " << c.sparse_slam_map_artifact_max_file_bytes << "\n"
       << "  local_match_mode: " << c.sparse_slam_local_match_mode << "\n"
       << "  local_match_max_abs_yaw_rad: " << c.sparse_slam_local_match_max_abs_yaw_rad << "\n"
       << "  local_match_coarse_yaw_step_rad: " << c.sparse_slam_local_match_coarse_yaw_step_rad << "\n"

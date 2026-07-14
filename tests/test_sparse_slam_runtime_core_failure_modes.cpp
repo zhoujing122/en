@@ -67,7 +67,8 @@ int main() {
     SparseSlamRuntimeCore load(load_cfg);
     auto init = load.initialize(sparse_slam_initialization_request_from_config(load_cfg));
     expect(!init.ok, "load existing fail closed");
-    expect(load.report().initialization_status == "existing_map_load_not_implemented", "specific load fault");
+    expect(load.report().initialization_status == "initial_pose_missing",
+           "missing map path and extrinsics fail closed");
 
     Config relocal_cfg;
     relocal_cfg.sparse_slam_map_startup_mode = "load_existing";

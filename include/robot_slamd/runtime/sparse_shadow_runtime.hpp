@@ -583,6 +583,11 @@ public:
             (void)step;
         }
 
+        SparseMapLifecycleResult exit_save{true, "sparse_map_save_not_requested"};
+        if (config_.sparse_slam_save_map_on_exit) {
+            exit_save = core.save_sparse_map(config_.sparse_slam_map_path);
+        }
+
         merge_core_report(core.report(), report);
         report.ok = report.sensor_port_constructed &&
                     report.runtime_core_constructed &&
@@ -594,7 +599,11 @@ public:
                     report.native_multi_tof_consumed &&
                     report.measurement_time_pose_consumed &&
                     !report.single_pose_fallback_consumed &&
-                    !report.legacy_projection_consumed;
+                    !report.legacy_projection_consumed && exit_save.ok;
+        if (!exit_save.ok) {
+            report.last_fault = "sparse_map_save_failed";
+            report.last_message = exit_save.reason;
+        }
         report.last_fault = report.ok ? "none" : report.last_fault;
         report.last_message = report.ok ? "sparse_shadow_runtime_ok"
                                         : report.last_message;

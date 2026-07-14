@@ -7,6 +7,7 @@
 #include "robot_slamd/config/config.hpp"
 #include "robot_slamd/localization/sparse_tof/sparse_tof_local_matcher.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_tof_keyframe.hpp"
+#include "robot_slamd/mapping/sparse_tof/sparse_map_artifact.hpp"
 #include "robot_slamd/runtime/multi_tof_measurement_pose_resolver.hpp"
 #include "robot_slamd/runtime/phase_aware_observation_controller.hpp"
 #include "robot_slamd/runtime/sparse_slam_initialization.hpp"
@@ -60,6 +61,16 @@ struct SparseSlamRuntimeCoreReport {
     bool stationary_check_passed = false;
     bool wheel_baseline_established = false;
     bool map_from_odom_initialized = false;
+    std::size_t sparse_map_load_attempt_count = 0;
+    std::size_t sparse_map_load_success_count = 0;
+    std::size_t sparse_map_load_reject_count = 0;
+    std::size_t sparse_map_save_attempt_count = 0;
+    std::size_t sparse_map_save_success_count = 0;
+    std::size_t sparse_map_save_reject_count = 0;
+    bool sparse_map_loaded = false;
+    bool sparse_map_saved = false;
+    std::string sparse_map_path;
+    std::string last_map_lifecycle_fault = "none";
     double map_from_odom_x_m = 0.0;
     double map_from_odom_y_m = 0.0;
     double map_from_odom_yaw_rad = 0.0;
@@ -233,6 +244,11 @@ struct SparseSlamStepRequest {
     std::uint64_t bundle_id = 0;
 };
 
+struct SparseMapLifecycleResult {
+    bool ok = false;
+    std::string reason;
+};
+
 inline SlamBackendContractChecker sparse_slam_runtime_core_backend_checker() {
     SlamBackendContractOptions options;
     options.require_tof = false;
@@ -257,6 +273,7 @@ sparse_slam_initialization_request_from_config(const Config &config) {
         config.sparse_slam_configured_pose_x_m,
         config.sparse_slam_configured_pose_y_m,
         config.sparse_slam_configured_pose_yaw_rad});
+    request.map_path = config.sparse_slam_map_path;
     return request;
 }
 
@@ -283,8 +300,38 @@ public:
         report_.initialization_attempted = true;
         report_.map_startup_mode = to_string(request.map_startup_mode);
         report_.initial_pose_mode = to_string(request.initial_pose_mode);
-        init_request_ = request;
-        const auto preflight = frame_state_.initialize(request);
+        SparseSlamInitializationRequest staged_request = request;
+        SparseMapArtifact loaded_artifact;
+        bool install_loaded_map = false;
+        if (request.map_startup_mode == MapStartupMode::LoadExistingMap &&
+            request.initial_pose_mode == InitialPoseMode::ConfiguredPose) {
+            report_.sparse_map_load_attempt_count++;
+            report_.sparse_map_path = request.map_path;
+            if (!request.has_configured_map_pose || request.map_path.empty() ||
+                !config_.sparse_slam_planar_tof_extrinsics_configured) {
+                return initialization_failure(
+                    SparseSlamInitializationStatus::InitialPoseMissing,
+                    "existing_map_requires_configured_pose_path_and_extrinsics");
+            }
+            const auto loaded = load_sparse_map_artifact(
+                request.map_path, map_artifact_limits());
+            std::string compatibility_reason;
+            if (!loaded.ok ||
+                !sparse_map_artifact_compatible(
+                    loaded.artifact, sparse_backend_->options().grid,
+                    make_planar_tof_extrinsics(config_), config_.wheel_base_m,
+                    config_.wheel_radius_left_m,
+                    config_.wheel_radius_right_m,
+                    config_.encoder_ticks_per_rev, compatibility_reason)) {
+                return initialization_failure(
+                    SparseSlamInitializationStatus::Fault,
+                    loaded.ok ? compatibility_reason : loaded.reason);
+            }
+            loaded_artifact = loaded.artifact;
+            staged_request.existing_map_loaded = true;
+            install_loaded_map = true;
+        }
+        const auto preflight = frame_state_.initialize(staged_request);
         if (!preflight.ok) {
             phase_ = SparseSlamRuntimeCorePhase::Fault;
             report_.initialization_status = to_string(preflight.status);
@@ -292,6 +339,21 @@ public:
             report_.last_message = preflight.message;
             return preflight;
         }
+        if (install_loaded_map) {
+            if (!sparse_backend_->install_map_cells_transactional(
+                    loaded_artifact.cells)) {
+                return initialization_failure(
+                    SparseSlamInitializationStatus::Fault,
+                    "existing_sparse_map_install_failed");
+            }
+            current_map_revision_ = loaded_artifact.map_revision;
+            report_.current_map_revision = current_map_revision_;
+            report_.sparse_map_cell_count = loaded_artifact.cells.size();
+            report_.sparse_map_loaded = true;
+            report_.sparse_map_load_success_count++;
+            report_.last_map_lifecycle_fault = "none";
+        }
+        init_request_ = staged_request;
         frame_state_ = MapOdomFrameState{};
         gyro_samples_.clear();
         gyro_bias_rad_s_ = 0.0;
@@ -559,7 +621,87 @@ public:
     }
     std::size_t keyframe_count() const { return keyframe_manager_.size(); }
 
+    SparseOccupancyGridSnapshot sparse_map_snapshot() const {
+        return sparse_backend_->capture_grid_snapshot(
+            current_map_revision_, map_artifact_limits().maximum_cells).snapshot;
+    }
+
+    SparseMapLifecycleResult save_sparse_map(
+        const std::string &path,
+        SparseMapArtifactSaveOptions options = {}) {
+        report_.sparse_map_save_attempt_count++;
+        report_.sparse_map_path = path;
+        if (!config_.sparse_slam_planar_tof_extrinsics_configured) {
+            report_.sparse_map_save_reject_count++;
+            report_.last_map_lifecycle_fault =
+                "sparse_map_save_requires_configured_extrinsics";
+            return {false, report_.last_map_lifecycle_fault};
+        }
+        if (phase_ != SparseSlamRuntimeCorePhase::Ready ||
+            observation_controller_.state() !=
+                ActiveObservationBundleState::Idle ||
+            reference_map_snapshot_ || prepared_local_match_input_.is_ready() ||
+            local_match_result_) {
+            report_.sparse_map_save_reject_count++;
+            report_.last_map_lifecycle_fault =
+                "sparse_map_save_requires_stable_idle";
+            return {false, report_.last_map_lifecycle_fault};
+        }
+        const auto captured = sparse_backend_->capture_grid_snapshot(
+            current_map_revision_, map_artifact_limits().maximum_cells);
+        if (!captured.ok) {
+            report_.sparse_map_save_reject_count++;
+            report_.last_map_lifecycle_fault = captured.message;
+            return {false, captured.message};
+        }
+        SparseMapArtifact artifact;
+        artifact.map_id = config_.sparse_slam_map_id;
+        artifact.run_id = config_.sparse_slam_map_run_id;
+        artifact.map_revision = current_map_revision_;
+        artifact.grid = sparse_backend_->options().grid;
+        artifact.tof_extrinsics = make_planar_tof_extrinsics(config_);
+        artifact.wheel_base_m = config_.wheel_base_m;
+        artifact.wheel_radius_left_m = config_.wheel_radius_left_m;
+        artifact.wheel_radius_right_m = config_.wheel_radius_right_m;
+        artifact.encoder_ticks_per_rev = config_.encoder_ticks_per_rev;
+        artifact.cells = captured.snapshot.cells();
+        std::string reason;
+        if (!save_sparse_map_artifact_atomic(
+                path, artifact, map_artifact_limits(), reason, options)) {
+            report_.sparse_map_save_reject_count++;
+            report_.last_map_lifecycle_fault = reason;
+            return {false, reason};
+        }
+        report_.sparse_map_save_success_count++;
+        report_.sparse_map_saved = true;
+        report_.last_map_lifecycle_fault = "none";
+        return {true, reason};
+    }
+
 private:
+    SparseMapArtifactLimits map_artifact_limits() const {
+        return {
+            static_cast<std::size_t>(
+                std::max(1, config_.sparse_slam_map_artifact_max_cells)),
+            static_cast<std::size_t>(
+                std::max(1024, config_.sparse_slam_map_artifact_max_file_bytes))};
+    }
+
+    SparseSlamInitializationResult initialization_failure(
+        SparseSlamInitializationStatus status,
+        const std::string &message) {
+        phase_ = SparseSlamRuntimeCorePhase::Fault;
+        report_.sparse_map_load_reject_count++;
+        report_.initialization_status = to_string(status);
+        report_.last_map_lifecycle_fault = message;
+        report_.last_fault = report_.initialization_status;
+        report_.last_message = message;
+        SparseSlamInitializationResult result;
+        result.status = status;
+        result.message = message;
+        return result;
+    }
+
     static WheelImuDeadReckoningConfig make_odom_config(
         const Config &config) {
         WheelImuDeadReckoningConfig out;
@@ -1279,7 +1421,6 @@ private:
             init_request_.map_startup_mode == MapStartupMode::CreateNewMap &&
             init_request_.initial_pose_mode == InitialPoseMode::StartupZero;
         report_.configured_pose_used =
-            init_request_.map_startup_mode == MapStartupMode::CreateNewMap &&
             init_request_.initial_pose_mode == InitialPoseMode::ConfiguredPose;
         report_.initial_yaw_measured_by_imu = false;
         report_.initial_yaw_defined_by_startup_frame =
