@@ -10,7 +10,8 @@
 - M3-D2A1: complete. Phase-aware active multi-ToF observation bundles, motion-settle collection, frozen bundle handoff, map commit gate, and reference map revision guard are integrated into `SparseSlamRuntimeCore`.
 - M3-D2B0: complete. Immutable sparse reference snapshots and validated Prepared matcher inputs are owned by `SparseSlamRuntimeCore`; no matcher executes in B0.
 - M3-D2B1: complete. The bounded YawOnly matcher scores immutable Prepared inputs, rejects ambiguous or low-information matches, and emits an unapplied correction proposal from `SparseSlamRuntimeCore`.
-- M3-D2C: next stage. Apply accepted `map_T_odom` corrections with keyframe and atomic sparse-map commit semantics.
+- M3-D2C: complete. Accepted YawOnly proposals update only `map_T_odom`; corrected measurement-time observations, a bounded immutable Keyframe, and one sparse-map revision are committed atomically.
+- M3-D3: next stage. Add sparse map lifecycle, persistence, loading, and relocalization foundations.
 - M3-E: future. Add Frontier and A* exploration.
 - M3-F: complete simulation acceptance.
 

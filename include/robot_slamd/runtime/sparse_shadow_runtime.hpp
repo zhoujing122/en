@@ -169,6 +169,17 @@ struct SparseShadowRuntimeReport {
     RobotPose2D proposed_map_from_odom;
     RobotPose2D map_from_odom_after_match;
     std::string last_matcher_input_fault = "none";
+    std::size_t atomic_commit_attempt_count = 0;
+    std::size_t atomic_commit_success_count = 0;
+    std::size_t atomic_commit_reject_count = 0;
+    std::size_t correction_apply_success_count = 0;
+    std::size_t keyframe_commit_count = 0;
+    std::size_t keyframe_count = 0;
+    std::size_t keyframe_transaction_changed_cell_count = 0;
+    std::uint64_t committed_bundle_id = 0;
+    std::uint64_t committed_revision_before = 0;
+    std::uint64_t committed_revision_after = 0;
+    std::string last_atomic_commit_fault = "none";
 
     bool native_multi_tof_consumed = false;
     bool measurement_time_pose_consumed = false;
@@ -406,6 +417,18 @@ inline std::string write_sparse_shadow_runtime_report(
     out << "map_from_odom_after_match_y_m=" << report.map_from_odom_after_match.y_m << "\n";
     out << "map_from_odom_after_match_yaw_rad=" << report.map_from_odom_after_match.yaw_rad << "\n";
     out << "last_matcher_input_fault=" << report.last_matcher_input_fault << "\n";
+    out << "atomic_commit_attempt_count=" << report.atomic_commit_attempt_count << "\n";
+    out << "atomic_commit_success_count=" << report.atomic_commit_success_count << "\n";
+    out << "atomic_commit_reject_count=" << report.atomic_commit_reject_count << "\n";
+    out << "correction_apply_success_count=" << report.correction_apply_success_count << "\n";
+    out << "keyframe_commit_count=" << report.keyframe_commit_count << "\n";
+    out << "keyframe_count=" << report.keyframe_count << "\n";
+    out << "keyframe_transaction_changed_cell_count="
+        << report.keyframe_transaction_changed_cell_count << "\n";
+    out << "committed_bundle_id=" << report.committed_bundle_id << "\n";
+    out << "committed_revision_before=" << report.committed_revision_before << "\n";
+    out << "committed_revision_after=" << report.committed_revision_after << "\n";
+    out << "last_atomic_commit_fault=" << report.last_atomic_commit_fault << "\n";
     out << "native_multi_tof_consumed="
         << bool_yaml(report.native_multi_tof_consumed) << "\n";
     out << "measurement_time_pose_consumed="
@@ -733,6 +756,19 @@ private:
         report.proposed_map_from_odom = core.proposed_map_from_odom;
         report.map_from_odom_after_match = core.map_from_odom_after_match;
         report.last_matcher_input_fault = core.last_matcher_input_fault;
+        report.atomic_commit_attempt_count = core.atomic_commit_attempt_count;
+        report.atomic_commit_success_count = core.atomic_commit_success_count;
+        report.atomic_commit_reject_count = core.atomic_commit_reject_count;
+        report.correction_apply_success_count =
+            core.correction_apply_success_count;
+        report.keyframe_commit_count = core.keyframe_commit_count;
+        report.keyframe_count = core.keyframe_count;
+        report.keyframe_transaction_changed_cell_count =
+            core.keyframe_transaction_changed_cell_count;
+        report.committed_bundle_id = core.committed_bundle_id;
+        report.committed_revision_before = core.committed_revision_before;
+        report.committed_revision_after = core.committed_revision_after;
+        report.last_atomic_commit_fault = core.last_atomic_commit_fault;
         report.native_multi_tof_consumed = core.native_multi_tof_consumed;
         report.measurement_time_pose_consumed = core.measurement_time_pose_consumed;
         report.single_pose_fallback_consumed = core.single_pose_fallback_consumed;

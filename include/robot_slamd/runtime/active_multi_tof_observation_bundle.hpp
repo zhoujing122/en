@@ -204,6 +204,18 @@ public:
         return ok("active_bundle_discarded");
     }
 
+    ActiveMultiTofObservationResult consume(std::uint64_t bundle_id) {
+        if (summary_.state != ActiveObservationBundleState::FrozenReady) {
+            return fail_no_mutation(ActiveObservationBundleFault::InvalidState,
+                                    "active_bundle_consume_requires_frozen");
+        }
+        auto result = discard(bundle_id);
+        if (result.ok) {
+            result.message = "active_bundle_committed_and_consumed";
+        }
+        return result;
+    }
+
     void abort(ActiveObservationBundleFault fault, const std::string &reason) {
         summary_.state = ActiveObservationBundleState::Aborted;
         summary_.fault = fault;

@@ -241,6 +241,10 @@ struct SparseOccupancyGridBatchStats {
     std::size_t changed_cell_count = 0;
     std::size_t free_cell_update_count = 0;
     std::size_t occupied_cell_update_count = 0;
+    std::size_t final_cell_count = 0;
+    std::size_t final_free_cell_count = 0;
+    std::size_t final_occupied_cell_count = 0;
+    std::size_t final_uncertain_cell_count = 0;
 };
 
 class SparseOccupancyGridPreparedBatch {
@@ -302,7 +306,16 @@ SparseOccupancyGrid::prepare_observation_batch(
             before->second.evidence != entry.second.evidence) {
             result.prepared.stats_.changed_cell_count++;
         }
+        if (entry.second.evidence <= config_.free_threshold) {
+            result.prepared.stats_.final_free_cell_count++;
+        } else if (entry.second.evidence >= config_.occupied_threshold) {
+            result.prepared.stats_.final_occupied_cell_count++;
+        } else {
+            result.prepared.stats_.final_uncertain_cell_count++;
+        }
     }
+    result.prepared.stats_.final_cell_count =
+        result.prepared.staged_grid_.cells_.size();
     if (result.prepared.stats_.changed_cell_count > maximum_changed_cells) {
         result.fault = SparseOccupancyGridFault::MapCapacityReached;
         result.message = "sparse_grid_batch_changed_cell_limit";

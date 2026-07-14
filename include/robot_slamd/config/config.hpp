@@ -227,6 +227,12 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_local_match_occupied_endpoint_contradiction_weight = get_double(kv, "sparse_slam.local_match_occupied_endpoint_contradiction_weight", c.sparse_slam_local_match_occupied_endpoint_contradiction_weight);
     c.sparse_slam_local_match_require_revision_match = get_bool(kv, "sparse_slam.local_match_require_revision_match", c.sparse_slam_local_match_require_revision_match);
     c.sparse_slam_local_match_require_immutable_snapshot = get_bool(kv, "sparse_slam.local_match_require_immutable_snapshot", c.sparse_slam_local_match_require_immutable_snapshot);
+    c.sparse_slam_enable_atomic_local_slam_commit = get_bool(kv, "sparse_slam.enable_atomic_local_slam_commit", c.sparse_slam_enable_atomic_local_slam_commit);
+    c.sparse_slam_max_abs_yaw_correction_rad = get_double(kv, "sparse_slam.max_abs_yaw_correction_rad", c.sparse_slam_max_abs_yaw_correction_rad);
+    c.sparse_slam_max_keyframes = get_int(kv, "sparse_slam.max_keyframes", c.sparse_slam_max_keyframes);
+    c.sparse_slam_max_total_keyframe_rays = get_int(kv, "sparse_slam.max_total_keyframe_rays", c.sparse_slam_max_total_keyframe_rays);
+    c.sparse_slam_max_cells_per_keyframe_transaction = get_int(kv, "sparse_slam.max_cells_per_keyframe_transaction", c.sparse_slam_max_cells_per_keyframe_transaction);
+    c.sparse_slam_rejected_match_requires_discard = get_bool(kv, "sparse_slam.rejected_match_requires_discard", c.sparse_slam_rejected_match_requires_discard);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -885,6 +891,11 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_local_match_free_contradiction_weight) || c.sparse_slam_local_match_free_contradiction_weight >= 0.0) errors.push_back("sparse_slam.local_match_free_contradiction_weight must be finite and < 0");
     if (!std::isfinite(c.sparse_slam_local_match_occupied_endpoint_agreement_weight) || c.sparse_slam_local_match_occupied_endpoint_agreement_weight <= 0.0) errors.push_back("sparse_slam.local_match_occupied_endpoint_agreement_weight must be finite and > 0");
     if (!std::isfinite(c.sparse_slam_local_match_occupied_endpoint_contradiction_weight) || c.sparse_slam_local_match_occupied_endpoint_contradiction_weight >= 0.0) errors.push_back("sparse_slam.local_match_occupied_endpoint_contradiction_weight must be finite and < 0");
+    if (!std::isfinite(c.sparse_slam_max_abs_yaw_correction_rad) || c.sparse_slam_max_abs_yaw_correction_rad < 0.0 || c.sparse_slam_max_abs_yaw_correction_rad > 3.14159265358979323846) errors.push_back("sparse_slam.max_abs_yaw_correction_rad must be finite and within [0, pi]");
+    if (c.sparse_slam_max_keyframes <= 0 || c.sparse_slam_max_keyframes > 4096) errors.push_back("sparse_slam.max_keyframes must be in [1, 4096]");
+    if (c.sparse_slam_max_total_keyframe_rays <= 0 || c.sparse_slam_max_total_keyframe_rays > 12582912) errors.push_back("sparse_slam.max_total_keyframe_rays must be in [1, 12582912]");
+    if (c.sparse_slam_max_cells_per_keyframe_transaction <= 0 || c.sparse_slam_max_cells_per_keyframe_transaction > 100000) errors.push_back("sparse_slam.max_cells_per_keyframe_transaction must be in [1, 100000]");
+    if (!c.sparse_slam_rejected_match_requires_discard) errors.push_back("sparse_slam.rejected_match_requires_discard must remain true");
     positive("runtime.localization_hz", c.localization_hz);
     positive("runtime.tof_read_hz", c.tof_read_hz);
     positive("runtime.mapping_hz", c.mapping_hz);
@@ -1930,6 +1941,12 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  local_match_occupied_endpoint_contradiction_weight: " << c.sparse_slam_local_match_occupied_endpoint_contradiction_weight << "\n"
       << "  local_match_require_revision_match: " << bool_yaml(c.sparse_slam_local_match_require_revision_match) << "\n"
       << "  local_match_require_immutable_snapshot: " << bool_yaml(c.sparse_slam_local_match_require_immutable_snapshot) << "\n";
+    o << "  enable_atomic_local_slam_commit: " << bool_yaml(c.sparse_slam_enable_atomic_local_slam_commit) << "\n"
+      << "  max_abs_yaw_correction_rad: " << c.sparse_slam_max_abs_yaw_correction_rad << "\n"
+      << "  max_keyframes: " << c.sparse_slam_max_keyframes << "\n"
+      << "  max_total_keyframe_rays: " << c.sparse_slam_max_total_keyframe_rays << "\n"
+      << "  max_cells_per_keyframe_transaction: " << c.sparse_slam_max_cells_per_keyframe_transaction << "\n"
+      << "  rejected_match_requires_discard: " << bool_yaml(c.sparse_slam_rejected_match_requires_discard) << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"

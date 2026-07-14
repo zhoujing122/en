@@ -6,6 +6,7 @@
 #include "robot_slamd/autonomy/real_adapters/slam_backend/sparse_multi_tof_occupancy_backend.hpp"
 #include "robot_slamd/config/config.hpp"
 #include "robot_slamd/localization/sparse_tof/sparse_tof_local_matcher.hpp"
+#include "robot_slamd/mapping/sparse_tof/sparse_tof_keyframe.hpp"
 #include "robot_slamd/runtime/multi_tof_measurement_pose_resolver.hpp"
 #include "robot_slamd/runtime/phase_aware_observation_controller.hpp"
 #include "robot_slamd/runtime/sparse_slam_initialization.hpp"
@@ -190,6 +191,19 @@ struct SparseSlamRuntimeCoreReport {
     RobotPose2D map_from_odom_before_match;
     RobotPose2D proposed_map_from_odom;
     RobotPose2D map_from_odom_after_match;
+    std::size_t atomic_commit_attempt_count = 0;
+    std::size_t atomic_commit_success_count = 0;
+    std::size_t atomic_commit_reject_count = 0;
+    std::size_t correction_apply_success_count = 0;
+    std::size_t keyframe_commit_count = 0;
+    std::size_t keyframe_count = 0;
+    std::size_t keyframe_total_ray_count = 0;
+    std::size_t keyframe_transaction_changed_cell_count = 0;
+    std::uint64_t committed_bundle_id = 0;
+    std::uint64_t committed_keyframe_id = 0;
+    std::uint64_t committed_revision_before = 0;
+    std::uint64_t committed_revision_after = 0;
+    std::string last_atomic_commit_fault = "none";
     std::string last_matcher_input_fault = "none";
     bool real_hardware_accessed = false;
     bool real_motion_attempted = false;
@@ -254,6 +268,7 @@ public:
           pose_buffer_(make_pose_buffer_config(config_)),
           resolver_(make_resolver_config(config_)),
           observation_controller_(make_observation_controller_config(config_)),
+          keyframe_manager_(make_keyframe_config(config_)),
           sparse_backend_(std::make_shared<SparseMultiTofOccupancyBackendBinding>(
               make_backend_options())),
           map_port_(sparse_backend_,
@@ -458,6 +473,13 @@ public:
                                     report_.last_fault, report_.last_message};
                         }
                         execute_prepared_local_match();
+                        if (observation_controller_.state() ==
+                            ActiveObservationBundleState::Idle) {
+                            sync_observation_report();
+                            return {true, true, true, true, true,
+                                    "atomic_local_slam_committed",
+                                    report_.last_message};
+                        }
                     }
                 }
                 sync_observation_report();
@@ -532,6 +554,10 @@ public:
     const SparseTofLocalMatchResult *local_match_result() const {
         return local_match_result_ ? local_match_result_.get() : nullptr;
     }
+    const SparseTofKeyframe *latest_keyframe() const {
+        return keyframe_manager_.latest();
+    }
+    std::size_t keyframe_count() const { return keyframe_manager_.size(); }
 
 private:
     static WheelImuDeadReckoningConfig make_odom_config(
@@ -664,6 +690,16 @@ private:
         out.minimum_angular_bins_for_good_quality = 1;
         out.require_multi_tof_measurement_poses = true;
         out.allow_single_pose_fallback = false;
+        return out;
+    }
+
+    static SparseTofKeyframeConfig make_keyframe_config(
+        const Config &config) {
+        SparseTofKeyframeConfig out;
+        out.max_keyframes =
+            static_cast<std::size_t>(std::max(1, config.sparse_slam_max_keyframes));
+        out.max_total_rays = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_max_total_keyframe_rays));
         return out;
     }
 
@@ -866,9 +902,151 @@ private:
             (void)observation_controller_.abort_matcher_input(result.reason);
         } else if (result.accepted) {
             report_.matcher_accept_count++;
+            try_commit_accepted_local_slam(result);
         } else {
             report_.matcher_reject_count++;
         }
+    }
+
+    void reject_atomic_local_slam_commit(const std::string &reason) {
+        report_.atomic_commit_reject_count++;
+        report_.last_atomic_commit_fault = reason;
+        report_.last_fault = "atomic_local_slam_commit_rejected";
+        report_.last_message = reason;
+        if (observation_controller_.state() ==
+            ActiveObservationBundleState::FrozenReady) {
+            (void)observation_controller_.abort_matcher_input(reason);
+        }
+    }
+
+    void try_commit_accepted_local_slam(
+        const SparseTofLocalMatchResult &match) {
+        report_.atomic_commit_attempt_count++;
+        const auto &frozen = observation_controller_.frozen_bundle();
+        const auto current_transform = frame_state_.current_map_from_odom();
+        if (!config_.sparse_slam_enable_atomic_local_slam_commit ||
+            match.status != SparseTofLocalMatchStatus::AcceptedYawOnly ||
+            !match.matcher_executed || !match.accepted ||
+            !match.proposal_ready || !match.proposed_map_from_odom ||
+            !match.correction_delta || !prepared_local_match_input_.is_ready() ||
+            prepared_local_match_input_.input() == nullptr ||
+            !frozen.available() ||
+            !observation_controller_.can_commit_frozen_bundle(match.bundle_id) ||
+            match.bundle_id != frozen.summary().bundle_id ||
+            match.reference_map_revision != current_map_revision_ ||
+            frozen.summary().reference_map_revision != current_map_revision_ ||
+            !sparse_slam_frame_pose_valid(match.predicted_map_from_odom) ||
+            !sparse_slam_frame_pose_valid(*match.proposed_map_from_odom) ||
+            std::fabs(match.correction_delta->yaw_rad) >
+                config_.sparse_slam_max_abs_yaw_correction_rad ||
+            (keyframe_manager_.latest() != nullptr &&
+             keyframe_manager_.latest()->bundle_id == match.bundle_id) ||
+            !frame_state_.can_apply_local_slam_transform(
+                *match.proposed_map_from_odom) ||
+            current_transform.map_T_odom.x_m !=
+                match.predicted_map_from_odom.map_T_odom.x_m ||
+            current_transform.map_T_odom.y_m !=
+                match.predicted_map_from_odom.map_T_odom.y_m ||
+            current_transform.map_T_odom.yaw_rad !=
+                match.predicted_map_from_odom.map_T_odom.yaw_rad) {
+            reject_atomic_local_slam_commit(
+                "atomic_local_slam_match_contract_rejected");
+            return;
+        }
+
+        report_.pose_correction_attempt_count++;
+        auto map_prepare = sparse_backend_->prepare_keyframe_map_transaction(
+            frozen, *match.proposed_map_from_odom,
+            frozen.summary().reference_map_revision, current_map_revision_,
+            static_cast<std::size_t>(std::max(
+                1, config_.sparse_slam_max_cells_per_keyframe_transaction)));
+        if (!map_prepare.ok) {
+            reject_atomic_local_slam_commit(map_prepare.reason);
+            return;
+        }
+
+        report_.keyframe_attempt_count++;
+        SparseTofKeyframe keyframe;
+        keyframe.bundle_id = match.bundle_id;
+        keyframe.reference_map_revision = current_map_revision_;
+        keyframe.committed_map_revision = current_map_revision_ + 1;
+        keyframe.collection_start_timestamp_s =
+            frozen.summary().collection_start_timestamp_s;
+        keyframe.collection_end_timestamp_s =
+            frozen.summary().collection_end_timestamp_s;
+        keyframe.map_from_odom_before = current_transform;
+        keyframe.map_from_odom_after = *match.proposed_map_from_odom;
+        keyframe.matcher_delta_yaw_rad = match.correction_delta->yaw_rad;
+        keyframe.matcher_score = match.best_score.value_or(0.0);
+        keyframe.matcher_margin = match.score_margin.value_or(0.0);
+        keyframe.matcher_status = match.status;
+        keyframe.snapshot_count = frozen.frames().size();
+        keyframe.ray_count = frozen.summary().matchable_ray_count;
+        keyframe.hit_ray_count = frozen.summary().hit_ray_count;
+        keyframe.no_return_ray_count = frozen.summary().no_return_ray_count;
+        keyframe.changed_cell_count =
+            map_prepare.transaction.stats.changed_cell_count;
+        keyframe.frozen_bundle =
+            prepared_local_match_input_.input()->frozen_bundle;
+        auto keyframe_prepare = keyframe_manager_.prepare(std::move(keyframe));
+        if (!keyframe_prepare.ok) {
+            reject_atomic_local_slam_commit(keyframe_prepare.reason);
+            return;
+        }
+
+        const std::uint64_t revision_before = current_map_revision_;
+        const auto changed_cells =
+            map_prepare.transaction.stats.changed_cell_count;
+        const auto bundle_id = match.bundle_id;
+        const auto keyframe_id =
+            keyframe_prepare.prepared.keyframe()->keyframe_id;
+        if (!sparse_backend_->commit_keyframe_map_transaction(
+                std::move(map_prepare.transaction))) {
+            reject_atomic_local_slam_commit(
+                "atomic_local_slam_map_commit_precondition_changed");
+            return;
+        }
+
+        keyframe_manager_.commit(std::move(keyframe_prepare.prepared));
+        frame_state_.commit_local_slam_transform(
+            *match.proposed_map_from_odom);
+        current_map_revision_ = revision_before + 1;
+        const auto consumed =
+            observation_controller_.commit_frozen_bundle(bundle_id);
+        if (!consumed.ok) {
+            phase_ = SparseSlamRuntimeCorePhase::Fault;
+            report_.last_fault = "atomic_local_slam_finalize_fault";
+            report_.last_message = consumed.message;
+            return;
+        }
+
+        report_.atomic_commit_success_count++;
+        report_.correction_apply_success_count++;
+        report_.keyframe_commit_count++;
+        report_.keyframe_count = keyframe_manager_.size();
+        report_.keyframe_total_ray_count = keyframe_manager_.total_rays();
+        report_.keyframe_transaction_changed_cell_count = changed_cells;
+        report_.committed_bundle_id = bundle_id;
+        report_.committed_keyframe_id = keyframe_id;
+        report_.committed_revision_before = revision_before;
+        report_.committed_revision_after = current_map_revision_;
+        report_.current_map_revision = current_map_revision_;
+        report_.sparse_map_cell_count =
+            sparse_backend_->report().active_cell_count;
+        report_.map_from_odom_after_match =
+            frame_state_.current_map_from_odom().map_T_odom;
+        report_.last_atomic_commit_fault = "none";
+        report_.last_fault = "none";
+        report_.last_message = "atomic_local_slam_commit_accepted";
+        clear_prepared_local_match_objects();
+    }
+
+    void clear_prepared_local_match_objects() {
+        reference_map_snapshot_.reset();
+        prepared_local_match_input_ = PreparedSparseTofLocalMatchInput{};
+        local_match_result_.reset();
+        report_.reference_snapshot_ready = false;
+        report_.matcher_input_ready = false;
     }
 
     void clear_prepared_local_match_input() {
@@ -1131,6 +1309,7 @@ private:
     PhaseAwareObservationController observation_controller_;
     SparseTofLocalMatchInputValidator local_match_input_validator_;
     SparseTofLocalMatcher local_matcher_;
+    SparseTofKeyframeManager keyframe_manager_;
     std::shared_ptr<const SparseTofLocalMatchResult> local_match_result_;
     std::shared_ptr<const SparseOccupancyGridSnapshot> reference_map_snapshot_;
     PreparedSparseTofLocalMatchInput prepared_local_match_input_;

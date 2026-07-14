@@ -317,11 +317,12 @@ public:
             !grid_.commit_prepared_batch(std::move(transaction.map_batch))) {
             return false;
         }
-        const auto snapshot = grid_.snapshot();
-        report_.active_cell_count = snapshot.cell_count();
-        report_.free_cell_count = snapshot.free_cell_count();
-        report_.occupied_cell_count = snapshot.occupied_cell_count();
-        report_.uncertain_cell_count = snapshot.uncertain_cell_count();
+        report_.active_cell_count = transaction.stats.final_cell_count;
+        report_.free_cell_count = transaction.stats.final_free_cell_count;
+        report_.occupied_cell_count =
+            transaction.stats.final_occupied_cell_count;
+        report_.uncertain_cell_count =
+            transaction.stats.final_uncertain_cell_count;
         report_.hit_ray_count +=
             static_cast<int>(transaction.stats.hit_ray_count);
         report_.no_return_ray_count +=
@@ -335,7 +336,6 @@ public:
                 ? 1.0
                 : static_cast<double>(report_.active_cell_count) /
                       static_cast<double>(options_.grid.maximum_active_cells);
-        update_quality();
         transaction.ready = false;
         return true;
     }

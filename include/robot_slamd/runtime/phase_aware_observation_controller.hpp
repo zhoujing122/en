@@ -223,6 +223,25 @@ public:
         return {false, ActiveObservationBundleFault::MatcherInputRejected, reason};
     }
 
+    ActiveMultiTofObservationResult commit_frozen_bundle(
+        std::uint64_t bundle_id) {
+        const auto result = builder_.consume(bundle_id);
+        if (result.ok) {
+            guard_ = SparseMapRevisionGuard{};
+            settle_gate_.reset();
+            sync_report(result.message);
+        } else {
+            set_fault(result);
+        }
+        return result;
+    }
+
+    bool can_commit_frozen_bundle(std::uint64_t bundle_id) const {
+        return report_.state == ActiveObservationBundleState::FrozenReady &&
+               builder_.summary().bundle_id == bundle_id &&
+               builder_.frozen_bundle().available();
+    }
+
     const PhaseAwareObservationControllerReport &report() const {
         return report_;
     }

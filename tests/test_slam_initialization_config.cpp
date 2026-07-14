@@ -36,6 +36,10 @@ int main() {
            "default map startup create_new");
     expect(cfg.sparse_slam_initial_pose_mode == "startup_zero",
            "default initial pose startup_zero");
+    expect(cfg.sparse_slam_enable_atomic_local_slam_commit,
+           "atomic local slam commit enabled");
+    expect(cfg.sparse_slam_rejected_match_requires_discard,
+           "rejected match requires explicit discard");
     robot_slamd::validate_config(cfg);
 
     cfg.sparse_slam_initial_pose_mode = "configured_pose";
@@ -59,6 +63,15 @@ int main() {
     bad.sparse_slam_configured_pose_yaw_rad =
         std::numeric_limits<double>::quiet_NaN();
     expect(rejects(bad), "non-finite configured yaw rejects");
+    bad = robot_slamd::Config{};
+    bad.sparse_slam_max_keyframes = 0;
+    expect(rejects(bad), "zero keyframe capacity rejects");
+    bad = robot_slamd::Config{};
+    bad.sparse_slam_max_cells_per_keyframe_transaction = 0;
+    expect(rejects(bad), "zero transaction capacity rejects");
+    bad = robot_slamd::Config{};
+    bad.sparse_slam_rejected_match_requires_discard = false;
+    expect(rejects(bad), "automatic recovery from rejected match rejects");
 
     const std::string resolved = "/tmp/m3d2a0_slam_initialization_resolved.yaml";
     robot_slamd::write_resolved_config(cfg, resolved);
@@ -71,6 +84,11 @@ int main() {
            "resolved initial pose mode");
     expect(text.find("has_configured_pose: true") != std::string::npos,
            "resolved configured flag");
+    expect(text.find("enable_atomic_local_slam_commit: true") !=
+               std::string::npos,
+           "resolved atomic commit flag");
+    expect(text.find("max_keyframes: 64") != std::string::npos,
+           "resolved keyframe capacity");
 
     return 0;
 }

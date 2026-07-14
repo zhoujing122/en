@@ -212,6 +212,16 @@ public:
         return compose(map_from_odom_, odom_pose);
     }
 
+    bool can_apply_local_slam_transform(
+        const MapFromOdom2D &transform) const {
+        return initialized_ && sparse_slam_frame_pose_valid(transform);
+    }
+
+    void commit_local_slam_transform(
+        const MapFromOdom2D &transform) noexcept {
+        map_from_odom_ = transform;
+    }
+
     bool startup_zero_used() const { return startup_zero_used_; }
     bool configured_pose_used() const { return configured_pose_used_; }
 

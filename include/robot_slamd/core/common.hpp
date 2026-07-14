@@ -274,6 +274,12 @@ struct Config {
     double sparse_slam_local_match_occupied_endpoint_contradiction_weight = -4.0;
     bool sparse_slam_local_match_require_revision_match = true;
     bool sparse_slam_local_match_require_immutable_snapshot = true;
+    bool sparse_slam_enable_atomic_local_slam_commit = true;
+    double sparse_slam_max_abs_yaw_correction_rad = 0.2617993877991494;
+    int sparse_slam_max_keyframes = 64;
+    int sparse_slam_max_total_keyframe_rays = 12288;
+    int sparse_slam_max_cells_per_keyframe_transaction = 8192;
+    bool sparse_slam_rejected_match_requires_discard = true;
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;
