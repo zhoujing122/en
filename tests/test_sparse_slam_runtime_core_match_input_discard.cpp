@@ -20,6 +20,8 @@ int main() {
            "same discard step resumes idle mapping");
     expect(core.report().pose_buffer_size >= pose_buffer_size,
            "discard does not clear pose buffer");
-    expect(core.report().matcher_attempt_count == 0, "discard does not match");
+    expect(core.report().matcher_attempt_count == 1,
+           "discard does not repeat prior match");
+    expect(core.local_match_result() == nullptr, "discard clears match result");
     return m3d2a1_test::failures == 0 ? 0 : 1;
 }

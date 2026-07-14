@@ -25,8 +25,9 @@ int main() {
                    core.frame_state().current_map_from_odom().map_T_odom.yaw_rad,
                "prediction comes from frame state");
     }
-    expect(r.matcher_attempt_count == 0, "matcher not attempted");
-    expect(!r.matcher_executed, "matcher not executed");
-    expect(r.matcher_evaluated_candidate_count == 0, "no candidates evaluated");
+    expect(r.matcher_attempt_count == 1, "matcher attempted exactly once");
+    expect(r.matcher_executed, "yaw matcher executed");
+    expect(r.matcher_evaluated_candidate_count > 0, "candidates evaluated");
+    expect(core.local_match_result() != nullptr, "match result retained");
     return m3d2a1_test::failures == 0 ? 0 : 1;
 }

@@ -5,7 +5,7 @@
 #include "robot_slamd/autonomy/odometry/wheel_imu_dead_reckoning_2d.hpp"
 #include "robot_slamd/autonomy/real_adapters/slam_backend/sparse_multi_tof_occupancy_backend.hpp"
 #include "robot_slamd/config/config.hpp"
-#include "robot_slamd/localization/sparse_tof/sparse_tof_local_match_input_validator.hpp"
+#include "robot_slamd/localization/sparse_tof/sparse_tof_local_matcher.hpp"
 #include "robot_slamd/runtime/multi_tof_measurement_pose_resolver.hpp"
 #include "robot_slamd/runtime/phase_aware_observation_controller.hpp"
 #include "robot_slamd/runtime/sparse_slam_initialization.hpp"
@@ -157,7 +157,39 @@ struct SparseSlamRuntimeCoreReport {
     std::string matcher_input_requested_mode = "yaw_only";
     std::string matcher_input_status = "not_prepared";
     bool matcher_executed = false;
+    std::size_t matcher_execution_count = 0;
+    std::size_t matcher_accept_count = 0;
+    std::size_t matcher_reject_count = 0;
+    std::size_t matcher_fault_count = 0;
     std::size_t matcher_evaluated_candidate_count = 0;
+    std::size_t matcher_coarse_candidate_count = 0;
+    std::size_t matcher_fine_candidate_count = 0;
+    std::size_t matcher_used_ray_count = 0;
+    std::size_t matcher_known_cell_count = 0;
+    std::size_t matcher_unknown_cell_count = 0;
+    double matcher_unknown_ratio = 0.0;
+    std::size_t matcher_contradiction_count = 0;
+    double matcher_best_yaw_rad = 0.0;
+    double matcher_best_score = 0.0;
+    bool matcher_runner_up_available = false;
+    double matcher_runner_up_yaw_rad = 0.0;
+    double matcher_runner_up_score = 0.0;
+    double matcher_score_margin = 0.0;
+    double matcher_score_min = 0.0;
+    double matcher_score_max = 0.0;
+    double matcher_score_mean = 0.0;
+    double matcher_score_range = 0.0;
+    bool matcher_best_at_search_edge = false;
+    bool matcher_flat_curve = false;
+    bool matcher_multimodal = false;
+    bool matcher_accepted = false;
+    std::string matcher_status = "not_run";
+    std::string matcher_rejection_reason = "none";
+    double matcher_delta_yaw_rad = 0.0;
+    bool matcher_proposal_ready = false;
+    RobotPose2D map_from_odom_before_match;
+    RobotPose2D proposed_map_from_odom;
+    RobotPose2D map_from_odom_after_match;
     std::string last_matcher_input_fault = "none";
     bool real_hardware_accessed = false;
     bool real_motion_attempted = false;
@@ -425,6 +457,7 @@ public:
                             return {false, true, true, false, false,
                                     report_.last_fault, report_.last_message};
                         }
+                        execute_prepared_local_match();
                     }
                 }
                 sync_observation_report();
@@ -495,6 +528,9 @@ public:
     }
     const SparseOccupancyGridSnapshot *reference_map_snapshot() const {
         return reference_map_snapshot_.get();
+    }
+    const SparseTofLocalMatchResult *local_match_result() const {
+        return local_match_result_ ? local_match_result_.get() : nullptr;
     }
 
 private:
@@ -569,6 +605,16 @@ private:
         out.max_abs_translation_y_m = config.sparse_slam_local_match_max_abs_translation_y_m;
         out.max_candidate_count = static_cast<std::size_t>(
             std::max(1, config.sparse_slam_local_match_max_candidate_count));
+        out.max_coarse_candidates = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_max_coarse_candidates));
+        out.max_fine_candidates = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_max_fine_candidates));
+        out.max_total_candidates = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_max_total_candidates));
+        out.max_scored_rays = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_max_scored_rays));
+        out.max_cells_per_ray = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_max_cells_per_ray));
         out.min_bundle_frames = static_cast<std::size_t>(
             std::max(1, config.sparse_slam_local_match_min_bundle_frames));
         out.min_matchable_rays = static_cast<std::size_t>(
@@ -580,6 +626,31 @@ private:
         out.min_reference_free_cells = static_cast<std::size_t>(
             std::max(0, config.sparse_slam_local_match_min_reference_free_cells));
         out.max_bundle_duration_s = config.sparse_slam_active_bundle_max_duration_s;
+        out.no_return_free_space_range_m =
+            config.sparse_slam_local_match_no_return_free_space_range_m;
+        out.min_used_rays = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_min_used_rays));
+        out.min_known_cells = static_cast<std::size_t>(
+            std::max(1, config.sparse_slam_local_match_min_known_cells));
+        out.max_unknown_ratio = config.sparse_slam_local_match_max_unknown_ratio;
+        out.max_contradiction_ratio =
+            config.sparse_slam_local_match_max_contradiction_ratio;
+        out.minimum_normalized_score =
+            config.sparse_slam_local_match_min_normalized_score;
+        out.minimum_score_margin = config.sparse_slam_local_match_min_score_margin;
+        out.minimum_score_range = config.sparse_slam_local_match_min_score_range;
+        out.runner_up_exclusion_yaw_rad =
+            config.sparse_slam_local_match_runner_up_exclusion_yaw_rad;
+        out.multimodal_max_score_drop =
+            config.sparse_slam_local_match_multimodal_max_score_drop;
+        out.free_agreement_weight =
+            config.sparse_slam_local_match_free_agreement_weight;
+        out.free_contradiction_weight =
+            config.sparse_slam_local_match_free_contradiction_weight;
+        out.occupied_endpoint_agreement_weight =
+            config.sparse_slam_local_match_occupied_endpoint_agreement_weight;
+        out.occupied_endpoint_contradiction_weight =
+            config.sparse_slam_local_match_occupied_endpoint_contradiction_weight;
         out.require_revision_match = config.sparse_slam_local_match_require_revision_match;
         out.require_immutable_snapshot = config.sparse_slam_local_match_require_immutable_snapshot;
         return out;
@@ -741,9 +812,99 @@ private:
         return {false, reason};
     }
 
+    void execute_prepared_local_match() {
+        if (local_match_result_ || !prepared_local_match_input_.is_ready() ||
+            prepared_local_match_input_.input() == nullptr) {
+            return;
+        }
+        report_.matcher_attempt_count++;
+        report_.map_from_odom_before_match =
+            frame_state_.current_map_from_odom().map_T_odom;
+        const auto result = local_matcher_.match(
+            *prepared_local_match_input_.input());
+        local_match_result_ =
+            std::make_shared<const SparseTofLocalMatchResult>(result);
+        report_.matcher_executed = result.matcher_executed;
+        if (result.matcher_executed) report_.matcher_execution_count++;
+        report_.matcher_evaluated_candidate_count =
+            result.evaluated_candidate_count;
+        report_.matcher_coarse_candidate_count = result.coarse_candidate_count;
+        report_.matcher_fine_candidate_count = result.fine_candidate_count;
+        report_.matcher_used_ray_count = result.best_metrics.used_ray_count;
+        report_.matcher_known_cell_count = result.best_metrics.known_cell_count;
+        report_.matcher_unknown_cell_count = result.best_metrics.unknown_cell_count;
+        report_.matcher_unknown_ratio = result.best_metrics.unknown_ratio;
+        report_.matcher_contradiction_count =
+            result.best_metrics.contradiction_count;
+        report_.matcher_best_yaw_rad = result.best_yaw_rad.value_or(0.0);
+        report_.matcher_best_score = result.best_score.value_or(0.0);
+        report_.matcher_runner_up_available = result.runner_up_available;
+        report_.matcher_runner_up_yaw_rad =
+            result.runner_up_yaw_rad.value_or(0.0);
+        report_.matcher_runner_up_score =
+            result.second_best_score.value_or(0.0);
+        report_.matcher_score_margin = result.score_margin.value_or(0.0);
+        report_.matcher_score_min = result.score_min;
+        report_.matcher_score_max = result.score_max;
+        report_.matcher_score_mean = result.score_mean;
+        report_.matcher_score_range = result.score_range;
+        report_.matcher_best_at_search_edge = result.best_at_search_edge;
+        report_.matcher_flat_curve = result.flat_curve;
+        report_.matcher_multimodal = result.multimodal;
+        report_.matcher_accepted = result.accepted;
+        report_.matcher_status = to_string(result.status);
+        report_.matcher_rejection_reason = result.accepted ? "none" : result.reason;
+        report_.matcher_delta_yaw_rad = result.best_delta_yaw_rad.value_or(0.0);
+        report_.matcher_proposal_ready = result.proposal_ready;
+        report_.proposed_map_from_odom = result.proposed_map_from_odom
+            ? result.proposed_map_from_odom->map_T_odom
+            : RobotPose2D{};
+        report_.map_from_odom_after_match =
+            frame_state_.current_map_from_odom().map_T_odom;
+        if (result.status == SparseTofLocalMatchStatus::Fault) {
+            report_.matcher_fault_count++;
+            (void)observation_controller_.abort_matcher_input(result.reason);
+        } else if (result.accepted) {
+            report_.matcher_accept_count++;
+        } else {
+            report_.matcher_reject_count++;
+        }
+    }
+
     void clear_prepared_local_match_input() {
         reference_map_snapshot_.reset();
         prepared_local_match_input_ = PreparedSparseTofLocalMatchInput{};
+        local_match_result_.reset();
+        report_.matcher_executed = false;
+        report_.matcher_evaluated_candidate_count = 0;
+        report_.matcher_coarse_candidate_count = 0;
+        report_.matcher_fine_candidate_count = 0;
+        report_.matcher_used_ray_count = 0;
+        report_.matcher_known_cell_count = 0;
+        report_.matcher_unknown_cell_count = 0;
+        report_.matcher_unknown_ratio = 0.0;
+        report_.matcher_contradiction_count = 0;
+        report_.matcher_best_yaw_rad = 0.0;
+        report_.matcher_best_score = 0.0;
+        report_.matcher_runner_up_available = false;
+        report_.matcher_runner_up_yaw_rad = 0.0;
+        report_.matcher_runner_up_score = 0.0;
+        report_.matcher_score_margin = 0.0;
+        report_.matcher_score_min = 0.0;
+        report_.matcher_score_max = 0.0;
+        report_.matcher_score_mean = 0.0;
+        report_.matcher_score_range = 0.0;
+        report_.matcher_best_at_search_edge = false;
+        report_.matcher_flat_curve = false;
+        report_.matcher_multimodal = false;
+        report_.matcher_accepted = false;
+        report_.matcher_status = "not_run";
+        report_.matcher_rejection_reason = "none";
+        report_.matcher_delta_yaw_rad = 0.0;
+        report_.matcher_proposal_ready = false;
+        report_.map_from_odom_before_match = RobotPose2D{};
+        report_.proposed_map_from_odom = RobotPose2D{};
+        report_.map_from_odom_after_match = RobotPose2D{};
         report_.reference_snapshot_ready = false;
         report_.reference_snapshot_revision = 0;
         report_.reference_snapshot_cell_count = 0;
@@ -969,6 +1130,8 @@ private:
     MultiTofMeasurementPoseResolver resolver_;
     PhaseAwareObservationController observation_controller_;
     SparseTofLocalMatchInputValidator local_match_input_validator_;
+    SparseTofLocalMatcher local_matcher_;
+    std::shared_ptr<const SparseTofLocalMatchResult> local_match_result_;
     std::shared_ptr<const SparseOccupancyGridSnapshot> reference_map_snapshot_;
     PreparedSparseTofLocalMatchInput prepared_local_match_input_;
     std::shared_ptr<SparseMultiTofOccupancyBackendBinding> sparse_backend_;

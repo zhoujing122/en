@@ -15,7 +15,11 @@ int main() {
            "frozen map revision unchanged");
     expect(after.sparse_map_cell_count == before.sparse_map_cell_count,
            "frozen map cell count unchanged");
-    expect(after.matcher_attempt_count == 0, "no matcher execution path");
+    expect(after.matcher_attempt_count == 1,
+           "frozen lifecycle executes matcher once only");
+    expect(after.matcher_execution_count == 1 &&
+               after.matcher_evaluated_candidate_count > 0,
+           "yaw matcher evaluated bounded candidates");
     expect(after.keyframe_attempt_count == 0, "no keyframe path");
     expect(after.pose_correction_attempt_count == 0, "no correction path");
     expect(!after.real_hardware_accessed && !after.real_motion_attempted &&
