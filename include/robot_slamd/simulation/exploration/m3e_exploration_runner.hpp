@@ -31,6 +31,33 @@ struct M3EExplorationRunReport {
     std::string report_path;
     std::string trajectory_path;
     std::string termination_reason = "not_started";
+    std::string startup_mode = "create_new";
+    std::string initial_pose_mode = "startup_zero";
+    std::string relocalization_state = "idle";
+    std::string relocalization_reason = "none";
+    std::size_t relocalization_search_count = 0;
+    std::uint64_t relocalization_first_bundle_id = 0;
+    std::uint64_t relocalization_confirmation_bundle_id = 0;
+    double relocalization_best_x_m = 0.0;
+    double relocalization_best_y_m = 0.0;
+    double relocalization_best_yaw_rad = 0.0;
+    double relocalization_best_score = 0.0;
+    bool relocalization_runner_up_available = false;
+    double relocalization_runner_up_x_m = 0.0;
+    double relocalization_runner_up_y_m = 0.0;
+    double relocalization_runner_up_yaw_rad = 0.0;
+    double relocalization_runner_up_score = 0.0;
+    double relocalization_score_margin = 0.0;
+    double relocalization_confirmation_xy_difference_m = 0.0;
+    double relocalization_confirmation_yaw_difference_rad = 0.0;
+    std::size_t relocalization_success_count = 0;
+    std::size_t recovery_attempt_count = 0;
+    std::size_t recovery_success_count = 0;
+    std::size_t localization_stop_count = 0;
+    bool exploration_resumed = false;
+    RobotPose2D final_ground_truth_pose;
+    double final_position_error_m = 0.0;
+    double final_yaw_error_rad = 0.0;
 };
 
 inline AutonomousExplorationConfig m3e_exploration_config_from(
@@ -62,6 +89,16 @@ inline AutonomousExplorationConfig m3e_exploration_config_from(
         config.exploration_bootstrap_minimum_known_cells);
     out.bootstrap_minimum_yaw_rad = config.exploration_bootstrap_minimum_yaw_rad;
     out.bootstrap_max_duration_s = config.exploration_bootstrap_max_duration_s;
+    out.relocalization_bundle_minimum_yaw_rad =
+        config.exploration_relocalization_bundle_minimum_yaw_rad;
+    out.relocalization_turn_segment_duration_s =
+        config.exploration_relocalization_turn_segment_duration_s;
+    out.localization_verification_yaw_rad =
+        config.exploration_localization_verification_yaw_rad;
+    out.localization_verification_max_attempts = static_cast<std::size_t>(
+        config.exploration_localization_verification_max_attempts);
+    out.verify_loaded_configured_pose =
+        config.exploration_verify_loaded_configured_pose;
     out.maximum_duration_s = config.exploration_max_duration_s;
     out.maximum_planning_failures = static_cast<std::size_t>(
         config.exploration_maximum_planning_failures);
@@ -156,7 +193,26 @@ inline void write_m3e_exploration_report(
         << "final_map_save_success="
         << (report.final_map_save_success ? 1 : 0) << "\n"
         << "final_map_path=" << report.final_map_path << "\n"
-        << "final_map_checksum=" << report.final_map_checksum << "\n";
+        << "final_map_checksum=" << report.final_map_checksum << "\n"
+        << "startup_mode=" << report.startup_mode << "\n"
+        << "initial_pose_mode=" << report.initial_pose_mode << "\n"
+        << "relocalization_state=" << report.relocalization_state << "\n"
+        << "relocalization_reason=" << report.relocalization_reason << "\n"
+        << "relocalization_search_count=" << report.relocalization_search_count << "\n"
+        << "relocalization_first_bundle_id=" << report.relocalization_first_bundle_id << "\n"
+        << "relocalization_confirmation_bundle_id=" << report.relocalization_confirmation_bundle_id << "\n"
+        << "relocalization_best=" << report.relocalization_best_x_m << "," << report.relocalization_best_y_m << "," << report.relocalization_best_yaw_rad << "," << report.relocalization_best_score << "\n"
+        << "relocalization_runner_up_available=" << (report.relocalization_runner_up_available ? 1 : 0) << "\n"
+        << "relocalization_runner_up=" << report.relocalization_runner_up_x_m << "," << report.relocalization_runner_up_y_m << "," << report.relocalization_runner_up_yaw_rad << "," << report.relocalization_runner_up_score << "\n"
+        << "relocalization_score_margin=" << report.relocalization_score_margin << "\n"
+        << "relocalization_confirmation_difference=" << report.relocalization_confirmation_xy_difference_m << "," << report.relocalization_confirmation_yaw_difference_rad << "\n"
+        << "relocalization_success_count=" << report.relocalization_success_count << "\n"
+        << "recovery_attempt_count=" << report.recovery_attempt_count << "\n"
+        << "recovery_success_count=" << report.recovery_success_count << "\n"
+        << "localization_stop_count=" << report.localization_stop_count << "\n"
+        << "exploration_resumed=" << (report.exploration_resumed ? 1 : 0) << "\n"
+        << "final_position_error_m=" << report.final_position_error_m << "\n"
+        << "final_yaw_error_rad=" << report.final_yaw_error_rad << "\n";
 }
 
 class M3EExplorationRunner {
@@ -185,7 +241,11 @@ public:
         plant_config.robot_radius_m = config.exploration_robot_radius_m;
         plant_config.collision_check_enabled = true;
         auto plant = std::make_shared<SimRobotPlant>(plant_config);
-        if (!plant->reset({}, 0.0)) {
+        const RobotPose2D initial_ground_truth_pose{
+            config.exploration_simulation_initial_x_m,
+            config.exploration_simulation_initial_y_m,
+            config.exploration_simulation_initial_yaw_rad};
+        if (!plant->reset(initial_ground_truth_pose, 0.0)) {
             report.termination_reason = "plant_reset_failed";
             write_m3e_exploration_report(report, report.report_path);
             return report;
@@ -269,6 +329,43 @@ public:
         report.exploration = controller.report();
         report.sensor_snapshot_count = static_cast<std::size_t>(sensor->success_count());
         report.motion_command_count = static_cast<std::size_t>(motion->accepted_count());
+        report.startup_mode = core.report().map_startup_mode;
+        report.initial_pose_mode = core.report().initial_pose_mode;
+        report.relocalization_state = core.report().relocalization_state;
+        report.relocalization_reason = core.report().relocalization_reason;
+        report.relocalization_search_count =
+            core.report().relocalization_search_attempt_count;
+        report.relocalization_first_bundle_id = core.report().relocalization_first_bundle_id;
+        report.relocalization_confirmation_bundle_id = core.report().relocalization_confirmation_bundle_id;
+        report.relocalization_best_x_m = core.report().relocalization_best_x_m;
+        report.relocalization_best_y_m = core.report().relocalization_best_y_m;
+        report.relocalization_best_yaw_rad = core.report().relocalization_best_yaw_rad;
+        report.relocalization_best_score = core.report().relocalization_best_score;
+        report.relocalization_runner_up_available = core.report().relocalization_runner_up_available;
+        report.relocalization_runner_up_x_m = core.report().relocalization_runner_up_x_m;
+        report.relocalization_runner_up_y_m = core.report().relocalization_runner_up_y_m;
+        report.relocalization_runner_up_yaw_rad = core.report().relocalization_runner_up_yaw_rad;
+        report.relocalization_runner_up_score = core.report().relocalization_runner_up_score;
+        report.relocalization_score_margin = core.report().relocalization_score_margin;
+        report.relocalization_confirmation_xy_difference_m = core.report().relocalization_confirmation_xy_difference_m;
+        report.relocalization_confirmation_yaw_difference_rad = core.report().relocalization_confirmation_yaw_difference_rad;
+        report.relocalization_success_count =
+            core.report().relocalization_success_count;
+        report.recovery_attempt_count = core.report().recovery_attempt_count;
+        report.recovery_success_count = core.report().recovery_success_count;
+        report.localization_stop_count =
+            controller.report().localization_stop_count;
+        report.exploration_resumed =
+            controller.report().exploration_resume_count > 0;
+        report.final_ground_truth_pose = plant->state().pose;
+        report.final_position_error_m = std::hypot(
+            report.exploration.final_estimated_map_pose.x_m -
+                report.final_ground_truth_pose.x_m,
+            report.exploration.final_estimated_map_pose.y_m -
+                report.final_ground_truth_pose.y_m);
+        report.final_yaw_error_rad = std::fabs(sparse_slam_shortest_yaw_delta(
+            report.exploration.final_estimated_map_pose.yaw_rad,
+            report.final_ground_truth_pose.yaw_rad));
         report.stop_command_count = static_cast<std::size_t>(motion->stop_count());
         if (controller.state() == AutonomousExplorationState::Completed) {
             const auto saved = core.save_sparse_map(report.final_map_path);

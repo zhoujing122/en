@@ -1,0 +1,117 @@
+robot:
+  wheel_base_m: 0.180
+  wheel_radius_left_m: 0.032
+  wheel_radius_right_m: 0.032
+  encoder_ticks_per_rev: 1024
+
+slam_runtime:
+  mode: sparse_sim_exploration
+
+tof:
+  protocol_min_range_m: 0.02
+  protocol_max_range_m: 2.00
+  mapping_min_range_m: 0.05
+  mapping_max_range_m: 2.00
+  mapping_min_confidence: 70
+
+sparse_slam:
+  map_startup_mode: load_existing
+  initial_pose_mode: relocalization
+  map_path: /tmp/en_m3d3b_reference/final_sparse_map.smap
+  planar_tof_extrinsics_configured: true
+  allow_legacy_mount_yaw_extrinsics: false
+  front_tof_x_m: 0.040
+  front_tof_y_m: 0.000
+  front_tof_yaw_rad: 0.000000
+  left_tof_x_m: 0.000
+  left_tof_y_m: 0.040
+  left_tof_yaw_rad: 1.570796
+  right_tof_x_m: 0.000
+  right_tof_y_m: -0.040
+  right_tof_yaw_rad: -1.570796
+  map_id: m3e_deterministic_room
+  map_run_id: m3e_simulation
+  save_map_on_exit: false
+  active_bundle_max_snapshots: 1024
+  active_bundle_max_rays: 3072
+  active_bundle_max_duration_s: 60.0
+  active_bundle_max_snapshot_gap_s: 0.20
+  active_bundle_min_snapshots: 3
+  active_bundle_min_matchable_rays: 6
+  active_bundle_min_yaw_span_rad: 0.05
+  settle_max_abs_linear_speed_mps: 0.03
+  settle_max_abs_wheel_yaw_rate_rad_s: 0.03
+  settle_max_abs_imu_yaw_rate_rad_s: 0.03
+  settle_min_consecutive_samples: 3
+  settle_min_stable_duration_s: 0.10
+  settle_max_sample_gap_s: 0.20
+  local_match_min_bundle_frames: 3
+  local_match_min_matchable_rays: 6
+  local_match_min_used_rays: 6
+  local_match_min_known_cells: 4
+  local_match_max_unknown_ratio: 0.95
+  local_match_max_contradiction_ratio: 0.90
+  local_match_min_normalized_score: -0.50
+  local_match_min_score_margin: 0.00
+  local_match_min_score_range: 0.00
+  local_match_multimodal_max_score_drop: 0.00
+  relocalization_coarse_free_cell_stride: 8
+  relocalization_coarse_yaw_step_rad: 0.523599
+  relocalization_refine_xy_step_m: 0.05
+  relocalization_refine_yaw_step_rad: 0.087266
+  relocalization_final_xy_step_m: 0.025
+  relocalization_final_yaw_step_rad: 0.017453
+  relocalization_top_k: 4
+  relocalization_max_total_candidates: 15000
+  relocalization_coarse_max_scored_rays: 96
+  relocalization_refine_max_scored_rays: 288
+  relocalization_max_cells_per_ray: 512
+  relocalization_required_confirmation_bundles: 2
+  relocalization_confirmation_xy_tolerance_m: 0.30
+  relocalization_confirmation_yaw_tolerance_rad: 0.30
+
+exploration:
+  min_x_m: -1.50
+  max_x_m: 1.50
+  min_y_m: -1.00
+  max_y_m: 1.00
+  robot_radius_m: 0.08
+  safety_margin_m: 0.04
+  maximum_navigation_cells: 200000
+  minimum_frontier_cluster_cells: 2
+  information_gain_weight: 0.02
+  maximum_astar_nodes: 50000
+  no_frontier_confirmation_cycles: 3
+  bootstrap_minimum_known_cells: 60
+  bootstrap_minimum_yaw_rad: 5.50
+  bootstrap_max_duration_s: 22.0
+  relocalization_bundle_minimum_yaw_rad: 1.50
+  relocalization_turn_segment_duration_s: 0.40
+  localization_verification_yaw_rad: 0.40
+  localization_verification_max_attempts: 3
+  verify_loaded_configured_pose: true
+  max_duration_s: 240.0
+  maximum_planning_failures: 30
+  minimum_goal_clearance_m: 0.10
+  minimum_goal_distance_m: 0.30
+  failure_memory_capacity: 64
+  failure_cooldown_cycles: 3
+  maximum_goal_failures: 3
+  failure_retry_revision_delta: 30
+  waypoint_tolerance_m: 0.10
+  yaw_tolerance_rad: 0.10
+  minimum_progress_m: 0.01
+  no_progress_timeout_s: 4.0
+  maximum_segments_without_progress: 8
+  obstacle_stop_distance_m: 0.20
+  emergency_stop_distance_m: 0.09
+  obstacle_confirmation_frames: 2
+  completion_minimum_known_ratio: 0.70
+  simulation_fixed_dt_s: 0.05
+  simulation_tof_max_range_m: 2.00
+  simulation_initial_x_m: -0.45
+  simulation_initial_y_m: -0.35
+  simulation_initial_yaw_rad: 0.55
+
+logging:
+  output_dir: /tmp/en_m3e_runs

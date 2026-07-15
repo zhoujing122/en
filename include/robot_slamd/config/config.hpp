@@ -266,6 +266,9 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_relocalization_required_confirmation_bundles = get_int(kv, "sparse_slam.relocalization_required_confirmation_bundles", c.sparse_slam_relocalization_required_confirmation_bundles);
     c.sparse_slam_relocalization_confirmation_xy_tolerance_m = get_double(kv, "sparse_slam.relocalization_confirmation_xy_tolerance_m", c.sparse_slam_relocalization_confirmation_xy_tolerance_m);
     c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad = get_double(kv, "sparse_slam.relocalization_confirmation_yaw_tolerance_rad", c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad);
+    c.sparse_slam_localization_health_max_consistency_failures = get_int(kv, "sparse_slam.localization_health_max_consistency_failures", c.sparse_slam_localization_health_max_consistency_failures);
+    c.sparse_slam_localization_health_min_lost_duration_s = get_double(kv, "sparse_slam.localization_health_min_lost_duration_s", c.sparse_slam_localization_health_min_lost_duration_s);
+    c.sparse_slam_localization_health_min_lost_odom_distance_m = get_double(kv, "sparse_slam.localization_health_min_lost_odom_distance_m", c.sparse_slam_localization_health_min_lost_odom_distance_m);
     c.sparse_slam_enable_atomic_local_slam_commit = get_bool(kv, "sparse_slam.enable_atomic_local_slam_commit", c.sparse_slam_enable_atomic_local_slam_commit);
     c.sparse_slam_max_abs_yaw_correction_rad = get_double(kv, "sparse_slam.max_abs_yaw_correction_rad", c.sparse_slam_max_abs_yaw_correction_rad);
     c.sparse_slam_max_keyframes = get_int(kv, "sparse_slam.max_keyframes", c.sparse_slam_max_keyframes);
@@ -286,6 +289,11 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.exploration_bootstrap_minimum_known_cells = get_int(kv, "exploration.bootstrap_minimum_known_cells", c.exploration_bootstrap_minimum_known_cells);
     c.exploration_bootstrap_minimum_yaw_rad = get_double(kv, "exploration.bootstrap_minimum_yaw_rad", c.exploration_bootstrap_minimum_yaw_rad);
     c.exploration_bootstrap_max_duration_s = get_double(kv, "exploration.bootstrap_max_duration_s", c.exploration_bootstrap_max_duration_s);
+    c.exploration_relocalization_bundle_minimum_yaw_rad = get_double(kv, "exploration.relocalization_bundle_minimum_yaw_rad", c.exploration_relocalization_bundle_minimum_yaw_rad);
+    c.exploration_relocalization_turn_segment_duration_s = get_double(kv, "exploration.relocalization_turn_segment_duration_s", c.exploration_relocalization_turn_segment_duration_s);
+    c.exploration_localization_verification_yaw_rad = get_double(kv, "exploration.localization_verification_yaw_rad", c.exploration_localization_verification_yaw_rad);
+    c.exploration_localization_verification_max_attempts = get_int(kv, "exploration.localization_verification_max_attempts", c.exploration_localization_verification_max_attempts);
+    c.exploration_verify_loaded_configured_pose = get_bool(kv, "exploration.verify_loaded_configured_pose", c.exploration_verify_loaded_configured_pose);
     c.exploration_max_duration_s = get_double(kv, "exploration.max_duration_s", c.exploration_max_duration_s);
     c.exploration_maximum_planning_failures = get_int(kv, "exploration.maximum_planning_failures", c.exploration_maximum_planning_failures);
     c.exploration_minimum_goal_clearance_m = get_double(kv, "exploration.minimum_goal_clearance_m", c.exploration_minimum_goal_clearance_m);
@@ -305,6 +313,9 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.exploration_completion_minimum_known_ratio = get_double(kv, "exploration.completion_minimum_known_ratio", c.exploration_completion_minimum_known_ratio);
     c.exploration_simulation_fixed_dt_s = get_double(kv, "exploration.simulation_fixed_dt_s", c.exploration_simulation_fixed_dt_s);
     c.exploration_simulation_tof_max_range_m = get_double(kv, "exploration.simulation_tof_max_range_m", c.exploration_simulation_tof_max_range_m);
+    c.exploration_simulation_initial_x_m = get_double(kv, "exploration.simulation_initial_x_m", c.exploration_simulation_initial_x_m);
+    c.exploration_simulation_initial_y_m = get_double(kv, "exploration.simulation_initial_y_m", c.exploration_simulation_initial_y_m);
+    c.exploration_simulation_initial_yaw_rad = get_double(kv, "exploration.simulation_initial_yaw_rad", c.exploration_simulation_initial_yaw_rad);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
     c.tof_read_hz = get_double(kv, "runtime.tof_read_hz", c.tof_read_hz);
     c.mapping_hz = get_double(kv, "runtime.mapping_hz", c.mapping_hz);
@@ -1004,6 +1015,9 @@ void validate_config(const Config &c) {
     if (c.sparse_slam_relocalization_required_confirmation_bundles < 2 || c.sparse_slam_relocalization_required_confirmation_bundles > 4) errors.push_back("sparse_slam.relocalization_required_confirmation_bundles must be in [2, 4]");
     if (!std::isfinite(c.sparse_slam_relocalization_confirmation_xy_tolerance_m) || c.sparse_slam_relocalization_confirmation_xy_tolerance_m <= 0.0) errors.push_back("sparse_slam.relocalization_confirmation_xy_tolerance_m must be > 0");
     if (!std::isfinite(c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad) || c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad <= 0.0) errors.push_back("sparse_slam.relocalization_confirmation_yaw_tolerance_rad must be > 0");
+    if (c.sparse_slam_localization_health_max_consistency_failures <= 0 || c.sparse_slam_localization_health_max_consistency_failures > 100) errors.push_back("sparse_slam.localization_health_max_consistency_failures must be in [1, 100]");
+    if (!std::isfinite(c.sparse_slam_localization_health_min_lost_duration_s) || c.sparse_slam_localization_health_min_lost_duration_s < 0.0) errors.push_back("sparse_slam.localization_health_min_lost_duration_s must be >= 0");
+    if (!std::isfinite(c.sparse_slam_localization_health_min_lost_odom_distance_m) || c.sparse_slam_localization_health_min_lost_odom_distance_m < 0.0) errors.push_back("sparse_slam.localization_health_min_lost_odom_distance_m must be >= 0");
     if (!std::isfinite(c.sparse_slam_max_abs_yaw_correction_rad) || c.sparse_slam_max_abs_yaw_correction_rad < 0.0 || c.sparse_slam_max_abs_yaw_correction_rad > 3.14159265358979323846) errors.push_back("sparse_slam.max_abs_yaw_correction_rad must be finite and within [0, pi]");
     if (c.sparse_slam_max_keyframes <= 0 || c.sparse_slam_max_keyframes > 4096) errors.push_back("sparse_slam.max_keyframes must be in [1, 4096]");
     if (c.sparse_slam_max_total_keyframe_rays <= 0 || c.sparse_slam_max_total_keyframe_rays > 12582912) errors.push_back("sparse_slam.max_total_keyframe_rays must be in [1, 12582912]");
@@ -1021,6 +1035,10 @@ void validate_config(const Config &c) {
     if (c.exploration_bootstrap_minimum_known_cells <= 0) errors.push_back("exploration.bootstrap_minimum_known_cells must be > 0");
     if (!std::isfinite(c.exploration_bootstrap_minimum_yaw_rad) || c.exploration_bootstrap_minimum_yaw_rad <= 0.0 || c.exploration_bootstrap_minimum_yaw_rad > 12.566370614359172) errors.push_back("exploration.bootstrap_minimum_yaw_rad must be finite and in (0, 4pi]");
     if (!std::isfinite(c.exploration_bootstrap_max_duration_s) || c.exploration_bootstrap_max_duration_s <= 0.0) errors.push_back("exploration.bootstrap_max_duration_s must be finite and > 0");
+    if (!std::isfinite(c.exploration_relocalization_bundle_minimum_yaw_rad) || c.exploration_relocalization_bundle_minimum_yaw_rad <= 0.0 || c.exploration_relocalization_bundle_minimum_yaw_rad > 12.566370614359172) errors.push_back("exploration.relocalization_bundle_minimum_yaw_rad must be in (0, 4pi]");
+    if (!std::isfinite(c.exploration_relocalization_turn_segment_duration_s) || c.exploration_relocalization_turn_segment_duration_s <= 0.0 || c.exploration_relocalization_turn_segment_duration_s > 5.0) errors.push_back("exploration.relocalization_turn_segment_duration_s must be in (0, 5]");
+    if (!std::isfinite(c.exploration_localization_verification_yaw_rad) || c.exploration_localization_verification_yaw_rad <= 0.0 || c.exploration_localization_verification_yaw_rad > 3.141592653589793) errors.push_back("exploration.localization_verification_yaw_rad must be in (0, pi]");
+    if (c.exploration_localization_verification_max_attempts <= 0 || c.exploration_localization_verification_max_attempts > 20) errors.push_back("exploration.localization_verification_max_attempts must be in [1, 20]");
     if (!std::isfinite(c.exploration_max_duration_s) || c.exploration_max_duration_s <= c.exploration_bootstrap_max_duration_s || c.exploration_max_duration_s > 3600.0) errors.push_back("exploration.max_duration_s must exceed bootstrap duration and be <= 3600");
     if (c.exploration_maximum_planning_failures <= 0 || c.exploration_maximum_planning_failures > 10000) errors.push_back("exploration.maximum_planning_failures must be in [1, 10000]");
     if (!std::isfinite(c.exploration_minimum_goal_clearance_m) || c.exploration_minimum_goal_clearance_m < 0.0) errors.push_back("exploration.minimum_goal_clearance_m must be finite and >= 0");
@@ -1040,6 +1058,9 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.exploration_completion_minimum_known_ratio) || c.exploration_completion_minimum_known_ratio < 0.0 || c.exploration_completion_minimum_known_ratio > 1.0) errors.push_back("exploration.completion_minimum_known_ratio must be in [0, 1]");
     if (!std::isfinite(c.exploration_simulation_fixed_dt_s) || c.exploration_simulation_fixed_dt_s <= 0.0 || c.exploration_simulation_fixed_dt_s > 0.2) errors.push_back("exploration.simulation_fixed_dt_s must be in (0, 0.2]");
     if (!std::isfinite(c.exploration_simulation_tof_max_range_m) || c.exploration_simulation_tof_max_range_m <= 0.05 || c.exploration_simulation_tof_max_range_m > 12.0) errors.push_back("exploration.simulation_tof_max_range_m must be in (0.05, 12]");
+    if (!std::isfinite(c.exploration_simulation_initial_x_m) || c.exploration_simulation_initial_x_m < c.exploration_min_x_m || c.exploration_simulation_initial_x_m > c.exploration_max_x_m) errors.push_back("exploration.simulation_initial_x_m must be finite and inside exploration bounds");
+    if (!std::isfinite(c.exploration_simulation_initial_y_m) || c.exploration_simulation_initial_y_m < c.exploration_min_y_m || c.exploration_simulation_initial_y_m > c.exploration_max_y_m) errors.push_back("exploration.simulation_initial_y_m must be finite and inside exploration bounds");
+    if (!std::isfinite(c.exploration_simulation_initial_yaw_rad) || std::fabs(c.exploration_simulation_initial_yaw_rad) > 3.14159265358979323846) errors.push_back("exploration.simulation_initial_yaw_rad must be finite and in [-pi, pi]");
     const double exploration_width = c.exploration_max_x_m - c.exploration_min_x_m;
     const double exploration_height = c.exploration_max_y_m - c.exploration_min_y_m;
     if (exploration_width <= 2.0 * (c.exploration_robot_radius_m + c.exploration_safety_margin_m)) errors.push_back("exploration bounds too small for robot footprint");
@@ -2128,7 +2149,10 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  multimodal_max_score_drop: " << c.sparse_slam_relocalization_multimodal_max_score_drop << "\n"
       << "  required_confirmation_bundles: " << c.sparse_slam_relocalization_required_confirmation_bundles << "\n"
       << "  confirmation_xy_tolerance_m: " << c.sparse_slam_relocalization_confirmation_xy_tolerance_m << "\n"
-      << "  confirmation_yaw_tolerance_rad: " << c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad << "\n";
+      << "  confirmation_yaw_tolerance_rad: " << c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad << "\n"
+      << "  localization_health_max_consistency_failures: " << c.sparse_slam_localization_health_max_consistency_failures << "\n"
+      << "  localization_health_min_lost_duration_s: " << c.sparse_slam_localization_health_min_lost_duration_s << "\n"
+      << "  localization_health_min_lost_odom_distance_m: " << c.sparse_slam_localization_health_min_lost_odom_distance_m << "\n";
     o << "  enable_atomic_local_slam_commit: " << bool_yaml(c.sparse_slam_enable_atomic_local_slam_commit) << "\n"
       << "  max_abs_yaw_correction_rad: " << c.sparse_slam_max_abs_yaw_correction_rad << "\n"
       << "  max_keyframes: " << c.sparse_slam_max_keyframes << "\n"
@@ -2150,6 +2174,11 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  bootstrap_minimum_known_cells: " << c.exploration_bootstrap_minimum_known_cells << "\n"
       << "  bootstrap_minimum_yaw_rad: " << c.exploration_bootstrap_minimum_yaw_rad << "\n"
       << "  bootstrap_max_duration_s: " << c.exploration_bootstrap_max_duration_s << "\n"
+      << "  relocalization_bundle_minimum_yaw_rad: " << c.exploration_relocalization_bundle_minimum_yaw_rad << "\n"
+      << "  relocalization_turn_segment_duration_s: " << c.exploration_relocalization_turn_segment_duration_s << "\n"
+      << "  localization_verification_yaw_rad: " << c.exploration_localization_verification_yaw_rad << "\n"
+      << "  localization_verification_max_attempts: " << c.exploration_localization_verification_max_attempts << "\n"
+      << "  verify_loaded_configured_pose: " << bool_yaml(c.exploration_verify_loaded_configured_pose) << "\n"
       << "  max_duration_s: " << c.exploration_max_duration_s << "\n"
       << "  maximum_planning_failures: " << c.exploration_maximum_planning_failures << "\n"
       << "  minimum_goal_clearance_m: " << c.exploration_minimum_goal_clearance_m << "\n"
@@ -2168,7 +2197,10 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  obstacle_confirmation_frames: " << c.exploration_obstacle_confirmation_frames << "\n"
       << "  completion_minimum_known_ratio: " << c.exploration_completion_minimum_known_ratio << "\n"
       << "  simulation_fixed_dt_s: " << c.exploration_simulation_fixed_dt_s << "\n"
-      << "  simulation_tof_max_range_m: " << c.exploration_simulation_tof_max_range_m << "\n";
+      << "  simulation_tof_max_range_m: " << c.exploration_simulation_tof_max_range_m << "\n"
+      << "  simulation_initial_x_m: " << c.exploration_simulation_initial_x_m << "\n"
+      << "  simulation_initial_y_m: " << c.exploration_simulation_initial_y_m << "\n"
+      << "  simulation_initial_yaw_rad: " << c.exploration_simulation_initial_yaw_rad << "\n";
     o << "localization:\n"
       << "  pose_source: encoder_imu_odometry\n"
       << "  wheel_base_m: " << c.wheel_base_m << "\n"

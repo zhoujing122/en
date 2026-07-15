@@ -5,6 +5,7 @@
 #include "robot_slamd/autonomy/odometry/wheel_imu_dead_reckoning_2d.hpp"
 #include "robot_slamd/autonomy/real_adapters/slam_backend/sparse_multi_tof_occupancy_backend.hpp"
 #include "robot_slamd/config/config.hpp"
+#include "robot_slamd/localization/sparse_tof/localization_health_tracker.hpp"
 #include "robot_slamd/localization/sparse_tof/sparse_relocalization_manager.hpp"
 #include "robot_slamd/localization/sparse_tof/sparse_tof_local_matcher.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_tof_keyframe.hpp"
@@ -101,6 +102,19 @@ struct SparseSlamRuntimeCoreReport {
     double relocalization_confirmation_yaw_difference_rad = 0.0;
     std::string relocalization_status = "not_run";
     std::string relocalization_reason = "none";
+    std::string localization_health_state = "healthy";
+    std::size_t localization_health_transition_count = 0;
+    std::size_t localization_consistency_failure_count = 0;
+    std::size_t localization_ambiguity_reject_count = 0;
+    std::size_t localization_lost_count = 0;
+    std::string localization_lost_reason = "none";
+    bool localization_stop_required = false;
+    std::size_t recovery_attempt_count = 0;
+    std::size_t recovery_local_search_count = 0;
+    std::size_t recovery_global_search_count = 0;
+    std::size_t recovery_success_count = 0;
+    std::size_t recovery_failure_count = 0;
+    bool exploration_replan_required_after_recovery = false;
     double map_from_odom_x_m = 0.0;
     double map_from_odom_y_m = 0.0;
     double map_from_odom_yaw_rad = 0.0;
@@ -316,6 +330,7 @@ public:
           resolver_(make_resolver_config(config_)),
           observation_controller_(make_observation_controller_config(config_)),
           relocalization_manager_(make_relocalization_manager_config(config_)),
+          localization_health_(make_localization_health_config(config_)),
           keyframe_manager_(make_keyframe_config(config_)),
           sparse_backend_(std::make_shared<SparseMultiTofOccupancyBackendBinding>(
               make_backend_options(config_))),
@@ -389,6 +404,7 @@ public:
         init_request_ = staged_request;
         frame_state_ = MapOdomFrameState{};
         relocalization_manager_.reset();
+        localization_health_.reset();
         report_.relocalization_required =
             staged_request.initial_pose_mode == InitialPoseMode::Relocalization;
         report_.relocalization_active = false;
@@ -586,9 +602,11 @@ public:
                                             : "relocalization_failed"),
                                     report_.last_message};
                         }
-                        execute_prepared_local_match();
+                        execute_prepared_local_match(snapshot, imu);
                         if (observation_controller_.state() ==
-                            ActiveObservationBundleState::Idle) {
+                                ActiveObservationBundleState::Idle &&
+                            phase_ ==
+                                SparseSlamRuntimeCorePhase::Ready) {
                             sync_observation_report();
                             return {true, true, true, true, true,
                                     "atomic_local_slam_committed",
@@ -693,6 +711,9 @@ public:
     bool localization_ready() const {
         return phase_ == SparseSlamRuntimeCorePhase::Ready &&
                frame_state_.localized();
+    }
+    LocalizationHealthState localization_health_state() const {
+        return localization_health_.state();
     }
 
     SparseOccupancyGridSnapshot sparse_map_snapshot() const {
@@ -942,6 +963,19 @@ private:
         return out;
     }
 
+    static LocalizationHealthConfig make_localization_health_config(
+        const Config &config) {
+        LocalizationHealthConfig out;
+        out.max_consecutive_consistency_failures =
+            static_cast<std::size_t>(
+                config.sparse_slam_localization_health_max_consistency_failures);
+        out.minimum_lost_duration_s =
+            config.sparse_slam_localization_health_min_lost_duration_s;
+        out.minimum_lost_odom_distance_m =
+            config.sparse_slam_localization_health_min_lost_odom_distance_m;
+        return out;
+    }
+
     static SparseRelocalizationManagerConfig make_relocalization_manager_config(
         const Config &config) {
         SparseRelocalizationManagerConfig out;
@@ -1157,6 +1191,7 @@ private:
         }
         const auto bundle_id =
             prepared_local_match_input_.input()->bundle_id;
+        const auto purpose = relocalization_manager_.purpose();
         report_.relocalization_search_attempt_count++;
         const auto result = relocalization_manager_.process(
             *prepared_local_match_input_.input());
@@ -1172,6 +1207,14 @@ private:
             report_.relocalization_global_search_count++;
         } else {
             report_.relocalization_local_search_count++;
+        }
+        if (purpose == SparseRelocalizationPurpose::LostRecovery) {
+            if (result.local_search_attempted) {
+                report_.recovery_local_search_count++;
+            }
+            if (result.global_search_attempted) {
+                report_.recovery_global_search_count++;
+            }
         }
         if (result.search.best) {
             report_.relocalization_best_x_m =
@@ -1204,6 +1247,9 @@ private:
         if (!result.ok) {
             report_.relocalization_failure_count++;
             report_.relocalization_active = false;
+            if (purpose == SparseRelocalizationPurpose::LostRecovery) {
+                report_.recovery_failure_count++;
+            }
             (void)observation_controller_.abort_matcher_input(result.reason);
             report_.last_fault = "relocalization_failed";
             report_.last_message = result.reason;
@@ -1263,6 +1309,15 @@ private:
         report_.relocalization_success_count++;
         report_.relocalization_active = false;
         report_.relocalization_required = false;
+        if (purpose == SparseRelocalizationPurpose::LostRecovery) {
+            report_.recovery_success_count++;
+            report_.localization_stop_required = false;
+            report_.exploration_replan_required_after_recovery = true;
+            localization_health_.mark_recovered(
+                prepared_local_match_input_.input()->match_request_timestamp_s,
+                estimator_.estimated_pose());
+            report_.localization_health_state = "healthy";
+        }
         report_.map_from_odom_initialized = true;
         report_.initialization_complete = true;
         report_.initialization_status =
@@ -1278,7 +1333,83 @@ private:
         return true;
     }
 
-    void execute_prepared_local_match() {
+    bool update_localization_health(
+        const SparseTofLocalMatchResult &match,
+        const RobotSlamSensorSnapshot &snapshot,
+        const ImuFrame &corrected_imu) {
+        LocalizationHealthSample sample;
+        sample.timestamp_s = prepared_local_match_input_.input()
+            ? prepared_local_match_input_.input()->match_request_timestamp_s
+            : 0.0;
+        sample.odom_pose = estimator_.estimated_pose();
+        sample.match_status = match.status;
+        sample.wheel_fresh = snapshot.has_wheel && snapshot.wheel.valid;
+        sample.imu_fresh = snapshot.has_imu &&
+            std::isfinite(corrected_imu.yaw_rate_rad_s);
+        sample.frame_state_valid =
+            sparse_slam_frame_pose_valid(
+                frame_state_.current_map_from_odom());
+        const auto before = localization_health_.state();
+        const auto health = localization_health_.update(sample);
+        report_.localization_health_state = to_string(health.state);
+        report_.localization_consistency_failure_count =
+            health.consecutive_consistency_failures;
+        report_.localization_ambiguity_reject_count =
+            health.ambiguity_reject_count;
+        if (before != health.state) {
+            report_.localization_health_transition_count++;
+        }
+        if (!health.became_lost) return false;
+        report_.localization_lost_count++;
+        report_.localization_lost_reason = health.reason;
+        report_.localization_stop_required = true;
+        return begin_lost_recovery(health.reason);
+    }
+
+    bool begin_lost_recovery(const std::string &reason) {
+        const auto bundle_id = observation_controller_.report().bundle_id;
+        if (observation_controller_.state() !=
+                ActiveObservationBundleState::FrozenReady ||
+            bundle_id == 0) {
+            phase_ = SparseSlamRuntimeCorePhase::Fault;
+            report_.last_fault = "lost_recovery_bundle_state_invalid";
+            report_.last_message = reason;
+            return true;
+        }
+        const auto discarded = observation_controller_.discard(bundle_id);
+        if (!discarded.ok) {
+            phase_ = SparseSlamRuntimeCorePhase::Fault;
+            report_.last_fault = "lost_recovery_bundle_discard_failed";
+            report_.last_message = discarded.message;
+            return true;
+        }
+        clear_prepared_local_match_objects();
+        relocalization_manager_.reset();
+        if (!relocalization_manager_.start_recovery(
+                current_map_revision_,
+                frame_state_.current_map_from_odom())) {
+            phase_ = SparseSlamRuntimeCorePhase::Fault;
+            report_.last_fault = "lost_recovery_manager_start_failed";
+            report_.last_message = reason;
+            return true;
+        }
+        phase_ = SparseSlamRuntimeCorePhase::Relocalizing;
+        report_.relocalization_required = true;
+        report_.relocalization_active = true;
+        report_.relocalization_state =
+            to_string(relocalization_manager_.state());
+        report_.relocalization_purpose =
+            to_string(relocalization_manager_.purpose());
+        report_.recovery_attempt_count++;
+        report_.exploration_replan_required_after_recovery = false;
+        report_.last_fault = "localization_lost";
+        report_.last_message = reason;
+        return true;
+    }
+
+    void execute_prepared_local_match(
+        const RobotSlamSensorSnapshot &snapshot,
+        const ImuFrame &corrected_imu) {
         if (local_match_result_ || !prepared_local_match_input_.is_ready() ||
             prepared_local_match_input_.input() == nullptr) {
             return;
@@ -1327,6 +1458,9 @@ private:
             : RobotPose2D{};
         report_.map_from_odom_after_match =
             frame_state_.current_map_from_odom().map_T_odom;
+        if (update_localization_health(result, snapshot, corrected_imu)) {
+            return;
+        }
         if (result.status == SparseTofLocalMatchStatus::Fault) {
             report_.matcher_fault_count++;
             (void)observation_controller_.abort_matcher_input(result.reason);
@@ -1712,6 +1846,12 @@ private:
         report_.map_from_odom_x_m = map_from_odom.map_T_odom.x_m;
         report_.map_from_odom_y_m = map_from_odom.map_T_odom.y_m;
         report_.map_from_odom_yaw_rad = map_from_odom.map_T_odom.yaw_rad;
+        if (!relocalizing) {
+            localization_health_.mark_recovered(
+                snapshot.wheel.timestamp_s, initial_odom_pose);
+            report_.localization_health_state =
+                to_string(LocalizationHealthState::Healthy);
+        }
         report_.last_fault = "none";
         report_.last_message = relocalizing
             ? "sparse_slam_startup_relocalization_required"
@@ -1752,6 +1892,7 @@ private:
     MultiTofMeasurementPoseResolver resolver_;
     PhaseAwareObservationController observation_controller_;
     SparseRelocalizationManager relocalization_manager_;
+    LocalizationHealthTracker localization_health_;
     SparseTofLocalMatchInputValidator local_match_input_validator_;
     SparseTofLocalMatcher local_matcher_;
     SparseTofKeyframeManager keyframe_manager_;

@@ -63,6 +63,8 @@ struct SparseRelocalizationManagerResult {
     bool needs_confirmation = false;
     bool succeeded = false;
     bool failed = false;
+    bool local_search_attempted = false;
+    bool global_search_attempted = false;
     SparseRelocalizationState state = SparseRelocalizationState::Idle;
     SparseMultiTofRelocalizationResult search;
     std::optional<MapFromOdom2D> accepted_map_from_odom;
@@ -118,6 +120,8 @@ public:
         accepted_.reset();
         first_result_.reset();
         confirmation_result_.reset();
+        first_search_was_local_ = false;
+        provisional_replacement_count_ = 0;
     }
 
     SparseRelocalizationState state() const { return state_; }
@@ -150,19 +154,27 @@ private:
 
     SparseRelocalizationManagerResult process_first(
         const SparseTofLocalMatchInput &input) {
-        auto search = purpose_ == SparseRelocalizationPurpose::LostRecovery &&
-                              recovery_prediction_
+        const bool try_local =
+            purpose_ == SparseRelocalizationPurpose::LostRecovery &&
+            recovery_prediction_.has_value();
+        bool local_attempted = try_local;
+        bool global_attempted = !try_local;
+        auto search = try_local
             ? relocalizer_.search_local(input, *recovery_prediction_,
                                         config_.search)
             : relocalizer_.search_global(input, config_.search);
         if (!search.accepted &&
             purpose_ == SparseRelocalizationPurpose::LostRecovery) {
+            global_attempted = true;
             search = relocalizer_.search_global(input, config_.search);
         }
+        first_search_was_local_ = local_attempted && !global_attempted;
         first_result_ = search;
         if (!search.accepted || !search.best) {
             SparseRelocalizationManagerResult out;
             out.search = search;
+            out.local_search_attempted = local_attempted;
+            out.global_search_attempted = global_attempted;
             return fail(std::move(out), search.reason);
         }
         first_bundle_id_ = input.bundle_id;
@@ -177,6 +189,8 @@ private:
         out.needs_confirmation = true;
         out.state = state_;
         out.search = search;
+        out.local_search_attempted = local_attempted;
+        out.global_search_attempted = global_attempted;
         out.reason = "relocalization_first_bundle_accepted";
         return out;
     }
@@ -190,7 +204,7 @@ private:
             return fail(std::move(out),
                         "relocalization_confirmation_bundle_not_independent");
         }
-        const auto search = relocalizer_.search_local(
+        auto search = relocalizer_.search_local(
             input, *provisional_, config_.search);
         confirmation_result_ = search;
         if (!search.accepted || !search.best) {
@@ -208,6 +222,55 @@ private:
             provisional_->map_T_odom.yaw_rad));
         if (xy > config_.confirmation_xy_tolerance_m ||
             yaw > config_.confirmation_yaw_tolerance_rad) {
+            if (purpose_ == SparseRelocalizationPurpose::LostRecovery &&
+                first_search_was_local_) {
+                search = relocalizer_.search_global(input, config_.search);
+                confirmation_result_ = search;
+                if (search.accepted && search.best) {
+                    first_search_was_local_ = false;
+                    first_bundle_id_ = input.bundle_id;
+                    first_bundle_start_s_ = input.frozen_bundle->summary()
+                        .collection_start_timestamp_s;
+                    provisional_ = search.best->map_from_odom;
+                    first_result_ = search;
+                    SparseRelocalizationManagerResult out;
+                    out.ok = true;
+                    out.bundle_consumed = true;
+                    out.needs_confirmation = true;
+                    out.state = state_;
+                    out.search = search;
+                    out.local_search_attempted = true;
+                    out.global_search_attempted = true;
+                    out.confirmation_xy_difference_m = xy;
+                    out.confirmation_yaw_difference_rad = yaw;
+                    out.reason =
+                        "local_recovery_confirmation_failed_global_provisional";
+                    return out;
+                }
+            }
+            if (purpose_ == SparseRelocalizationPurpose::LostRecovery &&
+                provisional_replacement_count_ == 0 && first_result_ &&
+                first_result_->best && search.accepted && search.best &&
+                search.best->metrics.normalized_score >
+                    first_result_->best->metrics.normalized_score) {
+                provisional_replacement_count_++;
+                first_bundle_id_ = input.bundle_id;
+                first_bundle_start_s_ = input.frozen_bundle->summary()
+                    .collection_start_timestamp_s;
+                provisional_ = search.best->map_from_odom;
+                first_result_ = search;
+                SparseRelocalizationManagerResult out;
+                out.ok = true;
+                out.bundle_consumed = true;
+                out.needs_confirmation = true;
+                out.state = state_;
+                out.search = search;
+                out.local_search_attempted = true;
+                out.confirmation_xy_difference_m = xy;
+                out.confirmation_yaw_difference_rad = yaw;
+                out.reason = "stronger_recovery_provisional_requires_confirmation";
+                return out;
+            }
             SparseRelocalizationManagerResult out;
             out.search = search;
             out.confirmation_xy_difference_m = xy;
@@ -252,6 +315,8 @@ private:
     std::optional<MapFromOdom2D> accepted_;
     std::optional<SparseMultiTofRelocalizationResult> first_result_;
     std::optional<SparseMultiTofRelocalizationResult> confirmation_result_;
+    bool first_search_was_local_ = false;
+    std::size_t provisional_replacement_count_ = 0;
 };
 
 } // namespace robot_slamd

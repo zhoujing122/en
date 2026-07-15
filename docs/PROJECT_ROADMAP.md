@@ -23,7 +23,7 @@
   the latest path, and no-reachable-frontier termination requires fresh-map
   confirmation. The formal scenario completes 4/8 distinct goals without
   collision and deterministically saves the final sparse map.
-- M3-D3B: next stage. Add bounded relocalization and lost-recovery foundations.
+- M3-D3B: complete. LoadExistingMap startup now performs bounded global x/y/yaw relocalization with independent Bundle confirmation. Runtime localization health distinguishes ambiguity from consistency failure; Lost stops motion, locks mapping, performs local-to-global recovery, replaces only map_T_odom, and resumes exploration after replanning.
 - M3-F: future production-readiness and hardware acceptance.
 
 M3-C4 is not real hardware enablement, production SLAM, native three-ToF map fusion, real map writing, pose writeback, or autonomous exploration.

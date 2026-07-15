@@ -313,6 +313,9 @@ struct Config {
     int sparse_slam_relocalization_required_confirmation_bundles = 2;
     double sparse_slam_relocalization_confirmation_xy_tolerance_m = 0.15;
     double sparse_slam_relocalization_confirmation_yaw_tolerance_rad = 0.15;
+    int sparse_slam_localization_health_max_consistency_failures = 3;
+    double sparse_slam_localization_health_min_lost_duration_s = 1.0;
+    double sparse_slam_localization_health_min_lost_odom_distance_m = 0.20;
     bool sparse_slam_enable_atomic_local_slam_commit = true;
     double sparse_slam_max_abs_yaw_correction_rad = 0.2617993877991494;
     int sparse_slam_max_keyframes = 64;
@@ -333,6 +336,11 @@ struct Config {
     int exploration_bootstrap_minimum_known_cells = 80;
     double exploration_bootstrap_minimum_yaw_rad = 5.5;
     double exploration_bootstrap_max_duration_s = 18.0;
+    double exploration_relocalization_bundle_minimum_yaw_rad = 1.5;
+    double exploration_relocalization_turn_segment_duration_s = 0.40;
+    double exploration_localization_verification_yaw_rad = 0.40;
+    int exploration_localization_verification_max_attempts = 3;
+    bool exploration_verify_loaded_configured_pose = true;
     double exploration_max_duration_s = 120.0;
     int exploration_maximum_planning_failures = 20;
     double exploration_minimum_goal_clearance_m = 0.10;
@@ -352,6 +360,9 @@ struct Config {
     double exploration_completion_minimum_known_ratio = 0.60;
     double exploration_simulation_fixed_dt_s = 0.05;
     double exploration_simulation_tof_max_range_m = 0.75;
+    double exploration_simulation_initial_x_m = 0.0;
+    double exploration_simulation_initial_y_m = 0.0;
+    double exploration_simulation_initial_yaw_rad = 0.0;
     double localization_hz = 50.0;
     double tof_read_hz = 30.0;
     double mapping_hz = 10.0;

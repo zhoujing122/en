@@ -16,6 +16,8 @@ namespace robot_slamd {
 
 enum class AutonomousExplorationState {
     Initializing,
+    Relocalizing,
+    LocalizationVerification,
     BootstrapMapping,
     Planning,
     AligningToPath,
@@ -29,6 +31,9 @@ enum class AutonomousExplorationState {
 inline const char *to_string(AutonomousExplorationState state) {
     switch (state) {
     case AutonomousExplorationState::Initializing: return "initializing";
+    case AutonomousExplorationState::Relocalizing: return "relocalizing";
+    case AutonomousExplorationState::LocalizationVerification:
+        return "localization_verification";
     case AutonomousExplorationState::BootstrapMapping: return "bootstrap_mapping";
     case AutonomousExplorationState::Planning: return "planning";
     case AutonomousExplorationState::AligningToPath: return "aligning_to_path";
@@ -55,6 +60,11 @@ struct AutonomousExplorationConfig {
     std::size_t maximum_planning_failures = 20;
     double bootstrap_turn_speed_normalized = 0.30;
     double bootstrap_turn_segment_duration_s = 0.30;
+    double relocalization_bundle_minimum_yaw_rad = 1.5;
+    double relocalization_turn_segment_duration_s = 0.40;
+    double localization_verification_yaw_rad = 0.40;
+    std::size_t localization_verification_max_attempts = 3;
+    bool verify_loaded_configured_pose = true;
     double command_ttl_s = 0.60;
 };
 
@@ -100,7 +110,13 @@ struct AutonomousExplorationReport {
     std::size_t atomic_commit_successes = 0;
     std::size_t keyframe_count = 0;
     double bootstrap_accumulated_yaw_rad = 0.0;
+    std::size_t localization_stop_count = 0;
+    std::size_t relocalization_turn_count = 0;
+    std::size_t exploration_resume_count = 0;
+    std::string relocalization_reason = "none";
     double estimated_travel_distance_m = 0.0;
+    std::size_t localization_verification_attempt_count = 0;
+    std::size_t localization_verification_ambiguity_count = 0;
     RobotPose2D final_estimated_map_pose;
 };
 
@@ -150,7 +166,10 @@ public:
             discard_required_ = false;
             active_collection_ = false;
             alignment_replan_required_ = false;
-            state_ = AutonomousExplorationState::Replanning;
+            state_ = verification_discard_required_
+                ? AutonomousExplorationState::LocalizationVerification
+                : AutonomousExplorationState::Replanning;
+            verification_discard_required_ = false;
         } else if (begin_collection_required_) {
             if (!core_step.ok) return fail("exploration_bundle_begin_failed");
             begin_collection_required_ = false;
@@ -158,9 +177,21 @@ public:
         } else if (end_collection_required_) {
             if (!core_step.ok) return fail("exploration_bundle_end_failed");
             end_collection_required_ = false;
-            state_ = AutonomousExplorationState::WaitingForSettle;
-        } else if (!core_step.ok && state_ != AutonomousExplorationState::Initializing) {
+            if (state_ != AutonomousExplorationState::Relocalizing &&
+                state_ != AutonomousExplorationState::LocalizationVerification) {
+                state_ = AutonomousExplorationState::WaitingForSettle;
+            }
+        } else if (!core_step.ok &&
+                   state_ != AutonomousExplorationState::Initializing &&
+                   state_ != AutonomousExplorationState::Relocalizing &&
+                   !core.relocalization_required()) {
             return fail("exploration_sparse_core_step_failed:" + core_step.status);
+        }
+
+        if (core.relocalization_required() ||
+            state_ == AutonomousExplorationState::Relocalizing) {
+            return handle_relocalization(now_s, motion_feedback, core,
+                                         motion_port);
         }
 
         if (state_ == AutonomousExplorationState::Initializing) {
@@ -170,14 +201,28 @@ public:
             }
             const auto map = core.sparse_map_snapshot();
             record_map_start(map);
-            state_ = AutonomousExplorationState::BootstrapMapping;
-            bootstrap_start_s_ = now_s;
-            last_bootstrap_yaw_ = core.current_map_pose().map_T_base.yaw_rad;
-            have_bootstrap_yaw_ = true;
+            if (core.report().sparse_map_loaded) {
+                state_ = config_.verify_loaded_configured_pose
+                    ? AutonomousExplorationState::LocalizationVerification
+                    : AutonomousExplorationState::Planning;
+            } else {
+                state_ = AutonomousExplorationState::BootstrapMapping;
+                bootstrap_start_s_ = now_s;
+                last_bootstrap_yaw_ =
+                    core.current_map_pose().map_T_base.yaw_rad;
+                have_bootstrap_yaw_ = true;
+            }
         }
 
         const RobotPose2D estimated_pose = core.current_map_pose().map_T_base;
         update_bootstrap_yaw(estimated_pose.yaw_rad);
+
+
+        if (state_ ==
+            AutonomousExplorationState::LocalizationVerification) {
+            return handle_localization_verification(
+                now_s, motion_feedback, core, motion_port);
+        }
 
         if (state_ == AutonomousExplorationState::WaitingForSettle) {
             const auto active = core.active_observation_state();
@@ -387,6 +432,179 @@ public:
     AutonomousExplorationState state() const { return state_; }
 
 private:
+    AutonomousExplorationStepResult handle_relocalization(
+        double now_s, const RobotSlamMotionFeedback &motion_feedback,
+        SparseSlamRuntimeCore &core, RobotSlamMotionPort &motion_port) {
+        if (state_ != AutonomousExplorationState::Relocalizing) {
+            state_ = AutonomousExplorationState::Relocalizing;
+            tracker_.reset();
+            have_active_goal_ = false;
+            begin_collection_required_ = false;
+            end_collection_required_ = false;
+            discard_required_ = false;
+            active_collection_ = false;
+            alignment_replan_required_ = false;
+            if (!send_stop(now_s, motion_port,
+                           "localization_lost_or_startup_stop")) {
+                return fail("relocalization_stop_rejected");
+            }
+            report_.localization_stop_count++;
+        }
+
+        if (core.relocalization_state() == SparseRelocalizationState::Failed) {
+            if (motion_feedback.command_active) {
+                (void)send_stop(now_s, motion_port,
+                                "relocalization_failed_stop");
+            }
+            report_.relocalization_reason = core.report().relocalization_reason;
+            sync_report(core, core.current_map_pose().map_T_base);
+            return fail("relocalization_failed:" +
+                        core.report().relocalization_reason);
+        }
+
+        if (!core.relocalization_required() && core.localization_ready()) {
+            active_collection_ = false;
+            begin_collection_required_ = false;
+            end_collection_required_ = false;
+            if (report_.known_cells_start == 0) {
+                record_map_start(core.sparse_map_snapshot());
+            }
+            report_.exploration_resume_count++;
+            report_.relocalization_reason = "relocalization_confirmed";
+            state_ = AutonomousExplorationState::Replanning;
+            sync_report(core, core.current_map_pose().map_T_base);
+            return {true, false, "relocalization_replan_required"};
+        }
+
+        const auto bundle_state = core.active_observation_state();
+        if (bundle_state == ActiveObservationBundleState::Aborted) {
+            report_.relocalization_reason = core.report().relocalization_reason;
+            sync_report(core, core.current_map_pose().map_T_base);
+            return fail("relocalization_bundle_aborted");
+        }
+
+        if (bundle_state == ActiveObservationBundleState::Idle) {
+            active_collection_ = false;
+            if (motion_feedback.command_active) {
+                (void)send_stop(now_s, motion_port,
+                                "relocalization_bundle_boundary_stop");
+            } else if (motion_feedback.command_settled &&
+                       !begin_collection_required_) {
+                begin_collection_required_ = true;
+            }
+        } else if (bundle_state ==
+                   ActiveObservationBundleState::CollectingDuringMotion) {
+            active_collection_ = true;
+            if (core.report().bundle_accumulated_abs_yaw_rad + 1e-12 >=
+                config_.relocalization_bundle_minimum_yaw_rad) {
+                if (motion_feedback.command_active) {
+                    (void)send_stop(now_s, motion_port,
+                                    "relocalization_bundle_coverage_stop");
+                } else if (motion_feedback.command_settled &&
+                           !end_collection_required_) {
+                    end_collection_required_ = true;
+                }
+            } else if (!motion_feedback.command_active &&
+                       motion_feedback.command_settled) {
+                if (!send_motion(
+                        now_s, AlgorithmMotionKind::TurnLeft,
+                        config_.bootstrap_turn_speed_normalized,
+                        config_.relocalization_turn_segment_duration_s,
+                        "relocalization_observation_turn", motion_port)) {
+                    return fail("relocalization_turn_rejected");
+                }
+                report_.commanded_turns++;
+                report_.relocalization_turn_count++;
+            }
+        }
+        report_.relocalization_reason = core.report().relocalization_reason;
+        sync_report(core, core.current_map_pose().map_T_base);
+        return {true, false, "relocalization_active"};
+    }
+
+    AutonomousExplorationStepResult handle_localization_verification(
+        double now_s, const RobotSlamMotionFeedback &motion_feedback,
+        SparseSlamRuntimeCore &core, RobotSlamMotionPort &motion_port) {
+        const auto matcher_attempts = core.report().matcher_attempt_count;
+        if (matcher_attempts > last_verification_matcher_attempt_count_) {
+            last_verification_matcher_attempt_count_ = matcher_attempts;
+            report_.localization_verification_attempt_count++;
+            if (core.localization_health_state() ==
+                LocalizationHealthState::Degraded) {
+                report_.localization_verification_ambiguity_count++;
+            }
+        }
+
+        const auto bundle_state = core.active_observation_state();
+        if (bundle_state == ActiveObservationBundleState::Idle &&
+            report_.localization_verification_attempt_count > 0 &&
+            core.localization_health_state() ==
+                LocalizationHealthState::Healthy) {
+            active_collection_ = false;
+            state_ = AutonomousExplorationState::Planning;
+            sync_report(core, core.current_map_pose().map_T_base);
+            return {true, false, "loaded_map_localization_verified"};
+        }
+        if (bundle_state == ActiveObservationBundleState::Idle &&
+            report_.localization_verification_attempt_count >=
+                config_.localization_verification_max_attempts) {
+            active_collection_ = false;
+            state_ = AutonomousExplorationState::Planning;
+            sync_report(core, core.current_map_pose().map_T_base);
+            return {true, false,
+                    "loaded_map_localization_ambiguous_but_not_lost"};
+        }
+        if (bundle_state == ActiveObservationBundleState::FrozenReady ||
+            bundle_state == ActiveObservationBundleState::Aborted) {
+            if (!discard_required_) {
+                discard_required_ = true;
+                verification_discard_required_ = true;
+            }
+            if (motion_feedback.command_active) {
+                (void)send_stop(now_s, motion_port,
+                                "localization_verification_reject_stop");
+            }
+            sync_report(core, core.current_map_pose().map_T_base);
+            return {true, false, "localization_verification_discard"};
+        }
+        if (bundle_state == ActiveObservationBundleState::Idle) {
+            active_collection_ = false;
+            if (motion_feedback.command_active) {
+                (void)send_stop(now_s, motion_port,
+                                "localization_verification_boundary_stop");
+            } else if (motion_feedback.command_settled &&
+                       !begin_collection_required_) {
+                begin_collection_required_ = true;
+            }
+        } else if (bundle_state ==
+                   ActiveObservationBundleState::CollectingDuringMotion) {
+            active_collection_ = true;
+            if (core.report().bundle_accumulated_abs_yaw_rad + 1e-12 >=
+                config_.localization_verification_yaw_rad) {
+                if (motion_feedback.command_active) {
+                    (void)send_stop(now_s, motion_port,
+                                    "localization_verification_coverage_stop");
+                } else if (motion_feedback.command_settled &&
+                           !end_collection_required_) {
+                    end_collection_required_ = true;
+                }
+            } else if (!motion_feedback.command_active &&
+                       motion_feedback.command_settled) {
+                if (!send_motion(
+                        now_s, AlgorithmMotionKind::TurnLeft,
+                        config_.bootstrap_turn_speed_normalized,
+                        config_.relocalization_turn_segment_duration_s,
+                        "localization_verification_turn", motion_port)) {
+                    return fail("localization_verification_turn_rejected");
+                }
+                report_.commanded_turns++;
+            }
+        }
+        sync_report(core, core.current_map_pose().map_T_base);
+        return {true, false, "localization_verification_active"};
+    }
+
+
     bool make_plan(SparseSlamRuntimeCore &core, const RobotPose2D &pose) {
         NavigationGridView view;
         const auto snapshot = core.sparse_map_snapshot();
@@ -672,6 +890,8 @@ private:
     bool end_collection_required_ = false;
     bool discard_required_ = false;
     bool active_collection_ = false;
+    bool verification_discard_required_ = false;
+    std::size_t last_verification_matcher_attempt_count_ = 0;
     bool alignment_replan_required_ = false;
     double start_time_s_ = -1.0;
     double bootstrap_start_s_ = 0.0;

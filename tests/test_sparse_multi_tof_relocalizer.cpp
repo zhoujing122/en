@@ -71,5 +71,21 @@ int main() {
     expect(mismatch.status ==
                SparseRelocalizationStatus::RejectedRevisionChanged,
            "revision mismatch fail closed");
+
+    auto symmetric = input_from_frames(symmetric_frames(), 0.0, 3.0);
+    symmetric.predicted_map_from_odom = identity_map_from_odom();
+    auto ambiguous_config = config;
+    ambiguous_config.minimum_score_margin = 0.05;
+    ambiguous_config.multimodal_max_score_drop = 0.40;
+    ambiguous_config.coarse_free_cell_stride = 1;
+    const auto ambiguous =
+        relocalizer.search_global(symmetric, ambiguous_config);
+    expect(!ambiguous.accepted,
+           "symmetric global map never initializes a transform");
+    expect(ambiguous.status ==
+               SparseRelocalizationStatus::RejectedMultimodal ||
+               ambiguous.status ==
+                   SparseRelocalizationStatus::RejectedLowMargin,
+           "independent SE2 modes are rejected as ambiguous");
     return 0;
 }
