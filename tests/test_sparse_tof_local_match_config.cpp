@@ -59,6 +59,16 @@ int main() {
     invalid = config;
     invalid.sparse_slam_local_match_max_abs_translation_x_m = 0.1;
     expect(rejects(invalid), "yaw only translation ambiguity rejected");
+    invalid = config;
+    invalid.sparse_slam_relocalization_max_total_candidates = 15001;
+    expect(rejects(invalid), "relocalization candidate hard cap enforced");
+    invalid = config;
+    invalid.sparse_slam_relocalization_refine_yaw_step_rad =
+        invalid.sparse_slam_relocalization_coarse_yaw_step_rad * 2.0;
+    expect(rejects(invalid), "relocalization refinement bounded by coarse step");
+    invalid = config;
+    invalid.sparse_slam_relocalization_required_confirmation_bundles = 1;
+    expect(rejects(invalid), "relocalization requires independent confirmation");
 
     const std::string path = "/tmp/en_m3d2b1_match_config_resolved.yaml";
     write_resolved_config(config, path);
@@ -79,5 +89,11 @@ int main() {
     expect(text.find("local_match_runner_up_exclusion_yaw_rad:") !=
                std::string::npos,
            "resolved runner-up exclusion written");
+    expect(text.find("relocalization:\n") != std::string::npos &&
+               text.find("  max_total_candidates: 15000") !=
+                   std::string::npos &&
+               text.find("  required_confirmation_bundles: 2") !=
+                   std::string::npos,
+           "resolved relocalization contract written");
     return 0;
 }

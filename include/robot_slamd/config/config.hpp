@@ -244,6 +244,28 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.sparse_slam_local_match_occupied_endpoint_contradiction_weight = get_double(kv, "sparse_slam.local_match_occupied_endpoint_contradiction_weight", c.sparse_slam_local_match_occupied_endpoint_contradiction_weight);
     c.sparse_slam_local_match_require_revision_match = get_bool(kv, "sparse_slam.local_match_require_revision_match", c.sparse_slam_local_match_require_revision_match);
     c.sparse_slam_local_match_require_immutable_snapshot = get_bool(kv, "sparse_slam.local_match_require_immutable_snapshot", c.sparse_slam_local_match_require_immutable_snapshot);
+    c.sparse_slam_relocalization_coarse_max_scored_rays = get_int(kv, "sparse_slam.relocalization_coarse_max_scored_rays", c.sparse_slam_relocalization_coarse_max_scored_rays);
+    c.sparse_slam_relocalization_refine_max_scored_rays = get_int(kv, "sparse_slam.relocalization_refine_max_scored_rays", c.sparse_slam_relocalization_refine_max_scored_rays);
+    c.sparse_slam_relocalization_max_cells_per_ray = get_int(kv, "sparse_slam.relocalization_max_cells_per_ray", c.sparse_slam_relocalization_max_cells_per_ray);
+    c.sparse_slam_relocalization_top_k = get_int(kv, "sparse_slam.relocalization_top_k", c.sparse_slam_relocalization_top_k);
+    c.sparse_slam_relocalization_max_total_candidates = get_int(kv, "sparse_slam.relocalization_max_total_candidates", c.sparse_slam_relocalization_max_total_candidates);
+    c.sparse_slam_relocalization_coarse_free_cell_stride = get_int(kv, "sparse_slam.relocalization_coarse_free_cell_stride", c.sparse_slam_relocalization_coarse_free_cell_stride);
+    c.sparse_slam_relocalization_coarse_yaw_step_rad = get_double(kv, "sparse_slam.relocalization_coarse_yaw_step_rad", c.sparse_slam_relocalization_coarse_yaw_step_rad);
+    c.sparse_slam_relocalization_refine_xy_step_m = get_double(kv, "sparse_slam.relocalization_refine_xy_step_m", c.sparse_slam_relocalization_refine_xy_step_m);
+    c.sparse_slam_relocalization_refine_yaw_step_rad = get_double(kv, "sparse_slam.relocalization_refine_yaw_step_rad", c.sparse_slam_relocalization_refine_yaw_step_rad);
+    c.sparse_slam_relocalization_final_xy_step_m = get_double(kv, "sparse_slam.relocalization_final_xy_step_m", c.sparse_slam_relocalization_final_xy_step_m);
+    c.sparse_slam_relocalization_final_yaw_step_rad = get_double(kv, "sparse_slam.relocalization_final_yaw_step_rad", c.sparse_slam_relocalization_final_yaw_step_rad);
+    c.sparse_slam_relocalization_local_xy_half_range_m = get_double(kv, "sparse_slam.relocalization_local_xy_half_range_m", c.sparse_slam_relocalization_local_xy_half_range_m);
+    c.sparse_slam_relocalization_local_yaw_half_range_rad = get_double(kv, "sparse_slam.relocalization_local_yaw_half_range_rad", c.sparse_slam_relocalization_local_yaw_half_range_rad);
+    c.sparse_slam_relocalization_exclusion_xy_m = get_double(kv, "sparse_slam.relocalization_exclusion_xy_m", c.sparse_slam_relocalization_exclusion_xy_m);
+    c.sparse_slam_relocalization_exclusion_yaw_rad = get_double(kv, "sparse_slam.relocalization_exclusion_yaw_rad", c.sparse_slam_relocalization_exclusion_yaw_rad);
+    c.sparse_slam_relocalization_min_normalized_score = get_double(kv, "sparse_slam.relocalization_min_normalized_score", c.sparse_slam_relocalization_min_normalized_score);
+    c.sparse_slam_relocalization_min_score_margin = get_double(kv, "sparse_slam.relocalization_min_score_margin", c.sparse_slam_relocalization_min_score_margin);
+    c.sparse_slam_relocalization_min_score_range = get_double(kv, "sparse_slam.relocalization_min_score_range", c.sparse_slam_relocalization_min_score_range);
+    c.sparse_slam_relocalization_multimodal_max_score_drop = get_double(kv, "sparse_slam.relocalization_multimodal_max_score_drop", c.sparse_slam_relocalization_multimodal_max_score_drop);
+    c.sparse_slam_relocalization_required_confirmation_bundles = get_int(kv, "sparse_slam.relocalization_required_confirmation_bundles", c.sparse_slam_relocalization_required_confirmation_bundles);
+    c.sparse_slam_relocalization_confirmation_xy_tolerance_m = get_double(kv, "sparse_slam.relocalization_confirmation_xy_tolerance_m", c.sparse_slam_relocalization_confirmation_xy_tolerance_m);
+    c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad = get_double(kv, "sparse_slam.relocalization_confirmation_yaw_tolerance_rad", c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad);
     c.sparse_slam_enable_atomic_local_slam_commit = get_bool(kv, "sparse_slam.enable_atomic_local_slam_commit", c.sparse_slam_enable_atomic_local_slam_commit);
     c.sparse_slam_max_abs_yaw_correction_rad = get_double(kv, "sparse_slam.max_abs_yaw_correction_rad", c.sparse_slam_max_abs_yaw_correction_rad);
     c.sparse_slam_max_keyframes = get_int(kv, "sparse_slam.max_keyframes", c.sparse_slam_max_keyframes);
@@ -960,6 +982,28 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.sparse_slam_local_match_free_contradiction_weight) || c.sparse_slam_local_match_free_contradiction_weight >= 0.0) errors.push_back("sparse_slam.local_match_free_contradiction_weight must be finite and < 0");
     if (!std::isfinite(c.sparse_slam_local_match_occupied_endpoint_agreement_weight) || c.sparse_slam_local_match_occupied_endpoint_agreement_weight <= 0.0) errors.push_back("sparse_slam.local_match_occupied_endpoint_agreement_weight must be finite and > 0");
     if (!std::isfinite(c.sparse_slam_local_match_occupied_endpoint_contradiction_weight) || c.sparse_slam_local_match_occupied_endpoint_contradiction_weight >= 0.0) errors.push_back("sparse_slam.local_match_occupied_endpoint_contradiction_weight must be finite and < 0");
+    if (c.sparse_slam_relocalization_coarse_max_scored_rays <= 0 || c.sparse_slam_relocalization_coarse_max_scored_rays > 96) errors.push_back("sparse_slam.relocalization_coarse_max_scored_rays must be in [1, 96]");
+    if (c.sparse_slam_relocalization_refine_max_scored_rays < c.sparse_slam_relocalization_coarse_max_scored_rays || c.sparse_slam_relocalization_refine_max_scored_rays > 288) errors.push_back("sparse_slam.relocalization_refine_max_scored_rays must be in [coarse, 288]");
+    if (c.sparse_slam_relocalization_max_cells_per_ray <= 0 || c.sparse_slam_relocalization_max_cells_per_ray > 4096) errors.push_back("sparse_slam.relocalization_max_cells_per_ray must be in [1, 4096]");
+    if (c.sparse_slam_relocalization_top_k <= 0 || c.sparse_slam_relocalization_top_k > 32) errors.push_back("sparse_slam.relocalization_top_k must be in [1, 32]");
+    if (c.sparse_slam_relocalization_max_total_candidates <= 0 || c.sparse_slam_relocalization_max_total_candidates > 15000) errors.push_back("sparse_slam.relocalization_max_total_candidates must be in [1, 15000]");
+    if (c.sparse_slam_relocalization_coarse_free_cell_stride <= 0) errors.push_back("sparse_slam.relocalization_coarse_free_cell_stride must be > 0");
+    if (!std::isfinite(c.sparse_slam_relocalization_coarse_yaw_step_rad) || c.sparse_slam_relocalization_coarse_yaw_step_rad <= 0.0 || c.sparse_slam_relocalization_coarse_yaw_step_rad > 3.14159265358979323846) errors.push_back("sparse_slam.relocalization_coarse_yaw_step_rad invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_refine_xy_step_m) || c.sparse_slam_relocalization_refine_xy_step_m <= 0.0) errors.push_back("sparse_slam.relocalization_refine_xy_step_m must be > 0");
+    if (!std::isfinite(c.sparse_slam_relocalization_refine_yaw_step_rad) || c.sparse_slam_relocalization_refine_yaw_step_rad <= 0.0 || c.sparse_slam_relocalization_refine_yaw_step_rad > c.sparse_slam_relocalization_coarse_yaw_step_rad) errors.push_back("sparse_slam.relocalization_refine_yaw_step_rad invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_final_xy_step_m) || c.sparse_slam_relocalization_final_xy_step_m <= 0.0 || c.sparse_slam_relocalization_final_xy_step_m > c.sparse_slam_relocalization_refine_xy_step_m) errors.push_back("sparse_slam.relocalization_final_xy_step_m invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_final_yaw_step_rad) || c.sparse_slam_relocalization_final_yaw_step_rad <= 0.0 || c.sparse_slam_relocalization_final_yaw_step_rad > c.sparse_slam_relocalization_refine_yaw_step_rad) errors.push_back("sparse_slam.relocalization_final_yaw_step_rad invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_local_xy_half_range_m) || c.sparse_slam_relocalization_local_xy_half_range_m < 0.0) errors.push_back("sparse_slam.relocalization_local_xy_half_range_m invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_local_yaw_half_range_rad) || c.sparse_slam_relocalization_local_yaw_half_range_rad < 0.0) errors.push_back("sparse_slam.relocalization_local_yaw_half_range_rad invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_exclusion_xy_m) || c.sparse_slam_relocalization_exclusion_xy_m <= 0.0) errors.push_back("sparse_slam.relocalization_exclusion_xy_m must be > 0");
+    if (!std::isfinite(c.sparse_slam_relocalization_exclusion_yaw_rad) || c.sparse_slam_relocalization_exclusion_yaw_rad <= 0.0) errors.push_back("sparse_slam.relocalization_exclusion_yaw_rad must be > 0");
+    if (!std::isfinite(c.sparse_slam_relocalization_min_normalized_score)) errors.push_back("sparse_slam.relocalization_min_normalized_score must be finite");
+    if (!std::isfinite(c.sparse_slam_relocalization_min_score_margin) || c.sparse_slam_relocalization_min_score_margin < 0.0) errors.push_back("sparse_slam.relocalization_min_score_margin invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_min_score_range) || c.sparse_slam_relocalization_min_score_range < 0.0) errors.push_back("sparse_slam.relocalization_min_score_range invalid");
+    if (!std::isfinite(c.sparse_slam_relocalization_multimodal_max_score_drop) || c.sparse_slam_relocalization_multimodal_max_score_drop < 0.0) errors.push_back("sparse_slam.relocalization_multimodal_max_score_drop invalid");
+    if (c.sparse_slam_relocalization_required_confirmation_bundles < 2 || c.sparse_slam_relocalization_required_confirmation_bundles > 4) errors.push_back("sparse_slam.relocalization_required_confirmation_bundles must be in [2, 4]");
+    if (!std::isfinite(c.sparse_slam_relocalization_confirmation_xy_tolerance_m) || c.sparse_slam_relocalization_confirmation_xy_tolerance_m <= 0.0) errors.push_back("sparse_slam.relocalization_confirmation_xy_tolerance_m must be > 0");
+    if (!std::isfinite(c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad) || c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad <= 0.0) errors.push_back("sparse_slam.relocalization_confirmation_yaw_tolerance_rad must be > 0");
     if (!std::isfinite(c.sparse_slam_max_abs_yaw_correction_rad) || c.sparse_slam_max_abs_yaw_correction_rad < 0.0 || c.sparse_slam_max_abs_yaw_correction_rad > 3.14159265358979323846) errors.push_back("sparse_slam.max_abs_yaw_correction_rad must be finite and within [0, pi]");
     if (c.sparse_slam_max_keyframes <= 0 || c.sparse_slam_max_keyframes > 4096) errors.push_back("sparse_slam.max_keyframes must be in [1, 4096]");
     if (c.sparse_slam_max_total_keyframe_rays <= 0 || c.sparse_slam_max_total_keyframe_rays > 12582912) errors.push_back("sparse_slam.max_total_keyframe_rays must be in [1, 12582912]");
@@ -2062,6 +2106,29 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  local_match_occupied_endpoint_contradiction_weight: " << c.sparse_slam_local_match_occupied_endpoint_contradiction_weight << "\n"
       << "  local_match_require_revision_match: " << bool_yaml(c.sparse_slam_local_match_require_revision_match) << "\n"
       << "  local_match_require_immutable_snapshot: " << bool_yaml(c.sparse_slam_local_match_require_immutable_snapshot) << "\n";
+    o << "relocalization:\n"
+      << "  coarse_max_scored_rays: " << c.sparse_slam_relocalization_coarse_max_scored_rays << "\n"
+      << "  refine_max_scored_rays: " << c.sparse_slam_relocalization_refine_max_scored_rays << "\n"
+      << "  max_cells_per_ray: " << c.sparse_slam_relocalization_max_cells_per_ray << "\n"
+      << "  top_k: " << c.sparse_slam_relocalization_top_k << "\n"
+      << "  max_total_candidates: " << c.sparse_slam_relocalization_max_total_candidates << "\n"
+      << "  coarse_free_cell_stride: " << c.sparse_slam_relocalization_coarse_free_cell_stride << "\n"
+      << "  coarse_yaw_step_rad: " << c.sparse_slam_relocalization_coarse_yaw_step_rad << "\n"
+      << "  refine_xy_step_m: " << c.sparse_slam_relocalization_refine_xy_step_m << "\n"
+      << "  refine_yaw_step_rad: " << c.sparse_slam_relocalization_refine_yaw_step_rad << "\n"
+      << "  final_xy_step_m: " << c.sparse_slam_relocalization_final_xy_step_m << "\n"
+      << "  final_yaw_step_rad: " << c.sparse_slam_relocalization_final_yaw_step_rad << "\n"
+      << "  local_xy_half_range_m: " << c.sparse_slam_relocalization_local_xy_half_range_m << "\n"
+      << "  local_yaw_half_range_rad: " << c.sparse_slam_relocalization_local_yaw_half_range_rad << "\n"
+      << "  exclusion_xy_m: " << c.sparse_slam_relocalization_exclusion_xy_m << "\n"
+      << "  exclusion_yaw_rad: " << c.sparse_slam_relocalization_exclusion_yaw_rad << "\n"
+      << "  min_normalized_score: " << c.sparse_slam_relocalization_min_normalized_score << "\n"
+      << "  min_score_margin: " << c.sparse_slam_relocalization_min_score_margin << "\n"
+      << "  min_score_range: " << c.sparse_slam_relocalization_min_score_range << "\n"
+      << "  multimodal_max_score_drop: " << c.sparse_slam_relocalization_multimodal_max_score_drop << "\n"
+      << "  required_confirmation_bundles: " << c.sparse_slam_relocalization_required_confirmation_bundles << "\n"
+      << "  confirmation_xy_tolerance_m: " << c.sparse_slam_relocalization_confirmation_xy_tolerance_m << "\n"
+      << "  confirmation_yaw_tolerance_rad: " << c.sparse_slam_relocalization_confirmation_yaw_tolerance_rad << "\n";
     o << "  enable_atomic_local_slam_commit: " << bool_yaml(c.sparse_slam_enable_atomic_local_slam_commit) << "\n"
       << "  max_abs_yaw_correction_rad: " << c.sparse_slam_max_abs_yaw_correction_rad << "\n"
       << "  max_keyframes: " << c.sparse_slam_max_keyframes << "\n"

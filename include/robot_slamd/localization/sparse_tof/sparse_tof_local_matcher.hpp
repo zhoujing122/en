@@ -100,6 +100,22 @@ public:
         return select_and_gate(input, std::move(result));
     }
 
+    bool score_absolute_candidate(
+        const SparseTofLocalMatchInput &input,
+        const MapFromOdom2D &candidate_map_from_odom,
+        std::size_t max_scored_rays,
+        SparseTofLocalMatchCandidateMetrics &metrics) const {
+        SparseTofLocalMatchInput candidate_input = input;
+        candidate_input.predicted_map_from_odom = candidate_map_from_odom;
+        candidate_input.config.max_scored_rays = max_scored_rays;
+        const auto rays = sampled_rays(candidate_input);
+        const auto evaluated = evaluate_candidate(candidate_input, rays, 0.0);
+        metrics = evaluated.metrics;
+        metrics.candidate_x_m = candidate_map_from_odom.map_T_odom.x_m;
+        metrics.candidate_y_m = candidate_map_from_odom.map_T_odom.y_m;
+        return !evaluated.traversal_budget_exceeded;
+    }
+
 private:
     struct RayRef {
         const ResolvedScalarTofObservationRoute *route = nullptr;

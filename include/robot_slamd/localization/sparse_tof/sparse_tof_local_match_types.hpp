@@ -185,6 +185,8 @@ inline std::string to_string(SparseTofLocalMatchStatus status) {
 
 struct SparseTofLocalMatchCandidateMetrics {
     double delta_yaw_rad = 0.0;
+    double candidate_x_m = 0.0;
+    double candidate_y_m = 0.0;
     double candidate_yaw_rad = 0.0;
     std::size_t used_ray_count = 0;
     std::size_t hit_ray_count = 0;
