@@ -2,6 +2,7 @@
 
 #include "robot_slamd/mapping/sparse_tof/sparse_grid_types.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -116,6 +117,15 @@ public:
     std::size_t height() const { return height_; }
     std::size_t cell_count() const { return cells_.size(); }
     double resolution_m() const { return resolution_m_; }
+
+    std::size_t count(NavigationCellClass value) const {
+        return static_cast<std::size_t>(
+            std::count(cells_.begin(), cells_.end(), value));
+    }
+
+    std::size_t known_cell_count() const {
+        return cell_count() - count(NavigationCellClass::Unknown);
+    }
 
     bool contains(const SparseGridCellKey &key) const {
         return valid_ && key.x >= min_key_.x && key.y >= min_key_.y &&

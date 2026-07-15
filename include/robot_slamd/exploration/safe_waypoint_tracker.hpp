@@ -1,6 +1,7 @@
 #pragma once
 
 #include "robot_slamd/autonomy/ports/robot_slam_motion_port.hpp"
+#include "robot_slamd/exploration/navigation_grid_view.hpp"
 
 #include <cmath>
 #include <cstddef>
@@ -23,6 +24,8 @@ struct SafeWaypointTrackerConfig {
     double yaw_tolerance_rad = 0.10;
     double waypoint_tolerance_m = 0.10;
     double obstacle_stop_distance_m = 0.22;
+    double emergency_stop_distance_m = 0.10;
+    std::size_t obstacle_confirmation_frames = 2;
     double turn_speed_normalized = 0.25;
     double forward_speed_normalized = 0.35;
     double turn_segment_duration_s = 0.25;
@@ -30,6 +33,7 @@ struct SafeWaypointTrackerConfig {
     double command_ttl_s = 0.50;
     double minimum_progress_m = 0.01;
     std::size_t maximum_segments_without_progress = 8;
+    double maximum_no_progress_duration_s = 4.0;
 };
 
 struct SafeWaypointTrackerInput {
@@ -46,6 +50,7 @@ struct SafeWaypointTrackerStepResult {
     bool waypoint_reached = false;
     bool goal_reached = false;
     bool replan_required = false;
+    bool path_validation_required = false;
     AlgorithmMotionCommand command;
     std::string reason;
 };
@@ -94,6 +99,7 @@ public:
         have_last_pose_ = true;
         best_waypoint_distance_m_ = waypoint_index_ < waypoints_.size()
             ? distance(estimated_pose, waypoints_[waypoint_index_]) : 0.0;
+        last_progress_time_s_ = -1.0;
         report_.state = waypoint_index_ == waypoints_.size()
             ? SafeWaypointTrackerState::GoalReached
             : SafeWaypointTrackerState::Aligning;
@@ -119,20 +125,6 @@ public:
             result.reason = report_.last_reason;
             return result;
         }
-        if (input.front_hit &&
-            input.front_distance_m <= config_.obstacle_stop_distance_m) {
-            const auto stopped = send_stop(input.now_s, motion_port,
-                                           "exploration_obstacle_stop");
-            report_.obstacle_stops++;
-            report_.state = SafeWaypointTrackerState::ReplanRequired;
-            report_.last_reason = "front_obstacle_replan";
-            result.ok = stopped;
-            result.command_sent = stopped;
-            result.command = last_command_;
-            result.replan_required = true;
-            result.reason = report_.last_reason;
-            return result;
-        }
         if (report_.state == SafeWaypointTrackerState::GoalReached) {
             result.ok = true;
             result.goal_reached = true;
@@ -146,6 +138,38 @@ public:
                 report_.state == SafeWaypointTrackerState::ReplanRequired;
             result.reason = report_.last_reason;
             return result;
+        }
+        if (input.motion_feedback.command_active &&
+            last_motion_kind_ == AlgorithmMotionKind::Forward &&
+            input.front_hit &&
+            input.front_distance_m <= config_.obstacle_stop_distance_m) {
+            obstacle_confirmation_count_++;
+            const bool emergency = input.front_distance_m <=
+                config_.emergency_stop_distance_m;
+            const bool confirmed = obstacle_confirmation_count_ >=
+                config_.obstacle_confirmation_frames;
+            if (emergency || confirmed) {
+                obstacle_hold_ = true;
+                const bool stopped = send_stop(
+                    input.now_s, motion_port,
+                    emergency ? "exploration_emergency_obstacle_stop"
+                              : "exploration_confirmed_obstacle_stop");
+                report_.obstacle_stops++;
+                report_.last_reason = emergency
+                    ? "front_emergency_obstacle_path_validation"
+                    : "front_confirmed_obstacle_path_validation";
+                result.ok = stopped;
+                result.command_sent = stopped;
+                result.command = last_command_;
+                result.path_validation_required = true;
+                result.replan_required = emergency;
+                result.reason = report_.last_reason;
+                return result;
+            }
+        } else if (!input.front_hit ||
+                   input.front_distance_m > config_.obstacle_stop_distance_m) {
+            obstacle_confirmation_count_ = 0;
+            obstacle_hold_ = false;
         }
         if (input.motion_feedback.command_active ||
             !input.motion_feedback.command_settled) {
@@ -162,10 +186,16 @@ public:
                     config_.minimum_progress_m) {
                     best_waypoint_distance_m_ = current;
                     segments_without_progress_ = 0;
+                    last_progress_time_s_ = input.now_s;
                 } else {
                     segments_without_progress_++;
+                    if (last_progress_time_s_ < 0.0) {
+                        last_progress_time_s_ = input.now_s;
+                    }
                     if (segments_without_progress_ >=
-                        config_.maximum_segments_without_progress) {
+                            config_.maximum_segments_without_progress ||
+                        input.now_s - last_progress_time_s_ >=
+                            config_.maximum_no_progress_duration_s) {
                         send_stop(input.now_s, motion_port,
                                   "exploration_no_progress_stop");
                         report_.no_progress_replans++;
@@ -216,6 +246,36 @@ public:
             ? (yaw_error > 0.0 ? AlgorithmMotionKind::TurnLeft
                                : AlgorithmMotionKind::TurnRight)
             : AlgorithmMotionKind::Forward;
+        const bool forward_intended = desired_kind == AlgorithmMotionKind::Forward;
+        if (!input.front_hit || !forward_intended ||
+            input.front_distance_m > config_.obstacle_stop_distance_m) {
+            obstacle_confirmation_count_ = 0;
+            obstacle_hold_ = false;
+        } else {
+            obstacle_confirmation_count_++;
+            const bool emergency = input.front_distance_m <=
+                config_.emergency_stop_distance_m;
+            const bool confirmed = obstacle_confirmation_count_ >=
+                config_.obstacle_confirmation_frames;
+            if (emergency || confirmed || obstacle_hold_) {
+                obstacle_hold_ = true;
+                const auto stopped = send_stop(
+                    input.now_s, motion_port,
+                    emergency ? "exploration_emergency_obstacle_stop"
+                              : "exploration_confirmed_obstacle_stop");
+                if (emergency || confirmed) report_.obstacle_stops++;
+                report_.last_reason = emergency
+                    ? "front_emergency_obstacle_path_validation"
+                    : "front_confirmed_obstacle_path_validation";
+                result.ok = stopped;
+                result.command_sent = stopped;
+                result.command = last_command_;
+                result.path_validation_required = true;
+                result.replan_required = emergency;
+                result.reason = report_.last_reason;
+                return result;
+            }
+        }
         if (need_transition_stop_ ||
             (last_motion_kind_ != AlgorithmMotionKind::Stop &&
              motion_group(last_motion_kind_) != motion_group(desired_kind))) {
@@ -275,6 +335,9 @@ public:
         need_transition_stop_ = false;
         segments_without_progress_ = 0;
         best_waypoint_distance_m_ = 0.0;
+        last_progress_time_s_ = -1.0;
+        obstacle_confirmation_count_ = 0;
+        obstacle_hold_ = false;
         have_last_pose_ = false;
         report_ = {};
     }
@@ -283,6 +346,33 @@ public:
     const RobotPose2D *current_waypoint() const {
         return waypoint_index_ < waypoints_.size()
             ? &waypoints_[waypoint_index_] : nullptr;
+    }
+
+    bool remaining_path_is_traversable(const NavigationGridView &grid,
+                                       const RobotPose2D &estimated_pose) const {
+        if (!grid.valid() || !finite_pose(estimated_pose) ||
+            waypoint_index_ >= waypoints_.size()) return false;
+        const auto start = grid.nearest_traversable(
+            grid.world_to_cell(estimated_pose.x_m, estimated_pose.y_m), 4);
+        if (!start) return false;
+        RobotPose2D from = grid.cell_center(*start);
+        for (std::size_t i = waypoint_index_; i < waypoints_.size(); ++i) {
+            const auto &to = waypoints_[i];
+            const double length = distance(from, to);
+            const std::size_t samples = std::max<std::size_t>(
+                1, static_cast<std::size_t>(std::ceil(
+                    length / std::max(grid.resolution_m() * 0.5, 1e-6))));
+            for (std::size_t sample = 1; sample <= samples; ++sample) {
+                const double t = static_cast<double>(sample) / samples;
+                if (!grid.traversable(grid.world_to_cell(
+                        from.x_m + t * (to.x_m - from.x_m),
+                        from.y_m + t * (to.y_m - from.y_m)))) {
+                    return false;
+                }
+            }
+            from = to;
+        }
+        return true;
     }
 
 private:
@@ -298,6 +388,11 @@ private:
                config_.waypoint_tolerance_m > 0.0 &&
                std::isfinite(config_.obstacle_stop_distance_m) &&
                config_.obstacle_stop_distance_m > 0.0 &&
+               std::isfinite(config_.emergency_stop_distance_m) &&
+               config_.emergency_stop_distance_m > 0.0 &&
+               config_.emergency_stop_distance_m <
+                   config_.obstacle_stop_distance_m &&
+               config_.obstacle_confirmation_frames > 0 &&
                config_.turn_speed_normalized > 0.0 &&
                config_.turn_speed_normalized <= 1.0 &&
                config_.forward_speed_normalized > 0.0 &&
@@ -306,7 +401,9 @@ private:
                config_.forward_segment_duration_s > 0.0 &&
                config_.command_ttl_s > 0.0 &&
                config_.minimum_progress_m >= 0.0 &&
-               config_.maximum_segments_without_progress > 0;
+               config_.maximum_segments_without_progress > 0 &&
+               std::isfinite(config_.maximum_no_progress_duration_s) &&
+               config_.maximum_no_progress_duration_s > 0.0;
     }
 
     bool valid_input(const SafeWaypointTrackerInput &input) const {
@@ -368,6 +465,9 @@ private:
     bool need_transition_stop_ = false;
     std::size_t segments_without_progress_ = 0;
     double best_waypoint_distance_m_ = 0.0;
+    double last_progress_time_s_ = -1.0;
+    std::size_t obstacle_confirmation_count_ = 0;
+    bool obstacle_hold_ = false;
     RobotPose2D last_pose_;
     bool have_last_pose_ = false;
     AlgorithmMotionCommand last_command_;

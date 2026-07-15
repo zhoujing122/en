@@ -62,5 +62,25 @@ int main() {
     expect(!memory.assess({first.selected_goal_cell.x + 1,
                            first.selected_goal_cell.y}).permanently_failed,
            "neighboring frontier is not broadly blacklisted");
+
+    std::vector<SparseOccupancyCell> fully_known;
+    for (int y = 0; y < 5; ++y) {
+        for (int x = 0; x < 5; ++x) fully_known.push_back(free_cell(x, y));
+    }
+    NavigationGridViewConfig bounded_config;
+    bounded_config.min_x_m = 0.0;
+    bounded_config.max_x_m = 5.0;
+    bounded_config.min_y_m = 0.0;
+    bounded_config.max_y_m = 5.0;
+    bounded_config.robot_radius_m = 0.0;
+    bounded_config.safety_margin_m = 0.0;
+    NavigationGridView bounded;
+    expect(bounded.build(snapshot_from_cells(fully_known), bounded_config).ok,
+           "fully known bounded view builds");
+    SparseFrontierPlanner bounded_planner;
+    const auto complete = bounded_planner.plan(bounded, {2, 2});
+    expect(complete.ok && complete.no_reachable_frontier &&
+               complete.cluster_count == 0,
+           "cells outside configured bounds are not false frontiers");
     return 0;
 }

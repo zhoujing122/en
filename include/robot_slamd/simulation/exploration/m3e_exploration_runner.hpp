@@ -48,10 +48,16 @@ inline AutonomousExplorationConfig m3e_exploration_config_from(
         config.exploration_minimum_frontier_cluster_cells);
     out.frontier.information_gain_weight =
         config.exploration_information_gain_weight;
+    out.frontier.minimum_goal_clearance_m =
+        config.exploration_minimum_goal_clearance_m;
+    out.frontier.minimum_goal_distance_m =
+        config.exploration_minimum_goal_distance_m;
     out.frontier.astar.maximum_expanded_nodes = static_cast<std::size_t>(
         config.exploration_maximum_astar_nodes);
     out.no_frontier_confirmation_cycles = static_cast<std::size_t>(
         config.exploration_no_frontier_confirmation_cycles);
+    out.completion_minimum_known_ratio =
+        config.exploration_completion_minimum_known_ratio;
     out.bootstrap_minimum_known_cells = static_cast<std::size_t>(
         config.exploration_bootstrap_minimum_known_cells);
     out.bootstrap_minimum_yaw_rad = config.exploration_bootstrap_minimum_yaw_rad;
@@ -59,15 +65,33 @@ inline AutonomousExplorationConfig m3e_exploration_config_from(
     out.maximum_duration_s = config.exploration_max_duration_s;
     out.maximum_planning_failures = static_cast<std::size_t>(
         config.exploration_maximum_planning_failures);
+    out.failure_memory.maximum_entries = static_cast<std::size_t>(
+        config.exploration_failure_memory_capacity);
+    out.failure_memory.cooldown_planning_cycles = static_cast<std::size_t>(
+        config.exploration_failure_cooldown_cycles);
+    out.failure_memory.maximum_consecutive_failures = static_cast<std::size_t>(
+        config.exploration_maximum_goal_failures);
+    out.failure_memory.revision_change_for_retry = static_cast<std::uint64_t>(
+        config.exploration_failure_retry_revision_delta);
     out.bootstrap_turn_speed_normalized = 0.38;
     out.bootstrap_turn_segment_duration_s = 0.50;
     out.tracker.turn_speed_normalized = 0.35;
     out.tracker.forward_speed_normalized = 0.40;
     out.tracker.turn_segment_duration_s = 0.40;
     out.tracker.forward_segment_duration_s = 0.50;
-    out.tracker.waypoint_tolerance_m = 0.12;
-    out.tracker.obstacle_stop_distance_m = 0.20;
-    out.tracker.maximum_segments_without_progress = 10;
+    out.tracker.waypoint_tolerance_m = config.exploration_waypoint_tolerance_m;
+    out.tracker.yaw_tolerance_rad = config.exploration_yaw_tolerance_rad;
+    out.tracker.minimum_progress_m = config.exploration_minimum_progress_m;
+    out.tracker.maximum_no_progress_duration_s =
+        config.exploration_no_progress_timeout_s;
+    out.tracker.maximum_segments_without_progress = static_cast<std::size_t>(
+        config.exploration_maximum_segments_without_progress);
+    out.tracker.obstacle_stop_distance_m =
+        config.exploration_obstacle_stop_distance_m;
+    out.tracker.emergency_stop_distance_m =
+        config.exploration_emergency_stop_distance_m;
+    out.tracker.obstacle_confirmation_frames = static_cast<std::size_t>(
+        config.exploration_obstacle_confirmation_frames);
     return out;
 }
 
@@ -89,6 +113,7 @@ inline void write_m3e_exploration_report(
         << "frontiers_detected=" << report.exploration.frontiers_detected << "\n"
         << "reachable_frontiers=" << report.exploration.reachable_frontiers << "\n"
         << "selected_goals=" << report.exploration.selected_goals << "\n"
+        << "goal_attempt_count=" << report.exploration.goal_attempt_count << "\n"
         << "completed_goals=" << report.exploration.completed_goals << "\n"
         << "failed_goals=" << report.exploration.failed_goals << "\n"
         << "plan_count=" << report.exploration.plan_count << "\n"
@@ -100,6 +125,19 @@ inline void write_m3e_exploration_report(
         << "commanded_forward_segments="
         << report.exploration.commanded_forward_segments << "\n"
         << "obstacle_stops=" << report.exploration.obstacle_stops << "\n"
+        << "matcher_rejected_goals=" << report.exploration.matcher_rejected_goals << "\n"
+        << "path_blocked_goals=" << report.exploration.path_blocked_goals << "\n"
+        << "no_progress_goals=" << report.exploration.no_progress_goals << "\n"
+        << "obstacle_blocked_goals=" << report.exploration.obstacle_blocked_goals << "\n"
+        << "exploration_bounds_total_cells=" << report.exploration.exploration_bounds_total_cells << "\n"
+        << "known_ratio=" << report.exploration.known_ratio << "\n"
+        << "free_ratio=" << report.exploration.free_ratio << "\n"
+        << "unknown_ratio=" << report.exploration.unknown_ratio << "\n"
+        << "remaining_frontier_clusters=" << report.exploration.remaining_frontier_clusters << "\n"
+        << "reachable_frontier_clusters=" << report.exploration.reachable_frontier_clusters << "\n"
+        << "cooled_frontier_clusters=" << report.exploration.cooled_frontier_clusters << "\n"
+        << "permanently_failed_frontier_clusters=" << report.exploration.permanently_failed_frontier_clusters << "\n"
+        << "completion_confirmation_cycles=" << report.exploration.completion_confirmation_cycles << "\n"
         << "estimated_travel_distance_m="
         << report.exploration.estimated_travel_distance_m << "\n"
         << "matcher_attempts=" << report.exploration.matcher_attempts << "\n"
@@ -247,8 +285,10 @@ public:
             }
         }
         report.ok = controller.state() == AutonomousExplorationState::Completed &&
-            report.exploration.selected_goals >= 1 &&
-            report.exploration.completed_goals >= 1 &&
+            report.exploration.selected_goals >= 3 &&
+            report.exploration.completed_goals >= 3 &&
+            report.exploration.completed_goals * 2 >=
+                report.exploration.selected_goals &&
             report.exploration.expanded_astar_nodes > 0 &&
             report.exploration.commanded_forward_segments > 0 &&
             report.exploration.known_cells_end > report.exploration.known_cells_start &&

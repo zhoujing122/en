@@ -53,8 +53,14 @@ inline robot_slamd::Config config() {
     out.exploration_bootstrap_minimum_known_cells = 60;
     out.exploration_bootstrap_minimum_yaw_rad = 5.5;
     out.exploration_bootstrap_max_duration_s = 22.0;
-    out.exploration_max_duration_s = 120.0;
+    out.exploration_max_duration_s = 240.0;
     out.exploration_maximum_planning_failures = 30;
+    out.exploration_minimum_goal_distance_m = 0.30;
+    out.exploration_failure_cooldown_cycles = 3;
+    out.exploration_failure_retry_revision_delta = 30;
+    out.exploration_obstacle_stop_distance_m = 0.20;
+    out.exploration_emergency_stop_distance_m = 0.09;
+    out.exploration_completion_minimum_known_ratio = 0.70;
     out.exploration_simulation_tof_max_range_m = 2.0;
     return out;
 }

@@ -4,6 +4,7 @@
 #include "robot_slamd/exploration/sparse_frontier_planner.hpp"
 #include "robot_slamd/runtime/sparse_slam_runtime_core.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -46,6 +47,7 @@ struct AutonomousExplorationConfig {
     SafeWaypointTrackerConfig tracker;
     FrontierFailureMemoryConfig failure_memory;
     std::size_t no_frontier_confirmation_cycles = 3;
+    double completion_minimum_known_ratio = 0.60;
     std::size_t bootstrap_minimum_known_cells = 80;
     double bootstrap_minimum_yaw_rad = 5.5;
     double bootstrap_max_duration_s = 18.0;
@@ -70,6 +72,7 @@ struct AutonomousExplorationReport {
     std::size_t frontiers_detected = 0;
     std::size_t reachable_frontiers = 0;
     std::size_t selected_goals = 0;
+    std::size_t goal_attempt_count = 0;
     std::size_t completed_goals = 0;
     std::size_t failed_goals = 0;
     std::size_t plan_count = 0;
@@ -80,8 +83,19 @@ struct AutonomousExplorationReport {
     std::size_t commanded_turns = 0;
     std::size_t commanded_forward_segments = 0;
     std::size_t obstacle_stops = 0;
+    std::size_t matcher_rejected_goals = 0;
+    std::size_t path_blocked_goals = 0;
+    std::size_t no_progress_goals = 0;
+    std::size_t obstacle_blocked_goals = 0;
     std::size_t cooled_frontier_clusters = 0;
     std::size_t permanently_failed_frontier_clusters = 0;
+    std::size_t exploration_bounds_total_cells = 0;
+    std::size_t remaining_frontier_clusters = 0;
+    std::size_t reachable_frontier_clusters = 0;
+    std::size_t completion_confirmation_cycles = 0;
+    double known_ratio = 0.0;
+    double free_ratio = 0.0;
+    double unknown_ratio = 1.0;
     std::size_t matcher_attempts = 0;
     std::size_t atomic_commit_successes = 0;
     std::size_t keyframe_count = 0;
@@ -179,6 +193,7 @@ public:
                 if (match && !match->accepted) {
                     record_goal_failure("matcher_rejected", core);
                     report_.failed_goals++;
+                    have_active_goal_ = false;
                     discard_required_ = true;
                 } else if (active == ActiveObservationBundleState::Aborted) {
                     discard_required_ = true;
@@ -273,6 +288,7 @@ public:
             if (!target) {
                 report_.completed_goals++;
                 remember_completed_goal();
+                have_active_goal_ = false;
                 state_ = AutonomousExplorationState::Replanning;
                 sync_report(core, estimated_pose);
                 return {true, false, "exploration_goal_reached_after_pose_update"};
@@ -296,6 +312,7 @@ public:
             if (tracked.replan_required) {
                 record_goal_failure(tracked.reason, core);
                 report_.failed_goals++;
+                have_active_goal_ = false;
                 alignment_replan_required_ = true;
             }
             sync_report(core, estimated_pose);
@@ -303,6 +320,19 @@ public:
         }
 
         if (state_ == AutonomousExplorationState::FollowingPath) {
+            const auto revision = core.report().current_map_revision;
+            if (revision != last_path_validation_revision_) {
+                last_path_validation_revision_ = revision;
+                if (!current_path_is_safe(core, estimated_pose)) {
+                    send_stop(now_s, motion_port, "exploration_path_blocked_stop");
+                    record_goal_failure("path_blocked_by_latest_map", core);
+                    report_.failed_goals++;
+                    have_active_goal_ = false;
+                    state_ = AutonomousExplorationState::Replanning;
+                    sync_report(core, estimated_pose);
+                    return {true, false, "exploration_path_blocked_replan"};
+                }
+            }
             const auto *target = tracker_.current_waypoint();
             if (target && motion_feedback.command_settled &&
                 !motion_feedback.command_active) {
@@ -325,10 +355,21 @@ public:
             if (tracked.goal_reached) {
                 report_.completed_goals++;
                 remember_completed_goal();
+                have_active_goal_ = false;
                 state_ = AutonomousExplorationState::Replanning;
+            } else if (tracked.path_validation_required) {
+                const bool safe = current_path_is_safe(core, estimated_pose);
+                if (!safe || tracked.replan_required) {
+                    report_.failed_goals++;
+                    record_goal_failure(safe ? "emergency_obstacle"
+                                             : "obstacle_blocked_path", core);
+                    have_active_goal_ = false;
+                    state_ = AutonomousExplorationState::Replanning;
+                }
             } else if (tracked.replan_required) {
                 report_.failed_goals++;
                 record_goal_failure(tracked.reason, core);
+                have_active_goal_ = false;
                 state_ = AutonomousExplorationState::Replanning;
             }
             sync_report(core, estimated_pose);
@@ -379,6 +420,9 @@ private:
         report_.cooled_frontier_clusters = planned.cooled_cluster_count;
         report_.permanently_failed_frontier_clusters =
             planned.permanently_failed_cluster_count;
+        report_.remaining_frontier_clusters = planned.cluster_count;
+        report_.reachable_frontier_clusters = planned.reachable_cluster_count;
+        update_coverage_report(view);
         if (!planned.ok) {
             report_.planning_failure_count++;
             report_.last_planning_reason = planned.reason;
@@ -386,8 +430,30 @@ private:
         }
         report_.last_planning_reason = planned.reason;
         if (planned.no_reachable_frontier) {
+            if (planned.cooled_cluster_count > 0) {
+                no_frontier_cycles_ = 0;
+                report_.completion_confirmation_cycles = 0;
+                report_.last_planning_reason = "frontiers_temporarily_cooled";
+                return true;
+            }
+            if (no_frontier_cycles_ == 0) {
+                no_frontier_start_revision_ = snapshot.revision();
+            }
             no_frontier_cycles_++;
-            if (no_frontier_cycles_ >= config_.no_frontier_confirmation_cycles) {
+            report_.completion_confirmation_cycles = no_frontier_cycles_;
+            const bool observed_latest_map =
+                snapshot.revision() > no_frontier_start_revision_;
+            const bool coverage_acceptable =
+                report_.known_ratio + 1e-12 >=
+                    config_.completion_minimum_known_ratio ||
+                planned.unreachable_cluster_count +
+                        planned.permanently_failed_cluster_count >=
+                    planned.cluster_count;
+            if (!have_active_goal_ && observed_latest_map &&
+                coverage_acceptable &&
+                core.active_observation_state() ==
+                    ActiveObservationBundleState::Idle &&
+                no_frontier_cycles_ >= config_.no_frontier_confirmation_cycles) {
                 state_ = AutonomousExplorationState::Completed;
             }
             return true;
@@ -396,7 +462,12 @@ private:
         current_frontier_id_ = planned.selected_frontier_id;
         current_goal_cell_ = planned.selected_goal_cell;
         current_goal_pose_ = planned.path.waypoints.back();
-        report_.selected_goals++;
+        have_active_goal_ = true;
+        report_.goal_attempt_count++;
+        if (!near_goal_history(current_goal_cell_, selected_goal_cells_)) {
+            report_.selected_goals++;
+            remember_bounded(current_goal_cell_, selected_goal_cells_);
+        }
         if (!tracker_.set_path(planned.path.waypoints, pose)) {
             report_.planning_failure_count++;
             return false;
@@ -404,10 +475,17 @@ private:
         if (!tracker_.current_waypoint()) {
             report_.completed_goals++;
             remember_completed_goal();
+            have_active_goal_ = false;
             state_ = AutonomousExplorationState::Replanning;
             return true;
         }
-        state_ = AutonomousExplorationState::AligningToPath;
+        const auto *target = tracker_.current_waypoint();
+        const double target_yaw = std::atan2(target->y_m - pose.y_m,
+                                             target->x_m - pose.x_m);
+        state_ = std::fabs(normalize(target_yaw - pose.yaw_rad)) <=
+                config_.tracker.yaw_tolerance_rad
+            ? AutonomousExplorationState::FollowingPath
+            : AutonomousExplorationState::AligningToPath;
         return true;
     }
 
@@ -490,8 +568,7 @@ private:
                    tracked.command.kind == AlgorithmMotionKind::TurnRight) {
             report_.commanded_turns++;
         }
-        if (tracked.replan_required &&
-            tracked.reason == "front_obstacle_replan") {
+        if (tracked.path_validation_required) {
             report_.obstacle_stops++;
         }
     }
@@ -500,13 +577,55 @@ private:
                              const SparseSlamRuntimeCore &core) {
         failure_memory_.record(current_goal_cell_, reason,
                                core.report().current_map_revision);
+        if (reason.find("matcher_rejected") != std::string::npos) {
+            report_.matcher_rejected_goals++;
+        } else if (reason.find("no_progress") != std::string::npos) {
+            report_.no_progress_goals++;
+        } else if (reason.find("obstacle") != std::string::npos) {
+            report_.obstacle_blocked_goals++;
+        } else if (reason.find("path_blocked") != std::string::npos) {
+            report_.path_blocked_goals++;
+        }
     }
 
     void remember_completed_goal() {
-        if (completed_goal_cells_.size() >= config_.maximum_planning_failures) {
-            completed_goal_cells_.erase(completed_goal_cells_.begin());
+        remember_bounded(current_goal_cell_, completed_goal_cells_);
+    }
+
+    bool near_goal_history(
+        const SparseGridCellKey &goal,
+        const std::vector<SparseGridCellKey> &history) const {
+        const int radius = config_.frontier.completed_goal_exclusion_radius_cells;
+        return std::any_of(history.begin(), history.end(),
+            [&goal, radius](const SparseGridCellKey &entry) {
+                return std::abs(goal.x - entry.x) <= radius &&
+                       std::abs(goal.y - entry.y) <= radius;
+            });
+    }
+
+    void remember_bounded(const SparseGridCellKey &goal,
+                          std::vector<SparseGridCellKey> &history) {
+        if (history.size() >= config_.maximum_planning_failures) {
+            history.erase(history.begin());
         }
-        completed_goal_cells_.push_back(current_goal_cell_);
+        history.push_back(goal);
+    }
+
+    bool current_path_is_safe(SparseSlamRuntimeCore &core,
+                              const RobotPose2D &pose) const {
+        NavigationGridView view;
+        return view.build(core.sparse_map_snapshot(), config_.navigation).ok &&
+               tracker_.remaining_path_is_traversable(view, pose);
+    }
+
+    void update_coverage_report(const NavigationGridView &view) {
+        report_.exploration_bounds_total_cells = view.cell_count();
+        if (view.cell_count() == 0) return;
+        const double total = static_cast<double>(view.cell_count());
+        report_.known_ratio = view.known_cell_count() / total;
+        report_.free_ratio = view.count(NavigationCellClass::Free) / total;
+        report_.unknown_ratio =
+            view.count(NavigationCellClass::Unknown) / total;
     }
 
     void update_bootstrap_yaw(double yaw) {
@@ -543,8 +662,12 @@ private:
     SparseGridCellKey current_goal_cell_;
     RobotPose2D current_goal_pose_;
     std::vector<SparseGridCellKey> completed_goal_cells_;
+    std::vector<SparseGridCellKey> selected_goal_cells_;
     std::uint64_t command_sequence_ = 0;
     std::size_t no_frontier_cycles_ = 0;
+    std::uint64_t no_frontier_start_revision_ = 0;
+    std::uint64_t last_path_validation_revision_ = 0;
+    bool have_active_goal_ = false;
     bool begin_collection_required_ = false;
     bool end_collection_required_ = false;
     bool discard_required_ = false;

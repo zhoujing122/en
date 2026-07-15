@@ -191,7 +191,9 @@ private:
                 if (!grid.traversable(key)) continue;
                 bool adjacent_unknown = false;
                 for (const auto &offset : kFour) {
-                    if (grid.cell({key.x + offset[0], key.y + offset[1]}) ==
+                    const SparseGridCellKey neighbor{key.x + offset[0],
+                                                     key.y + offset[1]};
+                    if (grid.contains(neighbor) && grid.cell(neighbor) ==
                         NavigationCellClass::Unknown) {
                         adjacent_unknown = true;
                         break;

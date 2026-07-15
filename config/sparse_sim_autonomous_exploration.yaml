@@ -70,8 +70,23 @@ exploration:
   bootstrap_minimum_known_cells: 60
   bootstrap_minimum_yaw_rad: 5.50
   bootstrap_max_duration_s: 22.0
-  max_duration_s: 120.0
+  max_duration_s: 240.0
   maximum_planning_failures: 30
+  minimum_goal_clearance_m: 0.10
+  minimum_goal_distance_m: 0.30
+  failure_memory_capacity: 64
+  failure_cooldown_cycles: 3
+  maximum_goal_failures: 3
+  failure_retry_revision_delta: 30
+  waypoint_tolerance_m: 0.10
+  yaw_tolerance_rad: 0.10
+  minimum_progress_m: 0.01
+  no_progress_timeout_s: 4.0
+  maximum_segments_without_progress: 8
+  obstacle_stop_distance_m: 0.20
+  emergency_stop_distance_m: 0.09
+  obstacle_confirmation_frames: 2
+  completion_minimum_known_ratio: 0.70
   simulation_fixed_dt_s: 0.05
   simulation_tof_max_range_m: 2.00
 

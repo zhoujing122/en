@@ -18,6 +18,11 @@
   selection, A*, safe waypoint tracking, active local SLAM alignment,
   obstacle replanning, exploration completion, and final map save run through
   the formal deterministic simulation runtime.
+- M3-E1: complete. Frontier goals now retreat into safe known Free space,
+  failures use bounded revision-aware cooldown, tracking validates progress and
+  the latest path, and no-reachable-frontier termination requires fresh-map
+  confirmation. The formal scenario completes 4/8 distinct goals without
+  collision and deterministically saves the final sparse map.
 - M3-D3B: next stage. Add bounded relocalization and lost-recovery foundations.
 - M3-F: future production-readiness and hardware acceptance.
 

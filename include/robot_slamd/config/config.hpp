@@ -266,6 +266,21 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.exploration_bootstrap_max_duration_s = get_double(kv, "exploration.bootstrap_max_duration_s", c.exploration_bootstrap_max_duration_s);
     c.exploration_max_duration_s = get_double(kv, "exploration.max_duration_s", c.exploration_max_duration_s);
     c.exploration_maximum_planning_failures = get_int(kv, "exploration.maximum_planning_failures", c.exploration_maximum_planning_failures);
+    c.exploration_minimum_goal_clearance_m = get_double(kv, "exploration.minimum_goal_clearance_m", c.exploration_minimum_goal_clearance_m);
+    c.exploration_minimum_goal_distance_m = get_double(kv, "exploration.minimum_goal_distance_m", c.exploration_minimum_goal_distance_m);
+    c.exploration_failure_memory_capacity = get_int(kv, "exploration.failure_memory_capacity", c.exploration_failure_memory_capacity);
+    c.exploration_failure_cooldown_cycles = get_int(kv, "exploration.failure_cooldown_cycles", c.exploration_failure_cooldown_cycles);
+    c.exploration_maximum_goal_failures = get_int(kv, "exploration.maximum_goal_failures", c.exploration_maximum_goal_failures);
+    c.exploration_failure_retry_revision_delta = get_int(kv, "exploration.failure_retry_revision_delta", c.exploration_failure_retry_revision_delta);
+    c.exploration_waypoint_tolerance_m = get_double(kv, "exploration.waypoint_tolerance_m", c.exploration_waypoint_tolerance_m);
+    c.exploration_yaw_tolerance_rad = get_double(kv, "exploration.yaw_tolerance_rad", c.exploration_yaw_tolerance_rad);
+    c.exploration_minimum_progress_m = get_double(kv, "exploration.minimum_progress_m", c.exploration_minimum_progress_m);
+    c.exploration_no_progress_timeout_s = get_double(kv, "exploration.no_progress_timeout_s", c.exploration_no_progress_timeout_s);
+    c.exploration_maximum_segments_without_progress = get_int(kv, "exploration.maximum_segments_without_progress", c.exploration_maximum_segments_without_progress);
+    c.exploration_obstacle_stop_distance_m = get_double(kv, "exploration.obstacle_stop_distance_m", c.exploration_obstacle_stop_distance_m);
+    c.exploration_emergency_stop_distance_m = get_double(kv, "exploration.emergency_stop_distance_m", c.exploration_emergency_stop_distance_m);
+    c.exploration_obstacle_confirmation_frames = get_int(kv, "exploration.obstacle_confirmation_frames", c.exploration_obstacle_confirmation_frames);
+    c.exploration_completion_minimum_known_ratio = get_double(kv, "exploration.completion_minimum_known_ratio", c.exploration_completion_minimum_known_ratio);
     c.exploration_simulation_fixed_dt_s = get_double(kv, "exploration.simulation_fixed_dt_s", c.exploration_simulation_fixed_dt_s);
     c.exploration_simulation_tof_max_range_m = get_double(kv, "exploration.simulation_tof_max_range_m", c.exploration_simulation_tof_max_range_m);
     c.localization_hz = get_double(kv, "runtime.localization_hz", c.localization_hz);
@@ -964,6 +979,21 @@ void validate_config(const Config &c) {
     if (!std::isfinite(c.exploration_bootstrap_max_duration_s) || c.exploration_bootstrap_max_duration_s <= 0.0) errors.push_back("exploration.bootstrap_max_duration_s must be finite and > 0");
     if (!std::isfinite(c.exploration_max_duration_s) || c.exploration_max_duration_s <= c.exploration_bootstrap_max_duration_s || c.exploration_max_duration_s > 3600.0) errors.push_back("exploration.max_duration_s must exceed bootstrap duration and be <= 3600");
     if (c.exploration_maximum_planning_failures <= 0 || c.exploration_maximum_planning_failures > 10000) errors.push_back("exploration.maximum_planning_failures must be in [1, 10000]");
+    if (!std::isfinite(c.exploration_minimum_goal_clearance_m) || c.exploration_minimum_goal_clearance_m < 0.0) errors.push_back("exploration.minimum_goal_clearance_m must be finite and >= 0");
+    if (!std::isfinite(c.exploration_minimum_goal_distance_m) || c.exploration_minimum_goal_distance_m <= 0.0) errors.push_back("exploration.minimum_goal_distance_m must be finite and > 0");
+    if (c.exploration_failure_memory_capacity <= 0 || c.exploration_failure_memory_capacity > 1024) errors.push_back("exploration.failure_memory_capacity must be in [1, 1024]");
+    if (c.exploration_failure_cooldown_cycles < 0 || c.exploration_failure_cooldown_cycles > 1000) errors.push_back("exploration.failure_cooldown_cycles must be in [0, 1000]");
+    if (c.exploration_maximum_goal_failures <= 0 || c.exploration_maximum_goal_failures > 100) errors.push_back("exploration.maximum_goal_failures must be in [1, 100]");
+    if (c.exploration_failure_retry_revision_delta < 0) errors.push_back("exploration.failure_retry_revision_delta must be >= 0");
+    if (!std::isfinite(c.exploration_waypoint_tolerance_m) || c.exploration_waypoint_tolerance_m <= 0.0) errors.push_back("exploration.waypoint_tolerance_m must be finite and > 0");
+    if (!std::isfinite(c.exploration_yaw_tolerance_rad) || c.exploration_yaw_tolerance_rad <= 0.0 || c.exploration_yaw_tolerance_rad > 3.141592653589793) errors.push_back("exploration.yaw_tolerance_rad must be finite and in (0, pi]");
+    if (!std::isfinite(c.exploration_minimum_progress_m) || c.exploration_minimum_progress_m < 0.0) errors.push_back("exploration.minimum_progress_m must be finite and >= 0");
+    if (!std::isfinite(c.exploration_no_progress_timeout_s) || c.exploration_no_progress_timeout_s <= 0.0) errors.push_back("exploration.no_progress_timeout_s must be finite and > 0");
+    if (c.exploration_maximum_segments_without_progress <= 0) errors.push_back("exploration.maximum_segments_without_progress must be > 0");
+    if (!std::isfinite(c.exploration_obstacle_stop_distance_m) || c.exploration_obstacle_stop_distance_m <= 0.0) errors.push_back("exploration.obstacle_stop_distance_m must be finite and > 0");
+    if (!std::isfinite(c.exploration_emergency_stop_distance_m) || c.exploration_emergency_stop_distance_m <= 0.0 || c.exploration_emergency_stop_distance_m >= c.exploration_obstacle_stop_distance_m) errors.push_back("exploration.emergency_stop_distance_m must be in (0, obstacle_stop_distance_m)");
+    if (c.exploration_obstacle_confirmation_frames <= 0 || c.exploration_obstacle_confirmation_frames > 100) errors.push_back("exploration.obstacle_confirmation_frames must be in [1, 100]");
+    if (!std::isfinite(c.exploration_completion_minimum_known_ratio) || c.exploration_completion_minimum_known_ratio < 0.0 || c.exploration_completion_minimum_known_ratio > 1.0) errors.push_back("exploration.completion_minimum_known_ratio must be in [0, 1]");
     if (!std::isfinite(c.exploration_simulation_fixed_dt_s) || c.exploration_simulation_fixed_dt_s <= 0.0 || c.exploration_simulation_fixed_dt_s > 0.2) errors.push_back("exploration.simulation_fixed_dt_s must be in (0, 0.2]");
     if (!std::isfinite(c.exploration_simulation_tof_max_range_m) || c.exploration_simulation_tof_max_range_m <= 0.05 || c.exploration_simulation_tof_max_range_m > 12.0) errors.push_back("exploration.simulation_tof_max_range_m must be in (0.05, 12]");
     const double exploration_width = c.exploration_max_x_m - c.exploration_min_x_m;
@@ -2055,6 +2085,21 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  bootstrap_max_duration_s: " << c.exploration_bootstrap_max_duration_s << "\n"
       << "  max_duration_s: " << c.exploration_max_duration_s << "\n"
       << "  maximum_planning_failures: " << c.exploration_maximum_planning_failures << "\n"
+      << "  minimum_goal_clearance_m: " << c.exploration_minimum_goal_clearance_m << "\n"
+      << "  minimum_goal_distance_m: " << c.exploration_minimum_goal_distance_m << "\n"
+      << "  failure_memory_capacity: " << c.exploration_failure_memory_capacity << "\n"
+      << "  failure_cooldown_cycles: " << c.exploration_failure_cooldown_cycles << "\n"
+      << "  maximum_goal_failures: " << c.exploration_maximum_goal_failures << "\n"
+      << "  failure_retry_revision_delta: " << c.exploration_failure_retry_revision_delta << "\n"
+      << "  waypoint_tolerance_m: " << c.exploration_waypoint_tolerance_m << "\n"
+      << "  yaw_tolerance_rad: " << c.exploration_yaw_tolerance_rad << "\n"
+      << "  minimum_progress_m: " << c.exploration_minimum_progress_m << "\n"
+      << "  no_progress_timeout_s: " << c.exploration_no_progress_timeout_s << "\n"
+      << "  maximum_segments_without_progress: " << c.exploration_maximum_segments_without_progress << "\n"
+      << "  obstacle_stop_distance_m: " << c.exploration_obstacle_stop_distance_m << "\n"
+      << "  emergency_stop_distance_m: " << c.exploration_emergency_stop_distance_m << "\n"
+      << "  obstacle_confirmation_frames: " << c.exploration_obstacle_confirmation_frames << "\n"
+      << "  completion_minimum_known_ratio: " << c.exploration_completion_minimum_known_ratio << "\n"
       << "  simulation_fixed_dt_s: " << c.exploration_simulation_fixed_dt_s << "\n"
       << "  simulation_tof_max_range_m: " << c.exploration_simulation_tof_max_range_m << "\n";
     o << "localization:\n"
