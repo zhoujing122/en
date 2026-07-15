@@ -58,10 +58,9 @@ int main() {
 
     request.initial_pose_mode = InitialPoseMode::Relocalization;
     auto relocalize = state.initialize(request);
-    expect(!relocalize.ok, "relocalization rejected");
-    expect(relocalize.status ==
-               SparseSlamInitializationStatus::RelocalizationNotImplemented,
-           "relocalization status");
+    expect(relocalize.ok && state.relocalization_pending() &&
+               !state.localized(),
+           "loaded map enters relocalization pending without a pose");
 
     request.map_startup_mode = MapStartupMode::CreateNewMap;
     auto new_relocalize = state.initialize(request);

@@ -5,6 +5,7 @@
 #include "robot_slamd/autonomy/odometry/wheel_imu_dead_reckoning_2d.hpp"
 #include "robot_slamd/autonomy/real_adapters/slam_backend/sparse_multi_tof_occupancy_backend.hpp"
 #include "robot_slamd/config/config.hpp"
+#include "robot_slamd/localization/sparse_tof/sparse_relocalization_manager.hpp"
 #include "robot_slamd/localization/sparse_tof/sparse_tof_local_matcher.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_tof_keyframe.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_map_artifact.hpp"
@@ -27,6 +28,7 @@ namespace robot_slamd {
 enum class SparseSlamRuntimeCorePhase {
     Uninitialized,
     CollectingStationarySamples,
+    Relocalizing,
     Ready,
     Fault
 };
@@ -37,6 +39,8 @@ inline std::string to_string(SparseSlamRuntimeCorePhase phase) {
         return "uninitialized";
     case SparseSlamRuntimeCorePhase::CollectingStationarySamples:
         return "collecting_stationary_samples";
+    case SparseSlamRuntimeCorePhase::Relocalizing:
+        return "relocalizing";
     case SparseSlamRuntimeCorePhase::Ready:
         return "ready";
     case SparseSlamRuntimeCorePhase::Fault:
@@ -71,6 +75,32 @@ struct SparseSlamRuntimeCoreReport {
     bool sparse_map_saved = false;
     std::string sparse_map_path;
     std::string last_map_lifecycle_fault = "none";
+    bool relocalization_required = false;
+    bool relocalization_active = false;
+    std::string relocalization_state = "idle";
+    std::string relocalization_purpose = "startup";
+    std::size_t relocalization_search_attempt_count = 0;
+    std::size_t relocalization_global_search_count = 0;
+    std::size_t relocalization_local_search_count = 0;
+    std::size_t relocalization_success_count = 0;
+    std::size_t relocalization_failure_count = 0;
+    std::uint64_t relocalization_first_bundle_id = 0;
+    std::uint64_t relocalization_confirmation_bundle_id = 0;
+    std::size_t relocalization_evaluated_candidate_count = 0;
+    bool relocalization_runner_up_available = false;
+    double relocalization_best_x_m = 0.0;
+    double relocalization_best_y_m = 0.0;
+    double relocalization_best_yaw_rad = 0.0;
+    double relocalization_best_score = 0.0;
+    double relocalization_runner_up_x_m = 0.0;
+    double relocalization_runner_up_y_m = 0.0;
+    double relocalization_runner_up_yaw_rad = 0.0;
+    double relocalization_runner_up_score = 0.0;
+    double relocalization_score_margin = 0.0;
+    double relocalization_confirmation_xy_difference_m = 0.0;
+    double relocalization_confirmation_yaw_difference_rad = 0.0;
+    std::string relocalization_status = "not_run";
+    std::string relocalization_reason = "none";
     double map_from_odom_x_m = 0.0;
     double map_from_odom_y_m = 0.0;
     double map_from_odom_yaw_rad = 0.0;
@@ -285,6 +315,7 @@ public:
           pose_buffer_(make_pose_buffer_config(config_)),
           resolver_(make_resolver_config(config_)),
           observation_controller_(make_observation_controller_config(config_)),
+          relocalization_manager_(make_relocalization_manager_config(config_)),
           keyframe_manager_(make_keyframe_config(config_)),
           sparse_backend_(std::make_shared<SparseMultiTofOccupancyBackendBinding>(
               make_backend_options(config_))),
@@ -304,14 +335,16 @@ public:
         SparseMapArtifact loaded_artifact;
         bool install_loaded_map = false;
         if (request.map_startup_mode == MapStartupMode::LoadExistingMap &&
-            request.initial_pose_mode == InitialPoseMode::ConfiguredPose) {
+            (request.initial_pose_mode == InitialPoseMode::ConfiguredPose ||
+             request.initial_pose_mode == InitialPoseMode::Relocalization)) {
             report_.sparse_map_load_attempt_count++;
             report_.sparse_map_path = request.map_path;
-            if (!request.has_configured_map_pose || request.map_path.empty() ||
+            if ((request.initial_pose_mode == InitialPoseMode::ConfiguredPose &&
+                 !request.has_configured_map_pose) || request.map_path.empty() ||
                 !config_.sparse_slam_planar_tof_extrinsics_configured) {
                 return initialization_failure(
                     SparseSlamInitializationStatus::InitialPoseMissing,
-                    "existing_map_requires_configured_pose_path_and_extrinsics");
+                    "existing_map_requires_pose_contract_path_and_extrinsics");
             }
             const auto loaded = load_sparse_map_artifact(
                 request.map_path, map_artifact_limits());
@@ -355,6 +388,10 @@ public:
         }
         init_request_ = staged_request;
         frame_state_ = MapOdomFrameState{};
+        relocalization_manager_.reset();
+        report_.relocalization_required =
+            staged_request.initial_pose_mode == InitialPoseMode::Relocalization;
+        report_.relocalization_active = false;
         gyro_samples_.clear();
         gyro_bias_rad_s_ = 0.0;
         phase_ = SparseSlamRuntimeCorePhase::CollectingStationarySamples;
@@ -534,6 +571,21 @@ public:
                             return {false, true, true, false, false,
                                     report_.last_fault, report_.last_message};
                         }
+                        if (phase_ ==
+                            SparseSlamRuntimeCorePhase::Relocalizing) {
+                            const bool relocated =
+                                execute_prepared_relocalization();
+                            sync_observation_report();
+                            return {relocated,
+                                    report_.initialization_complete,
+                                    true, false, false,
+                                    report_.initialization_complete
+                                        ? "relocalization_succeeded"
+                                        : (relocated
+                                            ? "relocalization_confirmation_required"
+                                            : "relocalization_failed"),
+                                    report_.last_message};
+                        }
                         execute_prepared_local_match();
                         if (observation_controller_.state() ==
                             ActiveObservationBundleState::Idle) {
@@ -565,7 +617,9 @@ public:
         update.has_predicted_map_pose = true;
         update.multi_tof_measurement_poses = resolved.poses;
         update.has_multi_tof_measurement_poses = true;
-        update.mapping_commit_allowed = observation_controller_.map_commit_allowed();
+        update.mapping_commit_allowed =
+            phase_ == SparseSlamRuntimeCorePhase::Ready &&
+            observation_controller_.map_commit_allowed();
         update.source = "sparse_slam_runtime_core";
         if (!update.mapping_commit_allowed) {
             report_.map_commit_blocked_count++;
@@ -630,6 +684,16 @@ public:
         return keyframe_manager_.latest();
     }
     std::size_t keyframe_count() const { return keyframe_manager_.size(); }
+    bool relocalization_required() const {
+        return phase_ == SparseSlamRuntimeCorePhase::Relocalizing;
+    }
+    SparseRelocalizationState relocalization_state() const {
+        return relocalization_manager_.state();
+    }
+    bool localization_ready() const {
+        return phase_ == SparseSlamRuntimeCorePhase::Ready &&
+               frame_state_.localized();
+    }
 
     SparseOccupancyGridSnapshot sparse_map_snapshot() const {
         return sparse_backend_->capture_grid_snapshot(
@@ -878,6 +942,56 @@ private:
         return out;
     }
 
+    static SparseRelocalizationManagerConfig make_relocalization_manager_config(
+        const Config &config) {
+        SparseRelocalizationManagerConfig out;
+        out.search.coarse_max_scored_rays = static_cast<std::size_t>(
+            config.sparse_slam_relocalization_coarse_max_scored_rays);
+        out.search.refine_max_scored_rays = static_cast<std::size_t>(
+            config.sparse_slam_relocalization_refine_max_scored_rays);
+        out.search.max_cells_per_ray = static_cast<std::size_t>(
+            config.sparse_slam_relocalization_max_cells_per_ray);
+        out.search.top_k = static_cast<std::size_t>(
+            config.sparse_slam_relocalization_top_k);
+        out.search.max_total_candidates = static_cast<std::size_t>(
+            config.sparse_slam_relocalization_max_total_candidates);
+        out.search.coarse_free_cell_stride = static_cast<std::size_t>(
+            config.sparse_slam_relocalization_coarse_free_cell_stride);
+        out.search.coarse_yaw_step_rad =
+            config.sparse_slam_relocalization_coarse_yaw_step_rad;
+        out.search.refine_xy_step_m =
+            config.sparse_slam_relocalization_refine_xy_step_m;
+        out.search.refine_yaw_step_rad =
+            config.sparse_slam_relocalization_refine_yaw_step_rad;
+        out.search.final_xy_step_m =
+            config.sparse_slam_relocalization_final_xy_step_m;
+        out.search.final_yaw_step_rad =
+            config.sparse_slam_relocalization_final_yaw_step_rad;
+        out.search.local_xy_half_range_m =
+            config.sparse_slam_relocalization_local_xy_half_range_m;
+        out.search.local_yaw_half_range_rad =
+            config.sparse_slam_relocalization_local_yaw_half_range_rad;
+        out.search.exclusion_xy_m =
+            config.sparse_slam_relocalization_exclusion_xy_m;
+        out.search.exclusion_yaw_rad =
+            config.sparse_slam_relocalization_exclusion_yaw_rad;
+        out.search.minimum_normalized_score =
+            config.sparse_slam_relocalization_min_normalized_score;
+        out.search.minimum_score_margin =
+            config.sparse_slam_relocalization_min_score_margin;
+        out.search.minimum_score_range =
+            config.sparse_slam_relocalization_min_score_range;
+        out.search.multimodal_max_score_drop =
+            config.sparse_slam_relocalization_multimodal_max_score_drop;
+        out.required_confirmation_bundles = static_cast<std::size_t>(
+            config.sparse_slam_relocalization_required_confirmation_bundles);
+        out.confirmation_xy_tolerance_m =
+            config.sparse_slam_relocalization_confirmation_xy_tolerance_m;
+        out.confirmation_yaw_tolerance_rad =
+            config.sparse_slam_relocalization_confirmation_yaw_tolerance_rad;
+        return out;
+    }
+
     static SparseTofKeyframeConfig make_keyframe_config(
         const Config &config) {
         SparseTofKeyframeConfig out;
@@ -891,10 +1005,13 @@ private:
     SparseSlamRuntimeCoreStepResult apply_observation_control(
         const SparseSlamStepRequest &request) {
         if (request.observation_control == ActiveObservationControl::None) {
-            return {true, phase_ == SparseSlamRuntimeCorePhase::Ready,
+            return {true,
+                    phase_ == SparseSlamRuntimeCorePhase::Ready ||
+                        phase_ == SparseSlamRuntimeCorePhase::Relocalizing,
                     false, false, false, "control_none", "control_none"};
         }
-        if (phase_ != SparseSlamRuntimeCorePhase::Ready) {
+        if (phase_ != SparseSlamRuntimeCorePhase::Ready &&
+            phase_ != SparseSlamRuntimeCorePhase::Relocalizing) {
             report_.bundle_invalid_transition_count++;
             report_.last_bundle_fault = "invalid_state";
             report_.last_fault = "active_bundle_control_before_ready";
@@ -1031,6 +1148,134 @@ private:
         report_.last_matcher_input_fault = reason;
         (void)observation_controller_.abort_matcher_input(reason);
         return {false, reason};
+    }
+
+    bool execute_prepared_relocalization() {
+        if (!prepared_local_match_input_.is_ready() ||
+            prepared_local_match_input_.input() == nullptr) {
+            return false;
+        }
+        const auto bundle_id =
+            prepared_local_match_input_.input()->bundle_id;
+        report_.relocalization_search_attempt_count++;
+        const auto result = relocalization_manager_.process(
+            *prepared_local_match_input_.input());
+        report_.relocalization_state =
+            to_string(relocalization_manager_.state());
+        report_.relocalization_purpose =
+            to_string(relocalization_manager_.purpose());
+        report_.relocalization_status = to_string(result.search.status);
+        report_.relocalization_reason = result.reason;
+        report_.relocalization_evaluated_candidate_count +=
+            result.search.evaluated_candidate_count;
+        if (result.search.mode == SparseRelocalizationSearchMode::Global) {
+            report_.relocalization_global_search_count++;
+        } else {
+            report_.relocalization_local_search_count++;
+        }
+        if (result.search.best) {
+            report_.relocalization_best_x_m =
+                result.search.best->map_from_odom.map_T_odom.x_m;
+            report_.relocalization_best_y_m =
+                result.search.best->map_from_odom.map_T_odom.y_m;
+            report_.relocalization_best_yaw_rad =
+                result.search.best->map_from_odom.map_T_odom.yaw_rad;
+            report_.relocalization_best_score =
+                result.search.best->metrics.normalized_score;
+        }
+        report_.relocalization_runner_up_available =
+            result.search.runner_up.has_value();
+        if (result.search.runner_up) {
+            report_.relocalization_runner_up_x_m =
+                result.search.runner_up->map_from_odom.map_T_odom.x_m;
+            report_.relocalization_runner_up_y_m =
+                result.search.runner_up->map_from_odom.map_T_odom.y_m;
+            report_.relocalization_runner_up_yaw_rad =
+                result.search.runner_up->map_from_odom.map_T_odom.yaw_rad;
+            report_.relocalization_runner_up_score =
+                result.search.runner_up->metrics.normalized_score;
+        }
+        report_.relocalization_score_margin = result.search.score_margin;
+        report_.relocalization_confirmation_xy_difference_m =
+            result.confirmation_xy_difference_m;
+        report_.relocalization_confirmation_yaw_difference_rad =
+            result.confirmation_yaw_difference_rad;
+
+        if (!result.ok) {
+            report_.relocalization_failure_count++;
+            report_.relocalization_active = false;
+            (void)observation_controller_.abort_matcher_input(result.reason);
+            report_.last_fault = "relocalization_failed";
+            report_.last_message = result.reason;
+            return false;
+        }
+
+        if (result.needs_confirmation) {
+            report_.relocalization_first_bundle_id = bundle_id;
+            const auto consumed =
+                observation_controller_.commit_frozen_bundle(bundle_id);
+            if (!consumed.ok) {
+                report_.relocalization_failure_count++;
+                report_.last_fault = "relocalization_bundle_consume_failed";
+                report_.last_message = consumed.message;
+                return false;
+            }
+            clear_prepared_local_match_objects();
+            report_.last_fault = "none";
+            report_.last_message =
+                "relocalization_confirmation_bundle_required";
+            return true;
+        }
+
+        if (!result.succeeded || !result.accepted_map_from_odom ||
+            current_map_revision_ !=
+                relocalization_manager_.reference_revision()) {
+            report_.relocalization_failure_count++;
+            (void)observation_controller_.abort_matcher_input(
+                "relocalization_success_contract_invalid");
+            return false;
+        }
+        bool transform_committed = false;
+        if (frame_state_.relocalization_pending()) {
+            transform_committed = frame_state_.commit_relocalization_transform(
+                *result.accepted_map_from_odom);
+        } else if (frame_state_.can_apply_local_slam_transform(
+                       *result.accepted_map_from_odom)) {
+            frame_state_.commit_local_slam_transform(
+                *result.accepted_map_from_odom);
+            transform_committed = true;
+        }
+        if (!transform_committed) {
+            report_.relocalization_failure_count++;
+            (void)observation_controller_.abort_matcher_input(
+                "relocalization_transform_commit_rejected");
+            return false;
+        }
+        const auto consumed =
+            observation_controller_.commit_frozen_bundle(bundle_id);
+        if (!consumed.ok) {
+            phase_ = SparseSlamRuntimeCorePhase::Fault;
+            report_.last_fault = "relocalization_finalize_fault";
+            report_.last_message = consumed.message;
+            return false;
+        }
+        report_.relocalization_confirmation_bundle_id = bundle_id;
+        report_.relocalization_success_count++;
+        report_.relocalization_active = false;
+        report_.relocalization_required = false;
+        report_.map_from_odom_initialized = true;
+        report_.initialization_complete = true;
+        report_.initialization_status =
+            to_string(SparseSlamInitializationStatus::Ready);
+        const auto transform = frame_state_.current_map_from_odom();
+        report_.map_from_odom_x_m = transform.map_T_odom.x_m;
+        report_.map_from_odom_y_m = transform.map_T_odom.y_m;
+        report_.map_from_odom_yaw_rad = transform.map_T_odom.yaw_rad;
+        phase_ = SparseSlamRuntimeCorePhase::Ready;
+        clear_prepared_local_match_objects();
+        report_.last_fault = "none";
+        report_.last_message = "relocalization_confirmed";
+        return true;
     }
 
     void execute_prepared_local_match() {
@@ -1435,10 +1680,22 @@ private:
                 reset.message);
         }
         pose_buffer_.clear();
-        phase_ = SparseSlamRuntimeCorePhase::Ready;
-        report_.initialization_complete = true;
-        report_.initialization_status =
-            to_string(SparseSlamInitializationStatus::Ready);
+        const bool relocalizing = frame_state_.relocalization_pending();
+        if (relocalizing &&
+            !relocalization_manager_.start_startup(current_map_revision_)) {
+            return startup_reject(
+                SparseSlamInitializationStatus::Fault,
+                "sparse_slam_relocalization_manager_start_failed");
+        }
+        phase_ = relocalizing ? SparseSlamRuntimeCorePhase::Relocalizing
+                              : SparseSlamRuntimeCorePhase::Ready;
+        report_.initialization_complete = !relocalizing;
+        report_.initialization_status = to_string(
+            relocalizing ? SparseSlamInitializationStatus::Relocalizing
+                         : SparseSlamInitializationStatus::Ready);
+        report_.relocalization_active = relocalizing;
+        report_.relocalization_state =
+            to_string(relocalization_manager_.state());
         report_.startup_zero_used =
             init_request_.map_startup_mode == MapStartupMode::CreateNewMap &&
             init_request_.initial_pose_mode == InitialPoseMode::StartupZero;
@@ -1450,16 +1707,19 @@ private:
         report_.gyro_bias_rad_s = gyro_bias_rad_s_;
         report_.stationary_check_passed = true;
         report_.wheel_baseline_established = true;
-        report_.map_from_odom_initialized = true;
+        report_.map_from_odom_initialized = !relocalizing;
         const auto map_from_odom = frame_state_.current_map_from_odom();
         report_.map_from_odom_x_m = map_from_odom.map_T_odom.x_m;
         report_.map_from_odom_y_m = map_from_odom.map_T_odom.y_m;
         report_.map_from_odom_yaw_rad = map_from_odom.map_T_odom.yaw_rad;
         report_.last_fault = "none";
-        report_.last_message = "sparse_slam_startup_ready";
+        report_.last_message = relocalizing
+            ? "sparse_slam_startup_relocalization_required"
+            : "sparse_slam_startup_ready";
         return initialization_result(true,
-            SparseSlamInitializationStatus::Ready,
-            "sparse_slam_startup_ready");
+            relocalizing ? SparseSlamInitializationStatus::Relocalizing
+                         : SparseSlamInitializationStatus::Ready,
+            report_.last_message);
     }
 
     static SparseSlamInitializationResult initialization_result(
@@ -1491,6 +1751,7 @@ private:
     TimedOdomPoseBuffer pose_buffer_;
     MultiTofMeasurementPoseResolver resolver_;
     PhaseAwareObservationController observation_controller_;
+    SparseRelocalizationManager relocalization_manager_;
     SparseTofLocalMatchInputValidator local_match_input_validator_;
     SparseTofLocalMatcher local_matcher_;
     SparseTofKeyframeManager keyframe_manager_;

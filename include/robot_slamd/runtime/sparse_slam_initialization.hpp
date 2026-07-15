@@ -19,6 +19,7 @@ enum class InitialPoseMode {
 
 enum class SparseSlamInitializationStatus {
     Ready,
+    Relocalizing,
     WaitingForStationarySamples,
     InvalidConfiguration,
     InitialPoseMissing,
@@ -76,6 +77,8 @@ inline const char *to_string(SparseSlamInitializationStatus status) {
     switch (status) {
     case SparseSlamInitializationStatus::Ready:
         return "ready";
+    case SparseSlamInitializationStatus::Relocalizing:
+        return "relocalizing";
     case SparseSlamInitializationStatus::WaitingForStationarySamples:
         return "waiting_for_stationary_samples";
     case SparseSlamInitializationStatus::InvalidConfiguration:
@@ -196,8 +199,12 @@ public:
 
         if (request.map_startup_mode == MapStartupMode::LoadExistingMap &&
             request.initial_pose_mode == InitialPoseMode::Relocalization) {
-            return failure(SparseSlamInitializationStatus::RelocalizationNotImplemented,
-                           "existing_map_relocalization_not_implemented");
+            if (!request.existing_map_loaded) {
+                return failure(
+                    SparseSlamInitializationStatus::ExistingMapLoadNotImplemented,
+                    "existing_sparse_map_not_loaded");
+            }
+            return prepare_relocalization();
         }
 
         if (request.map_startup_mode == MapStartupMode::LoadExistingMap) {
@@ -210,6 +217,10 @@ public:
     }
 
     bool initialized() const { return initialized_; }
+    bool relocalization_pending() const { return relocalization_pending_; }
+    bool localized() const {
+        return initialized_ && !relocalization_pending_;
+    }
 
     MapFromOdom2D current_map_from_odom() const {
         return map_from_odom_;
@@ -229,10 +240,28 @@ public:
         map_from_odom_ = transform;
     }
 
+    bool commit_relocalization_transform(
+        const MapFromOdom2D &transform) noexcept {
+        if (!initialized_ || !relocalization_pending_ ||
+            !sparse_slam_frame_pose_valid(transform)) {
+            return false;
+        }
+        map_from_odom_ = transform;
+        relocalization_pending_ = false;
+        return true;
+    }
+
     bool startup_zero_used() const { return startup_zero_used_; }
     bool configured_pose_used() const { return configured_pose_used_; }
 
 private:
+    SparseSlamInitializationResult prepare_relocalization() {
+        auto result = commit(identity_map_from_odom(), false, false,
+                             "existing_map_relocalization_pending");
+        if (result.ok) relocalization_pending_ = true;
+        return result;
+    }
+
     SparseSlamInitializationResult commit(const MapFromOdom2D &transform,
                                           bool startup_zero,
                                           bool configured_pose,
@@ -246,6 +275,7 @@ private:
         initialized_ = true;
         startup_zero_used_ = startup_zero;
         configured_pose_used_ = configured_pose;
+        relocalization_pending_ = false;
         result.ok = true;
         result.status = SparseSlamInitializationStatus::Ready;
         result.initial_yaw_measured_by_imu = false;
@@ -271,6 +301,7 @@ private:
     bool initialized_ = false;
     bool startup_zero_used_ = false;
     bool configured_pose_used_ = false;
+    bool relocalization_pending_ = false;
     MapFromOdom2D map_from_odom_;
 };
 

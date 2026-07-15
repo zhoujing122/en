@@ -76,6 +76,7 @@ int main() {
     SparseSlamRuntimeCore relocal(relocal_cfg);
     auto relocal_init = relocal.initialize(sparse_slam_initialization_request_from_config(relocal_cfg));
     expect(!relocal_init.ok, "relocalization fail closed");
-    expect(relocal.report().initialization_status == "relocalization_not_implemented", "specific relocalization fault");
+    expect(relocal.report().initialization_status == "initial_pose_missing",
+           "missing map path and extrinsics reject before relocalization");
     return failures ? 1 : 0;
 }
