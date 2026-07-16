@@ -73,6 +73,17 @@ std::unordered_map<std::string, std::string> parse_config_file(const std::string
 Config load_config(const std::string &path, const std::string &output_override) {
     Config c;
     auto kv = parse_config_file(path);
+    for (const auto &deprecated : {
+             "runtime.slam_runtime_mode",
+             "slam_runtime.mode",
+             "runtime.sparse_shadow_sensor_source",
+             "slam_runtime.sparse_shadow_sensor_source"}) {
+        if (kv.count(deprecated) != 0U) {
+            throw std::runtime_error(
+                std::string("deprecated configuration key '") + deprecated +
+                "'; use runtime.sensor_source and runtime.operation");
+        }
+    }
     c.wheel_base_m = get_double(kv, "robot.wheel_base_m", c.wheel_base_m);
     c.wheel_radius_left_m = get_double(kv, "robot.wheel_radius_left_m", c.wheel_radius_left_m);
     c.wheel_radius_right_m = get_double(kv, "robot.wheel_radius_right_m", c.wheel_radius_right_m);
@@ -159,10 +170,12 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.max_cells_per_tof_update = get_int(kv, "mapping.max_cells_per_tof_update", c.max_cells_per_tof_update);
     c.static_scan_stable_required = get_int(kv, "mapping.static_scan_stable_required", c.static_scan_stable_required);
     c.static_scan_boost = get_double(kv, "mapping.static_scan_boost", c.static_scan_boost);
-    c.slam_runtime_mode = get_string(kv, "runtime.slam_runtime_mode", c.slam_runtime_mode);
-    c.slam_runtime_mode = get_string(kv, "slam_runtime.mode", c.slam_runtime_mode);
-    c.sparse_shadow_sensor_source = get_string(kv, "runtime.sparse_shadow_sensor_source", c.sparse_shadow_sensor_source);
-    c.sparse_shadow_sensor_source = get_string(kv, "slam_runtime.sparse_shadow_sensor_source", c.sparse_shadow_sensor_source);
+    c.runtime_sensor_source = get_string(
+        kv, "runtime.sensor_source", c.runtime_sensor_source);
+    c.runtime_operation = get_string(
+        kv, "runtime.operation", c.runtime_operation);
+    c.runtime_replay_path = get_string(
+        kv, "runtime.replay_path", c.runtime_replay_path);
     c.sparse_slam_map_startup_mode = get_string(kv, "sparse_slam.map_startup_mode", c.sparse_slam_map_startup_mode);
     c.sparse_slam_initial_pose_mode = get_string(kv, "sparse_slam.initial_pose_mode", c.sparse_slam_initial_pose_mode);
     c.sparse_slam_has_configured_pose = get_bool(kv, "sparse_slam.has_configured_pose", c.sparse_slam_has_configured_pose);
@@ -901,9 +914,21 @@ void validate_config(const Config &c) {
     if (c.static_scan_stable_required <= 0) errors.push_back("mapping.static_scan_stable_required must be > 0");
     positive("mapping.static_scan_boost", c.static_scan_boost);
 
-    if (!one_of(c.slam_runtime_mode, {"legacy", "sparse_shadow", "sparse_sim_exploration"})) errors.push_back("slam_runtime.mode must be legacy, sparse_shadow, or sparse_sim_exploration");
-    if (!one_of(c.sparse_shadow_sensor_source, {"deterministic_simulation", "hardware", "replay"})) errors.push_back("slam_runtime.sparse_shadow_sensor_source must be deterministic_simulation, replay, or hardware");
-    if (c.slam_runtime_mode == "sparse_shadow" && c.sparse_shadow_sensor_source != "deterministic_simulation") errors.push_back("SparseShadow supports only deterministic_simulation source in M3-D1.1; hardware and replay are fail-closed");
+    if (!one_of(c.runtime_sensor_source,
+                {"simulation", "replay", "real"})) {
+        errors.push_back(
+            "runtime.sensor_source must be simulation, replay, or real");
+    }
+    if (!one_of(c.runtime_operation,
+                {"mapping", "localization", "exploration"})) {
+        errors.push_back(
+            "runtime.operation must be mapping, localization, or exploration");
+    }
+    if (c.runtime_sensor_source == "replay" &&
+        c.runtime_replay_path.empty()) {
+        errors.push_back(
+            "runtime.sensor_source=replay requires runtime.replay_path");
+    }
     if (!one_of(c.sparse_slam_map_startup_mode, {"create_new", "load_existing"})) errors.push_back("sparse_slam.map_startup_mode must be create_new or load_existing");
     if (!one_of(c.sparse_slam_initial_pose_mode, {"startup_zero", "configured_pose", "relocalization"})) errors.push_back("sparse_slam.initial_pose_mode must be startup_zero, configured_pose, or relocalization");
     if (c.sparse_slam_initial_pose_mode == "configured_pose" && !c.sparse_slam_has_configured_pose) errors.push_back("sparse_slam configured_pose mode requires has_configured_pose=true");
@@ -2042,9 +2067,14 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  gyro_bias_static_calib_s: " << c.gyro_bias_static_calib_s << "\n"
       << "  static_gyro_max_abs_rad_s: " << c.static_gyro_max_abs_rad_s << "\n"
       << "  yaw_fusion_alpha: " << c.yaw_fusion_alpha << "\n";
-    o << "slam_runtime:\n"
-      << "  mode: " << c.slam_runtime_mode << "\n"
-      << "  sparse_shadow_sensor_source: " << c.sparse_shadow_sensor_source << "\n";
+    o << "runtime:\n"
+      << "  sensor_source: " << c.runtime_sensor_source << "\n"
+      << "  operation: " << c.runtime_operation << "\n"
+      << "  replay_path: " << c.runtime_replay_path << "\n"
+      << "  localization_hz: " << c.localization_hz << "\n"
+      << "  tof_read_hz: " << c.tof_read_hz << "\n"
+      << "  mapping_hz: " << c.mapping_hz << "\n"
+      << "  log_hz: " << c.log_hz << "\n";
     o << "sparse_slam:\n"
       << "  map_startup_mode: " << c.sparse_slam_map_startup_mode << "\n"
       << "  initial_pose_mode: " << c.sparse_slam_initial_pose_mode << "\n"

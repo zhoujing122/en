@@ -87,6 +87,8 @@ mapping:
   static_scan_boost: 1.5
 
 runtime:
+  sensor_source: real
+  operation: mapping
   localization_hz: 50
   tof_read_hz: 30
   mapping_hz: 10

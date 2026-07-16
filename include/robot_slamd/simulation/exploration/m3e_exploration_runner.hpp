@@ -1,7 +1,7 @@
 #pragma once
 
+#include "robot_slamd/app/robot_slam_application.hpp"
 #include "robot_slamd/config/config.hpp"
-#include "robot_slamd/exploration/autonomous_exploration_controller.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_map_artifact.hpp"
 #include "robot_slamd/simulation/core/sim_clock.hpp"
 #include "robot_slamd/simulation/ports/sim_motion_port.hpp"
@@ -280,16 +280,17 @@ public:
         auto sensor = std::make_shared<SimSensorPort>(
             clock, world, plant, sensor_config, SimWheelEncoder(wheel_config), SimImu{},
             SimThreeScalarTof(tof_config));
-        SparseSlamRuntimeCore core(config);
-        auto init_request = sparse_slam_initialization_request_from_config(config);
-        const auto initialized = core.initialize(init_request);
-        if (initialized.status == SparseSlamInitializationStatus::Fault) {
-            report.termination_reason = initialized.message;
+        RobotSlamApplication application(
+            config, SensorSource::Simulation, OperationMode::Exploration,
+            sensor, motion, m3e_exploration_config_from(config));
+        const auto initialized = application.initialize();
+        if (!initialized.ok) {
+            report.termination_reason = initialized.reason;
             write_m3e_exploration_report(report, report.report_path);
             return report;
         }
-        AutonomousExplorationController controller(
-            m3e_exploration_config_from(config));
+        auto &core = application.core();
+        auto &controller = *application.exploration_controller();
         std::ofstream trajectory(report.trajectory_path);
         trajectory << "timestamp_s,estimated_x_m,estimated_y_m,estimated_yaw_rad,"
                       "state,map_revision,map_cells\n";
@@ -299,11 +300,8 @@ public:
         for (std::size_t step = 0; step < maximum_steps && !terminal; ++step) {
             const double now = clock->now_s();
             motion->update(now);
-            const auto snapshot = sensor->latest_snapshot(now);
-            const auto feedback = motion->latest_feedback(now);
             const auto before = plant->state().pose;
-            const auto result = controller.step(
-                snapshot, now, feedback, core, *motion);
+            const auto result = application.step(now);
             const auto pose = core.current_map_pose().map_T_base;
             trajectory << now << ',' << pose.x_m << ',' << pose.y_m << ','
                        << pose.yaw_rad << ',' << to_string(controller.state()) << ','

@@ -4,8 +4,9 @@ robot:
   wheel_radius_right_m: 0.032
   encoder_ticks_per_rev: 1024
 
-slam_runtime:
-  mode: sparse_sim_exploration
+runtime:
+  sensor_source: simulation
+  operation: exploration
 
 tof:
   protocol_min_range_m: 0.02

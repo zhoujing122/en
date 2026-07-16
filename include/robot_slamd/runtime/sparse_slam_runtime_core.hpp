@@ -286,6 +286,7 @@ struct SparseSlamStepRequest {
     double now_s = 0.0;
     ActiveObservationControl observation_control = ActiveObservationControl::None;
     std::uint64_t bundle_id = 0;
+    bool mapping_write_enabled = true;
 };
 
 struct SparseMapLifecycleResult {
@@ -636,6 +637,7 @@ public:
         update.multi_tof_measurement_poses = resolved.poses;
         update.has_multi_tof_measurement_poses = true;
         update.mapping_commit_allowed =
+            request.mapping_write_enabled &&
             phase_ == SparseSlamRuntimeCorePhase::Ready &&
             observation_controller_.map_commit_allowed();
         update.source = "sparse_slam_runtime_core";

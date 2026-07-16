@@ -208,6 +208,11 @@ struct Config {
     int max_cells_per_tof_update = 4096;
     int static_scan_stable_required = 3;
     double static_scan_boost = 1.5;
+    std::string runtime_sensor_source = "simulation";
+    std::string runtime_operation = "mapping";
+    std::string runtime_replay_path;
+    // Transitional fields retained only until the unreachable wrappers are
+    // removed. load_config rejects their former YAML keys.
     std::string slam_runtime_mode = "legacy";
     std::string sparse_shadow_sensor_source = "deterministic_simulation";
     std::string sparse_slam_map_startup_mode = "create_new";
