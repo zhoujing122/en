@@ -70,6 +70,12 @@ sparse_slam:
   relocalization_coarse_max_scored_rays: 96
   relocalization_refine_max_scored_rays: 288
   relocalization_max_cells_per_ray: 512
+  relocalization_min_normalized_score: -1.0
+  relocalization_min_score_margin: 0.0
+  relocalization_min_score_range: 0.0
+  relocalization_multimodal_max_score_drop: 0.0
+  relocalization_exclusion_xy_m: 0.20
+  relocalization_exclusion_yaw_rad: 0.20
   relocalization_required_confirmation_bundles: 2
   relocalization_confirmation_xy_tolerance_m: 0.35
   relocalization_confirmation_yaw_tolerance_rad: 0.35
