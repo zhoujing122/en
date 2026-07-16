@@ -99,6 +99,13 @@ struct SparseOccupancyGridSnapshot {
     std::int32_t max_y = 0;
 };
 
+enum class SparseMapCellClass {
+    Unknown,
+    Free,
+    Occupied,
+    Uncertain
+};
+
 struct SparseOccupancyUpdateStats {
     bool accepted = false;
     SparseOccupancyGridFault fault = SparseOccupancyGridFault::None;
@@ -118,6 +125,30 @@ inline bool sparse_pose_finite(const RobotPose2D &pose) {
     return std::isfinite(pose.x_m) &&
            std::isfinite(pose.y_m) &&
            std::isfinite(pose.yaw_rad);
+}
+
+inline SparseMapCellClass sparse_classify_evidence(
+    std::int16_t evidence,
+    const SparseOccupancyGridConfig &config) {
+    if (evidence <= config.free_threshold) {
+        return SparseMapCellClass::Free;
+    }
+    if (evidence >= config.occupied_threshold) {
+        return SparseMapCellClass::Occupied;
+    }
+    return SparseMapCellClass::Uncertain;
+}
+
+inline SparseMapCellClass sparse_map_cell_class(
+    const SparseOccupancyGridSnapshot &snapshot,
+    const SparseOccupancyGridConfig &config,
+    const SparseGridCellKey &key) {
+    for (const auto &cell : snapshot.cells) {
+        if (cell.key == key) {
+            return sparse_classify_evidence(cell.evidence, config);
+        }
+    }
+    return SparseMapCellClass::Unknown;
 }
 
 } // namespace robot_slamd
