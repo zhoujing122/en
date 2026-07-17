@@ -88,6 +88,15 @@ public:
         return count;
     }
 
+    double first_packet_time_s() const {
+        for (const auto &record : records_) {
+            if (record.kind == MultiTofReplayRecordKind::Packet) {
+                return record.packet.packet_timestamp_s;
+            }
+        }
+        return 0.0;
+    }
+
     int invalid_record_count() const {
         int count = 0;
         for (const auto &record : records_) {

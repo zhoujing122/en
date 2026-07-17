@@ -1,5 +1,7 @@
 #pragma once
 
+#include "robot_slamd/app/robot_slam_application.hpp"
+#include "robot_slamd/app/robot_slam_application_adapters.hpp"
 #include "robot_slamd/config/config.hpp"
 #include "robot_slamd/runtime/application_mode.hpp"
 #include "robot_slamd/simulation/exploration/m3e_exploration_runner.hpp"
@@ -76,9 +78,46 @@ inline int real_main(int argc, char **argv) {
         return 1;
     }
     if (source == SensorSource::Replay) {
-        std::cerr
-            << "replay Application runner requires a canonical replay adapter\n";
-        return 1;
+        if (operation == OperationMode::Exploration) {
+            std::cerr << "replay exploration requires a motion adapter\n";
+            return 1;
+        }
+        const auto adapter = build_replay_sensor_adapter(config);
+        if (!adapter.ok) {
+            std::cerr << adapter.reason << "\n";
+            return 1;
+        }
+        RobotSlamApplication application(
+            config, source, operation, adapter.sensor, nullptr);
+        const auto initialized = application.initialize();
+        if (!initialized.ok) {
+            std::cerr << initialized.reason << "\n";
+            return 1;
+        }
+
+        const double hz = config.tof_read_hz > 0.0 ? config.tof_read_hz : 1.0;
+        const double dt = 1.0 / hz;
+        const std::size_t replay_steps =
+            duration_s > 0.0
+                ? static_cast<std::size_t>(std::ceil(duration_s * hz)) + 1U
+                : static_cast<std::size_t>(adapter.sensor->packet_count()) + 1U;
+        double now_s = adapter.sensor->first_packet_time_s();
+        for (std::size_t step = 0; step < replay_steps; ++step) {
+            const auto result = application.step(now_s);
+            if (adapter.sensor->replay_completed()) {
+                break;
+            }
+            if (adapter.sensor->replay_faulted() || !result.core_step_executed) {
+                std::cerr << result.reason << "\n";
+                return 1;
+            }
+            now_s += dt;
+        }
+        std::cout << "robot_slamd application sensor_source="
+                  << to_string(source) << " operation=" << to_string(operation)
+                  << " replay_steps=" << application.report().core_step_count
+                  << " run_dir=" << run_dir << "\n";
+        return 0;
     }
     if (operation != OperationMode::Exploration) {
         std::cerr

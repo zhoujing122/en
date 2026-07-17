@@ -108,6 +108,14 @@ public:
         return replay_.consumed_packet_count();
     }
 
+    int packet_count() const {
+        return replay_.packet_count();
+    }
+
+    double first_packet_time_s() const {
+        return replay_.first_packet_time_s();
+    }
+
 private:
     MultiTofReplayPort replay_;
     bool ready_at_construction_ = false;
