@@ -65,6 +65,7 @@ public:
         result.command.source = map_source(command);
         result.command.reason = command.reason;
         result.command.sequence = command.sequence;
+        result.command.duration_s = command.duration_s;
 
         // Software validation.
         auto software_validation = validate_software_motion_command(result.command,

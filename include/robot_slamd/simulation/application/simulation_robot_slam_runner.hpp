@@ -133,6 +133,7 @@ struct SimulationRobotSlamRunReport {
     std::string map_path;
     std::string reason = "not_started";
     RobotSlamApplicationReport application;
+    RobotSlamMotionBoundaryReport motion;
     SparseSlamRuntimeCoreReport core;
 };
 
@@ -185,7 +186,7 @@ public:
         bool collection_end_sent = false;
         bool mapping_turn_sent = false;
         const std::size_t maximum_steps = std::max<std::size_t>(
-            2U, static_cast<std::size_t>(std::ceil(duration / dt)) + 1U);
+            2U, static_cast<std::size_t>(std::ceil(duration / dt)) + 2U);
         for (std::size_t step = 0; step < maximum_steps; ++step) {
             const double now = adapter.clock->now_s();
             adapter.motion->update(now);
@@ -204,7 +205,7 @@ public:
                     turn.ttl_s = 0.50;
                     turn.reason = "simulation_mapping_observation_bundle";
                     const auto sent =
-                        adapter.motion->send_algorithm_command(turn);
+                        application.motion_adapter()->send_algorithm_command(turn);
                     if (!sent.ok || !sent.accepted) {
                         report.reason = "simulation_mapping_turn_rejected:" +
                             sent.error;
@@ -238,6 +239,12 @@ public:
         }
 
         report.application = application.report();
+        if (auto *boundary = dynamic_cast<RobotSlamMotionBoundary *>(
+                application.motion_adapter())) {
+            report.motion = boundary->report();
+        } else {
+            report.motion = report.application.motion;
+        }
         report.core = application.core().report();
         report.canonical_snapshot_count = report.application.canonical_snapshot_count;
         report.core_step_count = report.application.core_step_count;
@@ -256,9 +263,10 @@ public:
             report.ok = report.core.initialization_complete &&
                 report.map_revision_after > 0 && report.map_cell_count > 0 &&
                 report.keyframe_count > 0 && report.map_saved;
-            report.reason = report.ok ? "simulation_mapping_unified" :
-                (saved.ok ? "simulation_mapping_acceptance_not_met" :
-                 "simulation_mapping_map_save_failed:" + saved.reason);
+            if (report.ok) report.reason = "simulation_mapping_unified";
+            else if (report.reason.rfind("simulation_mapping_turn_rejected:", 0) != 0)
+                report.reason = saved.ok
+                    ? "simulation_mapping_acceptance_not_met" : "simulation_mapping_map_save_failed:" + saved.reason;
         } else {
             report.map_revision_before = map_revision_at_start;
             report.map_revision_after = report.core.current_map_revision;

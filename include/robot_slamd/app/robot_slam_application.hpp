@@ -1,5 +1,6 @@
 #pragma once
 
+#include "robot_slamd/app/robot_slam_motion_boundary.hpp"
 #include "robot_slamd/autonomy/ports/robot_slam_motion_port.hpp"
 #include "robot_slamd/autonomy/ports/robot_slam_sensor_port.hpp"
 #include "robot_slamd/config/config.hpp"
@@ -42,6 +43,7 @@ struct RobotSlamApplicationReport {
     std::size_t rejected_step_count = 0;
     bool real_source_rejected = false;
     bool mapping_writes_enabled = true;
+    RobotSlamMotionBoundaryReport motion;
     std::string last_reason = "not_initialized";
 };
 
@@ -58,7 +60,9 @@ public:
           sensor_source_(sensor_source),
           operation_(operation),
           sensor_(std::move(sensor)),
-          motion_(std::move(motion)),
+          motion_endpoint_(std::move(motion)),
+          motion_boundary_(std::make_unique<RobotSlamMotionBoundary>(
+              config_, sensor_source_, operation_, motion_endpoint_)),
           core_(config_) {
         report_.sensor_source = sensor_source_;
         report_.operation = operation_;
@@ -100,9 +104,9 @@ public:
                     report_.last_reason};
         }
         if (operation_ == OperationMode::Exploration &&
-            (!motion_ || !motion_->ready())) {
-            report_.last_reason = motion_
-                ? "motion_adapter_not_ready:" + motion_->status()
+            (!motion_boundary_ || !motion_boundary_->ready())) {
+            report_.last_reason = motion_boundary_
+                ? "motion_adapter_not_ready:" + motion_boundary_->status()
                 : "motion_adapter_missing";
             return {false, false,
                     SparseSlamInitializationStatus::SensorNotReady,
@@ -158,8 +162,8 @@ public:
         RobotSlamMotionFeedback feedback;
         feedback.command_settled = true;
         feedback.timestamp_s = now_s;
-        if (motion_) {
-            feedback = motion_->latest_feedback(now_s);
+        if (motion_boundary_) {
+            feedback = motion_boundary_->latest_feedback(now_s);
         }
         return step(snapshot, now_s, feedback, observation_control);
     }
@@ -181,15 +185,20 @@ public:
             return reject_step("real_sensor_source_unavailable_fail_closed");
         }
 
+        if (motion_boundary_) {
+            motion_boundary_->update_context(snapshot, now_s, motion_feedback, core_);
+        }
+
         if (operation_ == OperationMode::Exploration) {
-            if (!exploration_ || !motion_) {
+            if (!exploration_ || !motion_boundary_) {
                 return reject_step("exploration_composition_incomplete");
             }
             const auto result = exploration_->step(
-                snapshot, now_s, motion_feedback, core_, *motion_);
+                snapshot, now_s, motion_feedback, core_, *motion_boundary_);
             report_.exploration_step_count++;
             report_.core_step_count++;
             report_.last_reason = result.reason;
+            report_.motion = motion_boundary_->report();
             return {result.ok, result.terminal, true, true, result.reason};
         }
 
@@ -202,6 +211,7 @@ public:
         const auto result = core_.step(request);
         report_.core_step_count++;
         report_.last_reason = result.message;
+        if (motion_boundary_) report_.motion = motion_boundary_->report();
         return {result.ok, false, true, false,
                 result.status + ":" + result.message};
     }
@@ -218,7 +228,7 @@ public:
         return exploration_.get();
     }
     RobotSlamSensorPort *sensor_adapter() { return sensor_.get(); }
-    RobotSlamMotionPort *motion_adapter() { return motion_.get(); }
+    RobotSlamMotionPort *motion_adapter() { return motion_boundary_.get(); }
 
 private:
     RobotSlamApplicationStepResult reject_step(const std::string &reason) {
@@ -231,7 +241,8 @@ private:
     SensorSource sensor_source_;
     OperationMode operation_;
     std::shared_ptr<RobotSlamSensorPort> sensor_;
-    std::shared_ptr<RobotSlamMotionPort> motion_;
+    std::shared_ptr<RobotSlamMotionPort> motion_endpoint_;
+    std::unique_ptr<RobotSlamMotionBoundary> motion_boundary_;
     SparseSlamRuntimeCore core_;
     std::unique_ptr<AutonomousExplorationController> exploration_;
     RobotSlamApplicationReport report_;

@@ -28,6 +28,7 @@ struct SoftwareMotionCommand {
     SoftwareMotionCommandSource source = SoftwareMotionCommandSource::Unknown;
     std::string reason;
     uint64_t sequence = 0;
+    double duration_s = 0.0;
 };
 
 struct SoftwareMotionCommandValidationResult {
