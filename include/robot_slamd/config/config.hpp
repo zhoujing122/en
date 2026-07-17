@@ -80,7 +80,7 @@ Config load_config(const std::string &path, const std::string &output_override) 
              "slam_runtime.sparse_shadow_sensor_source"}) {
         if (kv.count(deprecated) != 0U) {
             throw std::runtime_error(
-                std::string("deprecated configuration key '") + deprecated +
+                std::string("deprecated_runtime_mode_field: '") + deprecated +
                 "'; use runtime.sensor_source and runtime.operation");
         }
     }

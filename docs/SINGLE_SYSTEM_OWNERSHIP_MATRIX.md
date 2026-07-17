@@ -154,3 +154,27 @@ Before the final removal commit, static/structural tests must establish:
    production parity evidence.
 8. Repository static ownership checks find one production matcher-scoring
    owner, one `map_T_odom` owner, and one writable sparse occupancy owner.
+
+## Final consolidation decisions
+
+The final production owner for every SLAM state is \`RobotSlamApplication\` and
+its single \`SparseSlamRuntimeCore\`: configuration parsing and source/operation
+selection are in \`config.hpp\` and \`application_mode.hpp\`; canonical
+three-ToF snapshots come from the Simulation or Replay adapter; wheel/IMU
+odometry and the timed pose buffer are Core members; the phase-aware bundle,
+immutable reference snapshot, matcher scoring, \`map_T_odom\`, writable sparse
+map, keyframe manager, atomic transaction, save/load, ConfiguredPose,
+startup relocalization, health, and Lost Recovery are all Core-owned.
+
+Navigation is read-only with respect to Core state: Frontier/A*/tracker consume
+the estimated map pose and immutable navigation map view. Motion is composed
+once by the Application boundary and executes safety, writer, and transport in
+that order. Simulation uses \`SimMotionPort\`, Replay uses no-motion, and Real
+has no production adapter/transport yet and fails closed. Ground truth remains
+inside \`SimRobotPlant\`/\`FakeWorld2D\` for assertions and reports only.
+
+The Legacy and SparseShadow runtime selectors, constructors, reports, and
+formal CMake registrations are retired. Historical design documents remain
+archive-only and do not establish a reachable production owner. The detailed
+feature-to-owner/test/formal-run record is maintained in
+\`docs/SINGLE_SYSTEM_FEATURE_PARITY.md\`.

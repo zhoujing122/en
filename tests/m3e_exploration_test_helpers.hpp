@@ -17,7 +17,6 @@ inline void expect(bool condition, const char *message) {
 
 inline robot_slamd::Config config() {
     robot_slamd::Config out;
-    out.slam_runtime_mode = "sparse_sim_exploration";
     out.tof_protocol_max_range_m = 2.0;
     out.tof_mapping_max_range_m = 2.0;
     out.sparse_slam_planar_tof_extrinsics_configured = true;

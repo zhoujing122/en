@@ -211,10 +211,6 @@ struct Config {
     std::string runtime_sensor_source = "simulation";
     std::string runtime_operation = "mapping";
     std::string runtime_replay_path;
-    // Transitional fields retained only until the unreachable wrappers are
-    // removed. load_config rejects their former YAML keys.
-    std::string slam_runtime_mode = "legacy";
-    std::string sparse_shadow_sensor_source = "deterministic_simulation";
     std::string sparse_slam_map_startup_mode = "create_new";
     std::string sparse_slam_initial_pose_mode = "startup_zero";
     bool sparse_slam_has_configured_pose = false;
