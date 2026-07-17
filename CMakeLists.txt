@@ -266,6 +266,10 @@ add_robot_slamd_test(test_safe_waypoint_tracker)
 add_robot_slamd_test(test_m3e_autonomous_exploration)
 add_robot_slamd_test(test_m3e_exploration_determinism)
 add_robot_slamd_test(test_m3e_exploration_oracle_boundary)
+add_robot_slamd_test(test_robot_slam_application_exploration)
+set_tests_properties(test_robot_slam_application_exploration PROPERTIES TIMEOUT 45)
+target_compile_definitions(test_robot_slam_application_exploration PRIVATE
+  ROBOT_SLAMD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 target_compile_definitions(test_m3e_exploration_oracle_boundary PRIVATE
   ROBOT_SLAMD_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
 add_robot_slamd_test(test_sparse_shadow_yaw_match_report)

@@ -41,7 +41,8 @@ build_simulation_robot_slam_adapter(
         return result;
     }
 
-    constexpr double kSimulationStartTimeS = 1.0;
+    const double kSimulationStartTimeS =
+        operation == OperationMode::Exploration ? 0.0 : 1.0;
     result.clock = std::make_shared<SimClock>(kSimulationStartTimeS);
     result.world = std::make_shared<FakeWorld2D>();
     if (!result.world->add_axis_aligned_room(

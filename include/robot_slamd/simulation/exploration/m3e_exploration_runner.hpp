@@ -3,9 +3,7 @@
 #include "robot_slamd/app/robot_slam_application.hpp"
 #include "robot_slamd/config/config.hpp"
 #include "robot_slamd/mapping/sparse_tof/sparse_map_artifact.hpp"
-#include "robot_slamd/simulation/core/sim_clock.hpp"
-#include "robot_slamd/simulation/ports/sim_motion_port.hpp"
-#include "robot_slamd/simulation/ports/sim_sensor_port.hpp"
+#include "robot_slamd/simulation/application/simulation_robot_slam_runner.hpp"
 
 #include <cmath>
 #include <cstdint>
@@ -17,7 +15,10 @@ namespace robot_slamd {
 
 struct M3EExplorationRunReport {
     bool ok = false;
+    bool ground_truth_isolation_verified = false;
     AutonomousExplorationReport exploration;
+    RobotSlamApplicationReport application;
+    SparseSlamRuntimeCoreReport core;
     std::size_t simulation_steps = 0;
     double simulated_duration_s = 0.0;
     double ground_truth_travel_distance_m = 0.0;
@@ -187,6 +188,14 @@ inline void write_m3e_exploration_report(
         << report.exploration.final_estimated_map_pose.yaw_rad << "\n"
         << "simulation_steps=" << report.simulation_steps << "\n"
         << "simulated_duration_s=" << report.simulated_duration_s << "\n"
+        << "application_core_step_count=" << report.application.core_step_count << "\n"
+        << "application_canonical_snapshot_count=" << report.application.canonical_snapshot_count << "\n"
+        << "runtime_core_constructed=" << (report.core.runtime_core_constructed ? 1 : 0) << "\n"
+        << "runtime_core_wheel_imu_estimator_constructed=" << (report.core.wheel_imu_estimator_constructed ? 1 : 0) << "\n"
+        << "runtime_core_sparse_backend_constructed=" << (report.core.sparse_backend_constructed ? 1 : 0) << "\n"
+        << "ground_truth_isolation_verified=" << (report.ground_truth_isolation_verified ? 1 : 0) << "\n"
+        << "current_map_revision=" << report.core.current_map_revision << "\n"
+        << "sparse_map_cell_count=" << report.core.sparse_map_cell_count << "\n"
         << "ground_truth_travel_distance_m="
         << report.ground_truth_travel_distance_m << "\n"
         << "collision=" << (report.collision ? 1 : 0) << "\n"
@@ -229,63 +238,21 @@ public:
             config.exploration_max_duration_s = duration_override_s;
         }
         const double dt = config.exploration_simulation_fixed_dt_s;
-        auto clock = std::make_shared<SimClock>(0.0);
-        auto world = std::make_shared<FakeWorld2D>();
-        world->add_axis_aligned_room(
-            config.exploration_min_x_m, config.exploration_min_y_m,
-            config.exploration_max_x_m, config.exploration_max_y_m);
-        world->add_axis_aligned_obstacle(0.25, -0.15, 0.55, 0.35);
-        SimRobotPlantConfig plant_config;
-        plant_config.wheel_radius_m = config.wheel_radius_left_m;
-        plant_config.wheel_base_m = config.wheel_base_m;
-        plant_config.robot_radius_m = config.exploration_robot_radius_m;
-        plant_config.collision_check_enabled = true;
-        auto plant = std::make_shared<SimRobotPlant>(plant_config);
-        const RobotPose2D initial_ground_truth_pose{
-            config.exploration_simulation_initial_x_m,
-            config.exploration_simulation_initial_y_m,
-            config.exploration_simulation_initial_yaw_rad};
-        if (!plant->reset(initial_ground_truth_pose, 0.0)) {
-            report.termination_reason = "plant_reset_failed";
+        auto adapter = build_simulation_robot_slam_adapter(
+            config, OperationMode::Exploration,
+            m3e_exploration_config_from(config));
+        if (!adapter.ok || !adapter.application) {
+            report.termination_reason = adapter.reason;
             write_m3e_exploration_report(report, report.report_path);
             return report;
         }
-        SimMotionPortConfig motion_config;
-        motion_config.allow_translation = true;
-        motion_config.maximum_algorithm_speed_normalized = 0.40;
-        motion_config.maximum_algorithm_duration_s = 0.50;
-        auto motion = std::make_shared<SimMotionPort>(plant, motion_config);
-        SimThreeScalarTofConfig tof_config;
-        tof_config.max_range_m = config.exploration_simulation_tof_max_range_m;
-        tof_config.no_hit_as_explicit_no_return = true;
-        tof_config.front_latency_s = 0.0;
-        tof_config.left_latency_s = 0.0;
-        tof_config.right_latency_s = 0.0;
-        tof_config.left_response_offset_s = 0.0;
-        tof_config.right_response_offset_s = 0.0;
-        tof_config.extrinsics = {
-            {config.sparse_slam_front_tof_x_m,
-             config.sparse_slam_front_tof_y_m,
-             config.sparse_slam_front_tof_yaw_rad},
-            {config.sparse_slam_left_tof_x_m,
-             config.sparse_slam_left_tof_y_m,
-             config.sparse_slam_left_tof_yaw_rad},
-            {config.sparse_slam_right_tof_x_m,
-             config.sparse_slam_right_tof_y_m,
-             config.sparse_slam_right_tof_yaw_rad}};
-        SimSensorPortConfig sensor_config;
-        SimWheelEncoderConfig wheel_config;
-        wheel_config.left_request_latency_s = 0.0;
-        wheel_config.right_request_latency_s = 0.0;
-        auto sensor = std::make_shared<SimSensorPort>(
-            clock, world, plant, sensor_config, SimWheelEncoder(wheel_config), SimImu{},
-            SimThreeScalarTof(tof_config));
-        RobotSlamApplication application(
-            config, SensorSource::Simulation, OperationMode::Exploration,
-            sensor, motion, m3e_exploration_config_from(config));
+        report.ground_truth_isolation_verified = true;
+        auto &application = *adapter.application;
         const auto initialized = application.initialize();
         if (!initialized.ok) {
             report.termination_reason = initialized.reason;
+            report.application = application.report();
+            report.core = application.core().report();
             write_m3e_exploration_report(report, report.report_path);
             return report;
         }
@@ -298,35 +265,37 @@ public:
             std::ceil(config.exploration_max_duration_s / dt)) + 1U;
         bool terminal = false;
         for (std::size_t step = 0; step < maximum_steps && !terminal; ++step) {
-            const double now = clock->now_s();
-            motion->update(now);
-            const auto before = plant->state().pose;
+            const double now = adapter.clock->now_s();
+            adapter.motion->update(now);
+            const auto before = adapter.plant->state().pose;
             const auto result = application.step(now);
             const auto pose = core.current_map_pose().map_T_base;
             trajectory << now << ',' << pose.x_m << ',' << pose.y_m << ','
                        << pose.yaw_rad << ',' << to_string(controller.state()) << ','
                        << core.report().current_map_revision << ','
                        << core.report().sparse_map_cell_count << '\n';
-            if (!plant->step(dt, now + dt, world.get())) {
+            if (!adapter.plant->step(dt, now + dt, adapter.world.get())) {
                 report.termination_reason = "plant_step_failed";
                 break;
             }
-            const auto after = plant->state().pose;
+            const auto after = adapter.plant->state().pose;
             report.ground_truth_travel_distance_m +=
                 std::hypot(after.x_m - before.x_m, after.y_m - before.y_m);
-            report.collision = report.collision || plant->state().collision;
+            report.collision = report.collision || adapter.plant->state().collision;
             report.simulation_steps++;
             terminal = result.terminal;
             report.termination_reason = result.reason;
-            if (!clock->advance(dt)) {
+            if (!adapter.clock->advance(dt)) {
                 report.termination_reason = "clock_advance_failed";
                 break;
             }
         }
-        report.simulated_duration_s = clock->now_s();
+        report.simulated_duration_s = adapter.clock->now_s();
         report.exploration = controller.report();
-        report.sensor_snapshot_count = static_cast<std::size_t>(sensor->success_count());
-        report.motion_command_count = static_cast<std::size_t>(motion->accepted_count());
+        report.application = application.report();
+        report.core = application.core().report();
+        report.sensor_snapshot_count = static_cast<std::size_t>(adapter.sensor->success_count());
+        report.motion_command_count = static_cast<std::size_t>(adapter.motion->accepted_count());
         report.startup_mode = core.report().map_startup_mode;
         report.initial_pose_mode = core.report().initial_pose_mode;
         report.relocalization_state = core.report().relocalization_state;
@@ -355,7 +324,7 @@ public:
             controller.report().localization_stop_count;
         report.exploration_resumed =
             controller.report().exploration_resume_count > 0;
-        report.final_ground_truth_pose = plant->state().pose;
+        report.final_ground_truth_pose = adapter.plant->state().pose;
         report.final_position_error_m = std::hypot(
             report.exploration.final_estimated_map_pose.x_m -
                 report.final_ground_truth_pose.x_m,
@@ -364,7 +333,7 @@ public:
         report.final_yaw_error_rad = std::fabs(sparse_slam_shortest_yaw_delta(
             report.exploration.final_estimated_map_pose.yaw_rad,
             report.final_ground_truth_pose.yaw_rad));
-        report.stop_command_count = static_cast<std::size_t>(motion->stop_count());
+        report.stop_command_count = static_cast<std::size_t>(adapter.motion->stop_count());
         if (controller.state() == AutonomousExplorationState::Completed) {
             const auto saved = core.save_sparse_map(report.final_map_path);
             report.final_map_save_success = saved.ok;

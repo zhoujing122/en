@@ -144,6 +144,11 @@ inline int real_main(int argc, char **argv) {
     }
     std::cout << "robot_slamd application sensor_source="
               << to_string(source) << " operation=" << to_string(operation)
+              << " simulation_steps=" << report.simulation_steps
+              << " completed_goals=" << report.exploration.completed_goals
+              << " map_revision=" << report.exploration.map_revision_end
+              << " map_cells=" << report.exploration.known_cells_end
+              << " collision=" << (report.collision ? 1 : 0)
               << " run_dir=" << run_dir << "\n";
     return 0;
 }
