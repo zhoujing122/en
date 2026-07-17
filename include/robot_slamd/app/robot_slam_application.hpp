@@ -127,6 +127,12 @@ public:
     }
 
     RobotSlamApplicationStepResult step(double now_s) {
+        return step(now_s, ActiveObservationControl::None);
+    }
+
+    RobotSlamApplicationStepResult step(
+        double now_s,
+        ActiveObservationControl observation_control) {
         if (!initialized_) {
             return reject_step("application_not_initialized");
         }
@@ -155,13 +161,15 @@ public:
         if (motion_) {
             feedback = motion_->latest_feedback(now_s);
         }
-        return step(snapshot, now_s, feedback);
+        return step(snapshot, now_s, feedback, observation_control);
     }
 
     RobotSlamApplicationStepResult step(
         const RobotSlamSensorSnapshot &snapshot,
         double now_s,
-        const RobotSlamMotionFeedback &motion_feedback = {}) {
+        const RobotSlamMotionFeedback &motion_feedback = {},
+        ActiveObservationControl observation_control =
+            ActiveObservationControl::None) {
         if (!initialized_) {
             return reject_step("application_not_initialized");
         }
@@ -186,6 +194,7 @@ public:
         }
 
         SparseSlamStepRequest request;
+        request.observation_control = observation_control;
         request.snapshot = snapshot;
         request.now_s = now_s;
         request.mapping_write_enabled =

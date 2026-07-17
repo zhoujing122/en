@@ -5,6 +5,7 @@
 #include "robot_slamd/config/config.hpp"
 #include "robot_slamd/runtime/application_mode.hpp"
 #include "robot_slamd/simulation/exploration/m3e_exploration_runner.hpp"
+#include "robot_slamd/simulation/application/simulation_robot_slam_runner.hpp"
 
 #include <cstdlib>
 #include <fstream>
@@ -120,9 +121,19 @@ inline int real_main(int argc, char **argv) {
         return 0;
     }
     if (operation != OperationMode::Exploration) {
-        std::cerr
-            << "simulation mapping/localization runner is not yet composed\n";
-        return 1;
+        const auto report =
+            SimulationRobotSlamRunner{}.run(config, run_dir, duration_s);
+        if (!report.ok) {
+            std::cerr << report.reason << "\n";
+            return 1;
+        }
+        std::cout << "robot_slamd application sensor_source="
+                  << to_string(source) << " operation=" << to_string(operation)
+                  << " simulation_steps=" << report.simulation_steps
+                  << " map_revision=" << report.map_revision_after
+                  << " map_cells=" << report.map_cell_count
+                  << " run_dir=" << run_dir << "\n";
+        return 0;
     }
 
     const auto report =
