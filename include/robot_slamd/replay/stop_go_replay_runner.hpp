@@ -114,6 +114,7 @@ public:
         }
         report.stable_samples = records.size();
         report.completed_steps = records.size() > 0 ? records.size() - 1 : 0;
+        report.commands_submitted = report.completed_steps;
         report.commands_completed = report.completed_steps;
         report.map_commits = application.core().report().current_map_revision;
         report.map_revision = application.core().report().current_map_revision;

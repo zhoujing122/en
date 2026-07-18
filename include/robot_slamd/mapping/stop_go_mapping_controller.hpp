@@ -21,6 +21,7 @@ namespace robot_slamd {
 
 enum class StopGoMappingControllerState {
     Idle,
+    WaitingForCoreReady,
     InitialSettle,
     InitialSample,
     IssueForwardStep,
@@ -37,6 +38,7 @@ enum class StopGoMappingControllerState {
 inline const char *to_string(StopGoMappingControllerState state) {
     switch (state) {
     case StopGoMappingControllerState::Idle: return "IDLE";
+    case StopGoMappingControllerState::WaitingForCoreReady: return "WAITING_FOR_CORE_READY";
     case StopGoMappingControllerState::InitialSettle: return "INITIAL_SETTLE";
     case StopGoMappingControllerState::InitialSample: return "INITIAL_SAMPLE";
     case StopGoMappingControllerState::IssueForwardStep: return "ISSUE_FORWARD_STEP";
@@ -98,12 +100,17 @@ struct StopGoReplayRecord {
     std::uint64_t mapping_ready_timestamp_us = 0;
     std::size_t settle_frame_count = 0;
     double settle_duration_ms = 0.0;
+    // Read-only audit values copied from the canonical Core report.  The
+    // controller never writes either state back into SLAM.
+    RobotPose2D odom_pose;
+    RobotPose2D map_from_odom;
     StopGoMappingControllerState controller_state = StopGoMappingControllerState::Idle;
 };
 
 struct StopGoMappingRunReport {
     bool ok = false;
     std::size_t completed_steps = 0;
+    std::size_t commands_submitted = 0;
     std::size_t commands_completed = 0;
     std::size_t stable_samples = 0;
     std::size_t map_commits = 0;
@@ -112,6 +119,8 @@ struct StopGoMappingRunReport {
     std::size_t left_wall_observed_cells = 0;
     std::size_t collision_count = 0;
     std::size_t map_writes_while_moving = 0;
+    std::size_t core_wait_ticks = 0;
+    bool core_ready_observed = false;
     bool command_speed_used_as_odometry = false;
     bool ground_truth_used_by_algorithm = false;
     std::uint64_t final_map_checksum = 0;
@@ -137,13 +146,49 @@ public:
           config_(std::move(config)), gate_(config_.settle) {
         if (!log_path.empty()) config_.log_path = std::move(log_path);
         if (!config_.log_path.empty()) log_.open(config_.log_path, std::ios::out | std::ios::trunc);
-        transition(StopGoMappingControllerState::InitialSettle);
+        // Core startup owns gyro calibration, wheel baseline, odom_T_base,
+        // map_T_odom and the pose buffer.  Stop-go cannot enter its formal
+        // state machine until Core explicitly reports localization_ready().
+        transition(StopGoMappingControllerState::WaitingForCoreReady);
     }
 
     bool tick(double now_s) {
         if (terminal()) return report_.ok;
         if (!snapshot_reader_ || !motion_.ready()) return fail("controller_port_or_sensor_not_ready", now_s);
         const auto snapshot = snapshot_reader_(now_s);
+
+        if (state_ == StopGoMappingControllerState::WaitingForCoreReady) {
+            report_.core_wait_ticks++;
+            // A missing/invalid startup sample is a reason to keep waiting for
+            // Core's stationary calibration, not a stop-go motion fault.
+            if (!snapshot.has_wheel || !snapshot.has_imu || !snapshot.wheel.valid) {
+                return true;
+            }
+
+            const auto odom_only = make_odom_only(snapshot);
+            const auto app_step = application_.step(odom_only, now_s);
+            if (application_.core().localization_ready()) {
+                report_.core_ready_observed = true;
+                transition(StopGoMappingControllerState::InitialSettle);
+                return true;
+            }
+
+            const auto &core_report = application_.core().report();
+            if (core_report.initialization_status == "fault" ||
+                core_report.initialization_status == "gyro_calibration_failed" ||
+                core_report.initialization_status == "wheel_baseline_failed" ||
+                core_report.last_fault != "none") {
+                return fail("core_initialization_failed:" +
+                                (app_step.reason.empty()
+                                     ? core_report.last_message
+                                     : app_step.reason),
+                            now_s);
+            }
+            // During normal startup Core returns ok=false while collecting
+            // stationary samples.  That is an expected waiting state.
+            return true;
+        }
+
         if (!snapshot.has_wheel || !snapshot.has_imu || !snapshot.wheel.valid) {
             return fail("canonical_wheel_or_imu_feedback_invalid", now_s);
         }
@@ -195,6 +240,7 @@ public:
             if (accepted.state != RelativeMotionStepState::Accepted) {
                 return fail("motion_submit_failed:" + accepted.reason, now_s);
             }
+            report_.commands_submitted++;
             report_.command_ids.push_back(command_.command_id);
             transition(StopGoMappingControllerState::WaitMotionDone);
             return true;
@@ -347,6 +393,9 @@ private:
         replay.mapping_ready_timestamp_us = gate_.last_result().stable_timestamp_us;
         replay.settle_frame_count = gate_.last_result().consecutive_frames;
         replay.settle_duration_ms = gate_.last_result().stable_duration_ms;
+        replay.odom_pose = application_.core().report().last_odom_pose;
+        replay.map_from_odom =
+            application_.core().frame_state().current_map_from_odom().map_T_odom;
         replay.controller_state = StopGoMappingControllerState::CommitMappingSample;
         report_.replay_records.push_back(replay);
         write_log(replay, now_s);

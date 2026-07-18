@@ -15,6 +15,30 @@ main
      -> SparseSlamRuntimeCore
 ```
 
+Core initialization is not duplicated by the stop-go controller. Startup is
+ordered as:
+
+```text
+RobotSlamApplication startup
+  -> SparseSlamRuntimeCore::initialize
+  -> stationary Wheel/IMU snapshots
+  -> gyro bias and wheel baseline
+  -> odom_T_base and map_T_odom initialization
+  -> Core localization_ready() == true
+  -> StopGoMappingController INITIAL_SETTLE
+  -> INITIAL_SAMPLE
+  -> first relative motion command
+```
+
+The controller begins in `WAITING_FOR_CORE_READY`. While Core is collecting
+stationary samples it continues passing valid canonical Wheel/IMU snapshots to
+the existing Core, submits zero motion commands, and does not treat the normal
+waiting result as a controller fault. Invalid startup samples keep the
+controller waiting; a terminal Core initialization fault is reported as a
+controller fault. The controller never calls estimator reset, clears encoder
+ticks, creates `MapOdomFrameState`, changes `map_T_odom`, or writes a per-step
+encoder baseline into SLAM.
+
 The new simulation path is:
 
 ```text
@@ -105,6 +129,7 @@ that a mapping sample is physically repeatable on the real chassis.
 
 ```text
 IDLE
+ -> WAITING_FOR_CORE_READY
  -> INITIAL_SETTLE
  -> INITIAL_SAMPLE
  -> ISSUE_FORWARD_STEP
@@ -123,7 +148,11 @@ ToF sensors, submits one canonical snapshot to the existing application,
 records the map revision, and only then permits the next command. The
 Simulation plant supplies feedback; the controller never uses plant ground
 truth or requested distance as odometry. `map_writes_while_moving` is checked
-as a revision guard and is expected to be zero.
+as a revision guard and is expected to be zero. The Core's cumulative wheel
+feedback, `last_odom_pose`, pose buffer, and `map_T_odom` remain continuous
+across commands; the command-port baseline is used only for that command's
+progress/result. `map_T_odom` is exposed to the controller only as a read-only
+Core value and may be changed only by Core matching or relocalization logic.
 
 The deterministic straight-wall scene starts parallel to a continuous left
 wall, with open right space and no corner. It runs the provisional example

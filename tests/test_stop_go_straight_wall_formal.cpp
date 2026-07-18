@@ -29,7 +29,10 @@ int main() {
     std::filesystem::create_directories(path);
     const auto report = StopGoStraightWallSimulationRunner{}.run(config(), path);
     std::cout << "completed_steps=" << report.completed_steps
+              << " commands_submitted=" << report.commands_submitted
               << " commands_completed=" << report.commands_completed
+              << " core_wait_ticks=" << report.core_wait_ticks
+              << " core_ready_observed=" << report.core_ready_observed
               << " stable_samples=" << report.stable_samples
               << " map_commits=" << report.map_commits
               << " map_revision=" << report.map_revision
