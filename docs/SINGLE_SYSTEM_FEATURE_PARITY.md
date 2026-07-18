@@ -55,3 +55,24 @@ The remaining production work is deliberately outside this consolidation:
 implementing and calibrating a real sensor adapter, implementing the production
 motion transport, and validating field parameters. Until those exist,
 `sensor_source=real` remains fail-closed and no UART motor write is enabled.
+
+## Final validation record (2026-07-18)
+
+| Validation | Result |
+|---|---|
+| Debug full CTest | 196/196 passed, serial `-j1` |
+| ASAN/UBSAN full CTest | 196/196 passed, serial `-j1`, LeakSanitizer enabled |
+| Formal Replay mapping/localization | passed; 3 replay steps each through Application/Core |
+| Formal Simulation mapping | passed; 42 steps, revision 23, 171 cells |
+| Formal Simulation localization | passed; 7 steps, loaded revision 23, 171 cells, no writes |
+| Formal Simulation exploration | passed; 4 goals, revision 2041, 2876 cells, 31 keyframes, collision 0 |
+| Exploration termination | `no_reachable_frontier` |
+| Unknown source/operation | both rejected with nonzero exit and explicit config error |
+| Real unavailable | rejected with `real sensor adapter unavailable; startup rejected fail-closed` |
+| Determinism | map SHA-256 `fb681e51efac205ea70e3241a48c2f1bbee60837389a12e54d749a503ccaecff`; trajectory SHA-256 `0d597727479b7a96cd97f9f9be6858bce13d3b680e242d40aa4df68888c99622` on both successful runs |
+
+The two successful formal Exploration runs also matched all reported counters:
+4253 simulation/Core steps, 4253 canonical snapshots, 11 replans, 179 turns,
+88 forward segments, 31 atomic commits, and zero obstacle stops. A transient
+second-process crash was followed by a normal debugger run and a successful
+third normal run; the two successful artifacts above are the determinism pair.

@@ -178,3 +178,18 @@ formal CMake registrations are retired. Historical design documents remain
 archive-only and do not establish a reachable production owner. The detailed
 feature-to-owner/test/formal-run record is maintained in
 \`docs/SINGLE_SYSTEM_FEATURE_PARITY.md\`.
+
+## Final validation evidence (2026-07-18)
+
+- Final Debug build used `/home/lab/Desktop/小恩/builds/en_single_system-debug`;
+  serial CTest passed 196/196.
+- Final ASAN/UBSAN build used `/home/lab/Desktop/小恩/builds/en_single_system-asan`;
+  serial CTest passed 196/196 with leak detection and fail-fast options.
+- Formal `real_main` Replay mapping and localization both passed through the
+  same replay adapter/Application path; Simulation mapping reported revision
+  23 and 171 cells, and Simulation localization loaded that revision without
+  map writes.
+- Formal Simulation Exploration passed with four completed goals, revision
+  2041, 2876 cells, 31 keyframes, `no_reachable_frontier`, and collision 0.
+- Two successful identical-input Exploration runs had identical map and
+  trajectory SHA-256 values; unknown source/operation and Real adapter
