@@ -227,7 +227,7 @@ int main() {
 
     BL4820MotionSafetyExecutor idle(cfg);
     MotionSafetyExecutorInput no_command = valid_input(1.0);
-    no_command.active_scan_command = ActiveScanCommandSnapshot{};
+    no_command.active_scan_command = MotionSafetyActiveScanCommandSnapshot{};
     idle.update(no_command);
     expect(idle.snapshot().state == "IDLE" && idle.snapshot().reason == "idle", "no command should stay IDLE");
 
@@ -286,7 +286,7 @@ int main() {
     expect_near(duration.snapshot().target_left_rpm, 0.0, 1e-12, "latched duration zero left rpm");
     expect_near(duration.snapshot().target_right_rpm, 0.0, 1e-12, "latched duration zero right rpm");
     auto disappeared = valid_input(1.9);
-    disappeared.active_scan_command = ActiveScanCommandSnapshot{};
+    disappeared.active_scan_command = MotionSafetyActiveScanCommandSnapshot{};
     duration.update(disappeared);
     expect(!duration.snapshot().command_duration_latched, "command disappearance should clear duration latch");
     duration.update(valid_input(2.0));
@@ -296,7 +296,7 @@ int main() {
     BL4820MotionSafetyExecutor lost_command(cfg);
     lost_command.update(valid_input(1.0));
     no_command = valid_input(1.1);
-    no_command.active_scan_command = ActiveScanCommandSnapshot{};
+    no_command.active_scan_command = MotionSafetyActiveScanCommandSnapshot{};
     lost_command.update(no_command);
     expect(lost_command.snapshot().state == "WOULD_ZERO" && lost_command.snapshot().reason == "command_lost_zero", "command disappearance after would_command should emit zero first");
     expect_near(lost_command.snapshot().target_left_rpm, 0.0, 1e-12, "lost command zero left rpm");

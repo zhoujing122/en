@@ -1,11 +1,28 @@
 #pragma once
-#include "robot_slamd/active_scan/active_scan_command_planner.hpp"
-#include "robot_slamd/active_scan/active_scan_manager.hpp"
 #include "robot_slamd/core/common.hpp"
-#include "robot_slamd/mapping/mapping_supervisor.hpp"
-#include "robot_slamd/recovery/startup_lost_recovery_manager.hpp"
 
 namespace robot_slamd {
+
+struct MotionSafetyActiveScanCommandSnapshot {
+    double timestamp_s = 0.0;
+    std::string state = "IDLE";
+    std::string reason = "idle";
+    bool command_active = false;
+    bool would_emit_command = false;
+    bool zero_command = false;
+    double desired_linear_speed_mps = 0.0;
+    double desired_yaw_rate_radps = 0.0;
+    double desired_yaw_rate_dps = 0.0;
+};
+
+struct MotionSafetySupervisorSnapshot {
+    std::string state = "INIT";
+};
+
+struct MotionSafetyRecoverySnapshot {
+    std::string state = "IDLE";
+    bool recovery_scan_recommended = false;
+};
 
 enum class MotionSafetyExecutorState {
     DISABLED,
@@ -34,10 +51,9 @@ inline const char *motion_safety_executor_state_name(MotionSafetyExecutorState s
 
 struct MotionSafetyExecutorInput {
     double timestamp_s = 0.0;
-    ActiveScanCommandSnapshot active_scan_command;
-    ActiveScanSnapshot active_scan;
-    MappingSupervisorSnapshot supervisor;
-    RecoveryManagerSnapshot recovery;
+    MotionSafetyActiveScanCommandSnapshot active_scan_command;
+    MotionSafetySupervisorSnapshot supervisor;
+    MotionSafetyRecoverySnapshot recovery;
     bool localizer_initialized = false;
     Pose current_pose;
     double linear_speed_mps = 0.0;
@@ -247,7 +263,7 @@ public:
 private:
     bool enabled() const { return cfg_.motion_execution_enabled && cfg_.motion_execution_mode != "disabled"; }
 
-    static bool active_command_present(const ActiveScanCommandSnapshot &c) {
+    static bool active_command_present(const MotionSafetyActiveScanCommandSnapshot &c) {
         return c.command_active || c.would_emit_command;
     }
 

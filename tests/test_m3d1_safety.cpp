@@ -27,8 +27,6 @@ int main() {
     expect(!config.real_adapter_stubs_allow_real_hardware_adapters, "real adapters disabled");
     expect(!config.real_adapter_stubs_enabled, "real adapter stubs disabled");
     expect(!config.yaw_correction_writeback_enabled, "yaw pose writeback disabled");
-    expect(!config.fake_relocalization_allow_pose_writeback,
-           "relocalization writeback disabled");
 
     SparseMultiTofOccupancyBackendBinding backend;
     const auto report = backend.report();

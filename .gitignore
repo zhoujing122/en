@@ -13,3 +13,4 @@ test_map_quality
 *.pgm
 *.yaml.tmp
 .DS_Store
+/build-debug/
