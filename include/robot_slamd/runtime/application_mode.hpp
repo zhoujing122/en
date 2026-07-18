@@ -13,7 +13,8 @@ enum class SensorSource {
 enum class OperationMode {
     Mapping,
     Localization,
-    Exploration
+    Exploration,
+    StopGoWallMapping
 };
 
 inline const char *to_string(SensorSource source) {
@@ -36,6 +37,8 @@ inline const char *to_string(OperationMode operation) {
         return "localization";
     case OperationMode::Exploration:
         return "exploration";
+    case OperationMode::StopGoWallMapping:
+        return "stop_go_wall_mapping";
     }
     return "unknown";
 }
@@ -69,6 +72,10 @@ inline bool parse_operation_mode(const std::string &value,
     }
     if (value == "exploration") {
         operation = OperationMode::Exploration;
+        return true;
+    }
+    if (value == "stop_go_wall_mapping") {
+        operation = OperationMode::StopGoWallMapping;
         return true;
     }
     return false;

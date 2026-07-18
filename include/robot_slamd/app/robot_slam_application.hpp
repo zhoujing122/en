@@ -207,7 +207,8 @@ public:
         request.snapshot = snapshot;
         request.now_s = now_s;
         request.mapping_write_enabled =
-            operation_ == OperationMode::Mapping;
+            operation_ == OperationMode::Mapping ||
+            operation_ == OperationMode::StopGoWallMapping;
         const auto result = core_.step(request);
         report_.core_step_count++;
         report_.last_reason = result.message;

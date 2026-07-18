@@ -89,6 +89,21 @@ public:
             last_message_ = last_build_result_.message;
             return RobotSlamSensorSnapshot{};
         }
+        // Preserve wheel feedback diagnostics in the canonical snapshot.  The
+        // mapping controller uses these fields only for its settle gate; the
+        // SLAM core still integrates the canonical wheel pose fields above.
+        last_build_result_.snapshot.wheel.left_ticks = wheel.left_position_ticks;
+        last_build_result_.snapshot.wheel.right_ticks = wheel.right_position_ticks;
+        last_build_result_.snapshot.wheel.pair_skew_s = wheel.pair_skew_s;
+        last_build_result_.snapshot.wheel.pair_skew_valid =
+            std::isfinite(wheel.pair_skew_s) &&
+            std::fabs(wheel.pair_skew_s) <= 0.010000001;
+        const double left_rpm = state.left_wheel_speed_rad_s * 60.0 /
+                                (2.0 * kPi);
+        const double right_rpm = state.right_wheel_speed_rad_s * 60.0 /
+                                 (2.0 * kPi);
+        last_build_result_.snapshot.wheel.left_rpm = left_rpm;
+        last_build_result_.snapshot.wheel.right_rpm = right_rpm;
         success_count_++;
         last_success_time_s_ = now_s;
         last_message_ = "sim_sensor_snapshot_ok";

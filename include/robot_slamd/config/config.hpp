@@ -176,6 +176,24 @@ Config load_config(const std::string &path, const std::string &output_override) 
         kv, "runtime.operation", c.runtime_operation);
     c.runtime_replay_path = get_string(
         kv, "runtime.replay_path", c.runtime_replay_path);
+    c.stop_go_mapping_enabled = get_bool(kv, "stop_go_mapping.enabled", c.stop_go_mapping_enabled);
+    c.stop_go_forward_step_mm = get_double(kv, "stop_go_mapping.forward_step_mm", c.stop_go_forward_step_mm);
+    c.stop_go_max_steps = get_int(kv, "stop_go_mapping.max_steps", c.stop_go_max_steps);
+    c.stop_go_max_total_distance_mm = get_double(kv, "stop_go_mapping.max_total_distance_mm", c.stop_go_max_total_distance_mm);
+    c.stop_go_motion_max_rpm = get_double(kv, "stop_go_mapping.motion_max_rpm", c.stop_go_motion_max_rpm);
+    c.stop_go_motion_timeout_ms = get_int(kv, "stop_go_mapping.motion_timeout_ms", c.stop_go_motion_timeout_ms);
+    c.stop_go_settle_wheel_rpm_threshold = get_double(kv, "stop_go_mapping.settle.wheel_rpm_threshold", c.stop_go_settle_wheel_rpm_threshold);
+    c.stop_go_settle_imu_gyro_threshold_deg_s = get_double(kv, "stop_go_mapping.settle.imu_gyro_threshold_deg_s", c.stop_go_settle_imu_gyro_threshold_deg_s);
+    c.stop_go_settle_consecutive_frames = get_int(kv, "stop_go_mapping.settle.consecutive_frames", c.stop_go_settle_consecutive_frames);
+    c.stop_go_settle_hold_ms = get_int(kv, "stop_go_mapping.settle.hold_ms", c.stop_go_settle_hold_ms);
+    c.stop_go_tof_samples_per_sensor = get_int(kv, "stop_go_mapping.tof.samples_per_sensor", c.stop_go_tof_samples_per_sensor);
+    c.stop_go_tof_min_valid_samples = get_int(kv, "stop_go_mapping.tof.min_valid_samples", c.stop_go_tof_min_valid_samples);
+    c.stop_go_tof_protocol_min_distance_mm = get_int(kv, "stop_go_mapping.tof.protocol_min_distance_mm", c.stop_go_tof_protocol_min_distance_mm);
+    c.stop_go_tof_protocol_max_distance_mm = get_int(kv, "stop_go_mapping.tof.protocol_max_distance_mm", c.stop_go_tof_protocol_max_distance_mm);
+    c.stop_go_tof_mapping_min_distance_mm = get_int(kv, "stop_go_mapping.tof.mapping_min_distance_mm", c.stop_go_tof_mapping_min_distance_mm);
+    c.stop_go_tof_mapping_max_distance_mm = get_int(kv, "stop_go_mapping.tof.mapping_max_distance_mm", c.stop_go_tof_mapping_max_distance_mm);
+    c.stop_go_tof_mapping_min_confidence = get_int(kv, "stop_go_mapping.tof.mapping_min_confidence", c.stop_go_tof_mapping_min_confidence);
+    c.stop_go_log_path = get_string(kv, "stop_go_mapping.log_path", c.stop_go_log_path);
     c.sparse_slam_map_startup_mode = get_string(kv, "sparse_slam.map_startup_mode", c.sparse_slam_map_startup_mode);
     c.sparse_slam_initial_pose_mode = get_string(kv, "sparse_slam.initial_pose_mode", c.sparse_slam_initial_pose_mode);
     c.sparse_slam_has_configured_pose = get_bool(kv, "sparse_slam.has_configured_pose", c.sparse_slam_has_configured_pose);
@@ -868,9 +886,24 @@ void validate_config(const Config &c) {
             "runtime.sensor_source must be simulation, replay, or real");
     }
     if (!one_of(c.runtime_operation,
-                {"mapping", "localization", "exploration"})) {
+                {"mapping", "localization", "exploration", "stop_go_wall_mapping"})) {
         errors.push_back(
-            "runtime.operation must be mapping, localization, or exploration");
+            "runtime.operation must be mapping, localization, exploration, or stop_go_wall_mapping");
+    }
+    if (c.stop_go_mapping_enabled || c.runtime_operation == "stop_go_wall_mapping") {
+        positive("stop_go_mapping.forward_step_mm", c.stop_go_forward_step_mm);
+        if (c.stop_go_max_steps <= 0) errors.push_back("stop_go_mapping.max_steps must be > 0");
+        positive("stop_go_mapping.max_total_distance_mm", c.stop_go_max_total_distance_mm);
+        positive("stop_go_mapping.motion_max_rpm", c.stop_go_motion_max_rpm);
+        if (c.stop_go_motion_timeout_ms <= 0) errors.push_back("stop_go_mapping.motion_timeout_ms must be > 0");
+        positive("stop_go_mapping.settle.wheel_rpm_threshold", c.stop_go_settle_wheel_rpm_threshold);
+        positive("stop_go_mapping.settle.imu_gyro_threshold_deg_s", c.stop_go_settle_imu_gyro_threshold_deg_s);
+        if (c.stop_go_settle_consecutive_frames < 3) errors.push_back("stop_go_mapping.settle.consecutive_frames must be >= 3");
+        if (c.stop_go_settle_hold_ms < 0) errors.push_back("stop_go_mapping.settle.hold_ms must be >= 0");
+        if (c.stop_go_tof_samples_per_sensor != 5 || c.stop_go_tof_min_valid_samples < 3 || c.stop_go_tof_min_valid_samples > 5) errors.push_back("stop_go_mapping.tof requires 5 samples and min_valid_samples in [3, 5]");
+        if (c.stop_go_tof_protocol_min_distance_mm < 20 || c.stop_go_tof_protocol_max_distance_mm > 4500 || c.stop_go_tof_protocol_min_distance_mm >= c.stop_go_tof_protocol_max_distance_mm) errors.push_back("stop_go_mapping.tof protocol range must be within 20..4500 mm");
+        if (c.stop_go_tof_mapping_min_distance_mm < c.stop_go_tof_protocol_min_distance_mm || c.stop_go_tof_mapping_max_distance_mm > c.stop_go_tof_protocol_max_distance_mm || c.stop_go_tof_mapping_min_distance_mm >= c.stop_go_tof_mapping_max_distance_mm) errors.push_back("stop_go_mapping.tof mapping range must be within protocol range");
+        if (c.stop_go_tof_mapping_min_confidence < 0 || c.stop_go_tof_mapping_min_confidence > 100) errors.push_back("stop_go_mapping.tof.mapping_min_confidence must be in [0, 100]");
     }
     if (c.runtime_sensor_source == "replay" &&
         c.runtime_replay_path.empty()) {
@@ -1869,6 +1902,27 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  tof_read_hz: " << c.tof_read_hz << "\n"
       << "  mapping_hz: " << c.mapping_hz << "\n"
       << "  log_hz: " << c.log_hz << "\n";
+    o << "stop_go_mapping:\n"
+      << "  enabled: " << bool_yaml(c.stop_go_mapping_enabled) << "\n"
+      << "  forward_step_mm: " << c.stop_go_forward_step_mm << "\n"
+      << "  max_steps: " << c.stop_go_max_steps << "\n"
+      << "  max_total_distance_mm: " << c.stop_go_max_total_distance_mm << "\n"
+      << "  motion_max_rpm: " << c.stop_go_motion_max_rpm << "\n"
+      << "  motion_timeout_ms: " << c.stop_go_motion_timeout_ms << "\n"
+      << "  log_path: " << c.stop_go_log_path << "\n"
+      << "  settle:\n"
+      << "    wheel_rpm_threshold: " << c.stop_go_settle_wheel_rpm_threshold << "\n"
+      << "    imu_gyro_threshold_deg_s: " << c.stop_go_settle_imu_gyro_threshold_deg_s << "\n"
+      << "    consecutive_frames: " << c.stop_go_settle_consecutive_frames << "\n"
+      << "    hold_ms: " << c.stop_go_settle_hold_ms << "\n"
+      << "  tof:\n"
+      << "    samples_per_sensor: " << c.stop_go_tof_samples_per_sensor << "\n"
+      << "    min_valid_samples: " << c.stop_go_tof_min_valid_samples << "\n"
+      << "    protocol_min_distance_mm: " << c.stop_go_tof_protocol_min_distance_mm << "\n"
+      << "    protocol_max_distance_mm: " << c.stop_go_tof_protocol_max_distance_mm << "\n"
+      << "    mapping_min_distance_mm: " << c.stop_go_tof_mapping_min_distance_mm << "\n"
+      << "    mapping_max_distance_mm: " << c.stop_go_tof_mapping_max_distance_mm << "\n"
+      << "    mapping_min_confidence: " << c.stop_go_tof_mapping_min_confidence << "\n";
     o << "sparse_slam:\n"
       << "  map_startup_mode: " << c.sparse_slam_map_startup_mode << "\n"
       << "  initial_pose_mode: " << c.sparse_slam_initial_pose_mode << "\n"

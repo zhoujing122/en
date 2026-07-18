@@ -94,6 +94,12 @@ struct WheelOdomFrame {
     double timestamp_s = 0.0;
     double linear_mps = 0.0;
     double angular_rad_s = 0.0;
+    double left_rpm = 0.0;
+    double right_rpm = 0.0;
+    double left_ticks = 0.0;
+    double right_ticks = 0.0;
+    double pair_skew_s = 0.0;
+    bool pair_skew_valid = true;
     bool valid = false;
 };
 

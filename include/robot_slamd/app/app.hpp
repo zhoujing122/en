@@ -6,6 +6,8 @@
 #include "robot_slamd/runtime/application_mode.hpp"
 #include "robot_slamd/simulation/exploration/m3e_exploration_runner.hpp"
 #include "robot_slamd/simulation/application/simulation_robot_slam_runner.hpp"
+#include "robot_slamd/simulation/application/stop_go_straight_wall_runner.hpp"
+#include "robot_slamd/replay/stop_go_replay_runner.hpp"
 
 #include <cstdlib>
 #include <fstream>
@@ -79,6 +81,25 @@ inline int real_main(int argc, char **argv) {
         return 1;
     }
     if (source == SensorSource::Replay) {
+        if (operation == OperationMode::StopGoWallMapping) {
+            if (config.runtime_replay_path.empty()) {
+                std::cerr << "stop-go replay requires runtime.replay_path\n";
+                return 1;
+            }
+            const auto report = StopGoReplayRunner{}.run(
+                config, config.runtime_replay_path, run_dir);
+            std::cout << "stop_go_replay"
+                      << " completed_steps=" << report.completed_steps
+                      << " stable_samples=" << report.stable_samples
+                      << " map_commits=" << report.map_commits
+                      << " map_revision=" << report.map_revision
+                      << " map_cells=" << report.map_cells
+                      << " left_wall_observed_cells=" << report.left_wall_observed_cells
+                      << " final_map_checksum=" << report.final_map_checksum
+                      << " termination_reason=" << report.termination_reason
+                      << " run_dir=" << run_dir << "\n";
+            return report.ok ? 0 : 1;
+        }
         if (operation == OperationMode::Exploration) {
             std::cerr << "replay exploration requires a motion adapter\n";
             return 1;
@@ -119,6 +140,31 @@ inline int real_main(int argc, char **argv) {
                   << " replay_steps=" << application.report().core_step_count
                   << " run_dir=" << run_dir << "\n";
         return 0;
+    }
+    if (operation == OperationMode::StopGoWallMapping) {
+        if (source != SensorSource::Simulation) {
+            std::cerr << "stop-go mapping currently supports simulation only; real/replay are fail-closed\n";
+            return 1;
+        }
+        const auto report = StopGoStraightWallSimulationRunner{}.run(config, run_dir);
+        std::cout << "stop_go_formal"
+                  << " completed_steps=" << report.completed_steps
+                  << " commands_completed=" << report.commands_completed
+                  << " stable_samples=" << report.stable_samples
+                  << " map_commits=" << report.map_commits
+                  << " map_revision=" << report.map_revision
+                  << " map_cells=" << report.map_cells
+                  << " left_wall_observed_cells=" << report.left_wall_observed_cells
+                  << " collision_count=" << report.collision_count
+                  << " map_writes_while_moving=" << report.map_writes_while_moving
+                  << " command_speed_used_as_odometry="
+                  << (report.command_speed_used_as_odometry ? "true" : "false")
+                  << " ground_truth_used_by_algorithm="
+                  << (report.ground_truth_used_by_algorithm ? "true" : "false")
+                  << " final_map_checksum=" << report.final_map_checksum
+                  << " termination_reason=" << report.termination_reason
+                  << " run_dir=" << run_dir << "\n";
+        return report.ok ? 0 : 1;
     }
     if (operation != OperationMode::Exploration) {
         const auto report =
