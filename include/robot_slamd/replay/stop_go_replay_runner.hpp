@@ -302,10 +302,24 @@ public:
             limits.maximum_file_bytes = static_cast<std::size_t>(
                 std::max(1024, config.sparse_slam_map_artifact_max_file_bytes));
             const auto loaded = load_sparse_map_artifact(map_path, limits);
+            const PlanarThreeTofExtrinsics expected_extrinsics{
+                {config.sparse_slam_front_tof_x_m, config.sparse_slam_front_tof_y_m,
+                 config.sparse_slam_front_tof_yaw_rad},
+                {config.sparse_slam_left_tof_x_m, config.sparse_slam_left_tof_y_m,
+                 config.sparse_slam_left_tof_yaw_rad},
+                {config.sparse_slam_right_tof_x_m, config.sparse_slam_right_tof_y_m,
+                 config.sparse_slam_right_tof_yaw_rad}};
             report.final_map_reload_verified = loaded.ok &&
                 loaded.artifact.map_id == config.sparse_slam_map_id &&
                 loaded.artifact.run_id == config.sparse_slam_map_run_id &&
                 loaded.artifact.map_revision == report.map_revision &&
+                loaded.artifact.grid.resolution_m == config.resolution_m &&
+                sparse_map_extrinsics_equal(loaded.artifact.tof_extrinsics,
+                                            expected_extrinsics) &&
+                loaded.artifact.wheel_base_m == config.wheel_base_m &&
+                loaded.artifact.wheel_radius_left_m == config.wheel_radius_left_m &&
+                loaded.artifact.wheel_radius_right_m == config.wheel_radius_right_m &&
+                loaded.artifact.encoder_ticks_per_rev == config.encoder_ticks_per_rev &&
                 loaded.artifact.cells.size() == application.core().sparse_map_snapshot().cell_count();
             if (loaded.ok) {
                 report.final_map_reload_checksum = sparse_map_fnv1a64(
@@ -359,8 +373,20 @@ public:
                 summary.run_start_wall_distance_m;
             report.run_start_anchor.initial_wall_line_offset_m =
                 summary.run_start_wall_line_offset_m;
+            report.run_start_anchor.initial_wall_model_rms_m =
+                summary.run_start_wall_rms_m;
+            report.run_start_anchor.initial_wall_model_baseline_m =
+                summary.run_start_wall_baseline_m;
+            report.run_start_anchor.initial_wall_model_input_point_count =
+                summary.run_start_wall_input_point_count;
+            report.run_start_anchor.initial_wall_model_inlier_point_count =
+                summary.run_start_wall_inlier_point_count;
             report.run_start_anchor.initial_wall_model_signature_hash =
                 summary.run_start_wall_signature_hash;
+            report.run_start_anchor.odom_distance_at_start_m =
+                summary.run_start_odom_distance_baseline_m;
+            report.run_start_anchor.completed_forward_steps_at_start =
+                summary.run_start_forward_step_baseline;
             report.total_odom_travel_distance_m =
                 summary.total_odom_travel_distance_m;
             report.segment_odom_distance_m = summary.segment_odom_distance_m;
@@ -378,6 +404,20 @@ public:
                 summary.estimated_closure_position_error_m;
             report.estimated_closure_yaw_error_rad =
                 summary.estimated_closure_yaw_error_rad;
+            if (!summary.forward_steps_per_segment.empty()) {
+                report.forward_steps_per_segment =
+                    summary.forward_steps_per_segment;
+            }
+            if (!summary.odom_distance_per_segment_m.empty()) {
+                report.odom_distance_per_segment_m =
+                    summary.odom_distance_per_segment_m;
+            }
+            if (!summary.wall_segment_sequence.empty()) {
+                report.wall_segment_sequence = summary.wall_segment_sequence;
+            }
+            if (!summary.corner_transition_ids.empty()) {
+                report.corner_transition_ids = summary.corner_transition_ids;
+            }
             report.final_mapping_commit_count = final_commit ? 1 : 0;
             report.final_settle_complete = final_commit;
             report.final_map_reload_verified = report.final_map_reload_verified && final_commit;

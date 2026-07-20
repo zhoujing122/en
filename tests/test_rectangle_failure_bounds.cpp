@@ -14,6 +14,10 @@ int main() {
     const auto extra = StopGoStraightWallSimulationRunner{}.run_scenario(
         p6_rectangle_test_config(), "/tmp/p6_failure_extra_corner",
         "unexpected_extra_corner_before_closure");
+    auto runtime_limited_config = p6_rectangle_test_config();
+    runtime_limited_config.stop_go_rectangle_maximum_runtime_s = 0.10;
+    const auto runtime_limited = StopGoStraightWallSimulationRunner{}.run_scenario(
+        runtime_limited_config, "/tmp/p6_failure_runtime", "nominal_rectangle");
     return clearance.termination_reason == "turn_clearance_blocked" &&
            clearance.corner_transition_count < 4 &&
            clearance.corner_main_turn_command_count == 1 &&
@@ -24,5 +28,8 @@ int main() {
            bounded.termination_reason == "rectangle_closure_not_reached" &&
            bounded.corner_transition_count == 4 && !bounded.final_map_saved &&
            extra.termination_reason == "unexpected_extra_corner_before_closure" &&
-           extra.corner_transition_count == 4 && !extra.final_map_saved ? 0 : 1;
+           extra.corner_transition_count == 4 && !extra.final_map_saved &&
+           runtime_limited.termination_reason == "rectangle_closure_not_reached" &&
+           runtime_limited.corner_transition_count < 4 &&
+           !runtime_limited.final_map_saved ? 0 : 1;
 }

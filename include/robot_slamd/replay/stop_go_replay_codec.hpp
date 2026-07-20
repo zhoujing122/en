@@ -140,7 +140,13 @@ public:
             << " run_start_wall_heading=" << record.run_start_wall_heading_rad
             << " run_start_wall_distance=" << record.run_start_wall_distance_m
             << " run_start_wall_offset=" << record.run_start_wall_line_offset_m
+            << " run_start_wall_rms=" << record.run_start_wall_rms_m
+            << " run_start_wall_baseline=" << record.run_start_wall_baseline_m
+            << " run_start_wall_input=" << record.run_start_wall_input_point_count
+            << " run_start_wall_inliers=" << record.run_start_wall_inlier_point_count
             << " run_start_wall_signature=" << record.run_start_wall_signature_hash
+            << " run_start_odom_baseline=" << record.run_start_odom_distance_baseline_m
+            << " run_start_step_baseline=" << record.run_start_forward_step_baseline
             << " total_odom_distance=" << record.total_odom_travel_distance_m
             << " segment_odom_distance=" << record.segment_odom_distance_m
             << " forward_steps_since_corner=" << record.forward_steps_since_last_corner
@@ -153,7 +159,23 @@ public:
             << " closure_yaw_error=" << record.estimated_closure_yaw_error_rad
             << " final_map_revision=" << record.final_map_revision
             << " final_map_checksum=" << record.final_map_checksum
+            << " segment_step_count=" << record.forward_steps_per_segment.size()
+            << " segment_distance_count=" << record.odom_distance_per_segment_m.size()
+            << " segment_sequence_count=" << record.wall_segment_sequence.size()
+            << " transition_sequence_count=" << record.corner_transition_ids.size()
             << " odom_count=" << record.odom_samples.size();
+        for (std::size_t index = 0; index < record.forward_steps_per_segment.size(); ++index) {
+            out << " segment_steps" << index << '=' << record.forward_steps_per_segment[index];
+        }
+        for (std::size_t index = 0; index < record.odom_distance_per_segment_m.size(); ++index) {
+            out << " segment_distance" << index << '=' << record.odom_distance_per_segment_m[index];
+        }
+        for (std::size_t index = 0; index < record.wall_segment_sequence.size(); ++index) {
+            out << " segment_id" << index << '=' << record.wall_segment_sequence[index];
+        }
+        for (std::size_t index = 0; index < record.corner_transition_ids.size(); ++index) {
+            out << " transition_id" << index << '=' << record.corner_transition_ids[index];
+        }
         for (std::size_t index = 0; index < record.odom_samples.size(); ++index) {
             const auto &sample = record.odom_samples[index];
             const auto key = [index](const char *suffix) {
@@ -289,7 +311,13 @@ public:
             read_optional(fields, "run_start_wall_heading", result.record.run_start_wall_heading_rad);
             read_optional(fields, "run_start_wall_distance", result.record.run_start_wall_distance_m);
             read_optional(fields, "run_start_wall_offset", result.record.run_start_wall_line_offset_m);
+            read_optional(fields, "run_start_wall_rms", result.record.run_start_wall_rms_m);
+            read_optional(fields, "run_start_wall_baseline", result.record.run_start_wall_baseline_m);
+            read_optional(fields, "run_start_wall_input", result.record.run_start_wall_input_point_count);
+            read_optional(fields, "run_start_wall_inliers", result.record.run_start_wall_inlier_point_count);
             read_optional(fields, "run_start_wall_signature", result.record.run_start_wall_signature_hash);
+            read_optional(fields, "run_start_odom_baseline", result.record.run_start_odom_distance_baseline_m);
+            read_optional(fields, "run_start_step_baseline", result.record.run_start_forward_step_baseline);
             read_optional(fields, "total_odom_distance", result.record.total_odom_travel_distance_m);
             read_optional(fields, "segment_odom_distance", result.record.segment_odom_distance_m);
             read_optional(fields, "forward_steps_since_corner", result.record.forward_steps_since_last_corner);
@@ -302,6 +330,35 @@ public:
             read_optional(fields, "closure_yaw_error", result.record.estimated_closure_yaw_error_rad);
             read_optional(fields, "final_map_revision", result.record.final_map_revision);
             read_optional(fields, "final_map_checksum", result.record.final_map_checksum);
+            std::size_t segment_step_count = 0;
+            std::size_t segment_distance_count = 0;
+            std::size_t segment_sequence_count = 0;
+            std::size_t transition_sequence_count = 0;
+            read_optional(fields, "segment_step_count", segment_step_count);
+            read_optional(fields, "segment_distance_count", segment_distance_count);
+            read_optional(fields, "segment_sequence_count", segment_sequence_count);
+            read_optional(fields, "transition_sequence_count", transition_sequence_count);
+            if (segment_step_count > 64 || segment_distance_count > 64 ||
+                segment_sequence_count > 64 || transition_sequence_count > 64) {
+                result.reason = "replay_rectangle_sequence_count_exceeded";
+                return result;
+            }
+            for (std::size_t index = 0; index < segment_step_count; ++index) {
+                result.record.forward_steps_per_segment.push_back(
+                    std::stoull(fields.at("segment_steps" + std::to_string(index))));
+            }
+            for (std::size_t index = 0; index < segment_distance_count; ++index) {
+                result.record.odom_distance_per_segment_m.push_back(
+                    std::stod(fields.at("segment_distance" + std::to_string(index))));
+            }
+            for (std::size_t index = 0; index < segment_sequence_count; ++index) {
+                result.record.wall_segment_sequence.push_back(
+                    std::stoull(fields.at("segment_id" + std::to_string(index))));
+            }
+            for (std::size_t index = 0; index < transition_sequence_count; ++index) {
+                result.record.corner_transition_ids.push_back(
+                    std::stoull(fields.at("transition_id" + std::to_string(index))));
+            }
             std::size_t odom_count = 0;
             read_optional(fields, "odom_count", odom_count);
             if (odom_count > 10000U) {

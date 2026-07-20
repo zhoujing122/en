@@ -380,7 +380,13 @@ struct StopGoReplayRecord {
     double run_start_wall_heading_rad = 0.0;
     double run_start_wall_distance_m = 0.0;
     double run_start_wall_line_offset_m = 0.0;
+    double run_start_wall_rms_m = 0.0;
+    double run_start_wall_baseline_m = 0.0;
+    std::size_t run_start_wall_input_point_count = 0;
+    std::size_t run_start_wall_inlier_point_count = 0;
     std::uint64_t run_start_wall_signature_hash = 0;
+    double run_start_odom_distance_baseline_m = 0.0;
+    std::size_t run_start_forward_step_baseline = 0;
     double total_odom_travel_distance_m = 0.0;
     double segment_odom_distance_m = 0.0;
     std::size_t forward_steps_since_last_corner = 0;
@@ -393,6 +399,10 @@ struct StopGoReplayRecord {
     double estimated_closure_yaw_error_rad = 0.0;
     std::uint64_t final_map_revision = 0;
     std::uint64_t final_map_checksum = 0;
+    std::vector<std::size_t> forward_steps_per_segment;
+    std::vector<double> odom_distance_per_segment_m;
+    std::vector<std::uint64_t> wall_segment_sequence;
+    std::vector<std::uint64_t> corner_transition_ids;
     std::vector<StopGoReplayOdomSample> odom_samples;
 };
 
@@ -573,6 +583,8 @@ struct StopGoMappingRunReport {
     std::size_t corner_transition_count = 0;
     double total_odom_travel_distance_m = 0.0;
     double segment_odom_distance_m = 0.0;
+    std::size_t odom_distance_jump_reject_count = 0;
+    std::string odom_distance_rejection_reason = "none";
     std::size_t closure_candidate_count = 0;
     std::size_t first_closure_candidate_transition_count = 0;
     std::size_t closure_confirmation_attempt_count = 0;
@@ -1546,7 +1558,11 @@ private:
 
     bool update_rectangle_odom_distance() {
         const RobotPose2D pose = application_.core().report().last_odom_pose;
-        if (!sparse_slam_pose_finite(pose)) return false;
+        if (!sparse_slam_pose_finite(pose)) {
+            ++report_.odom_distance_jump_reject_count;
+            report_.odom_distance_rejection_reason = "odom_pose_non_finite";
+            return false;
+        }
         if (!previous_odom_pose_valid_) {
             previous_odom_pose_ = pose;
             previous_odom_pose_valid_ = true;
@@ -1556,11 +1572,19 @@ private:
         const double dy = pose.y_m - previous_odom_pose_.y_m;
         const double distance = std::hypot(dx, dy);
         previous_odom_pose_ = pose;
-        if (!std::isfinite(distance) || distance < 0.0) return false;
+        if (!std::isfinite(distance) || distance < 0.0) {
+            ++report_.odom_distance_jump_reject_count;
+            report_.odom_distance_rejection_reason = "odom_increment_non_finite";
+            return false;
+        }
         // A 50 Hz odometry update cannot legitimately jump by a quarter metre
         // in this low-speed formal runner.  Never replace a rejected increment
         // with the requested command distance.
-        if (distance > 0.25) return false;
+        if (distance > 0.25) {
+            ++report_.odom_distance_jump_reject_count;
+            report_.odom_distance_rejection_reason = "odom_increment_exceeds_0_25_m";
+            return false;
+        }
         report_.total_odom_travel_distance_m += distance;
         report_.segment_odom_distance_m += distance;
         report_.odom_distance_since_last_corner_m += distance;
@@ -2027,8 +2051,20 @@ private:
             report_.run_start_anchor.initial_base_to_wall_distance_m;
         replay.run_start_wall_line_offset_m =
             report_.run_start_anchor.initial_wall_line_offset_m;
+        replay.run_start_wall_rms_m =
+            report_.run_start_anchor.initial_wall_model_rms_m;
+        replay.run_start_wall_baseline_m =
+            report_.run_start_anchor.initial_wall_model_baseline_m;
+        replay.run_start_wall_input_point_count =
+            report_.run_start_anchor.initial_wall_model_input_point_count;
+        replay.run_start_wall_inlier_point_count =
+            report_.run_start_anchor.initial_wall_model_inlier_point_count;
         replay.run_start_wall_signature_hash =
             report_.run_start_anchor.initial_wall_model_signature_hash;
+        replay.run_start_odom_distance_baseline_m =
+            report_.run_start_anchor.odom_distance_at_start_m;
+        replay.run_start_forward_step_baseline =
+            report_.run_start_anchor.completed_forward_steps_at_start;
         replay.total_odom_travel_distance_m =
             report_.total_odom_travel_distance_m;
         replay.segment_odom_distance_m = report_.segment_odom_distance_m;
@@ -2047,6 +2083,10 @@ private:
         replay.estimated_closure_yaw_error_rad =
             report_.estimated_closure_yaw_error_rad;
         replay.final_map_revision = report_.map_revision;
+        replay.forward_steps_per_segment = report_.forward_steps_per_segment;
+        replay.odom_distance_per_segment_m = report_.odom_distance_per_segment_m;
+        replay.wall_segment_sequence = report_.wall_segment_sequence;
+        replay.corner_transition_ids = report_.corner_transition_ids;
         return replay;
     }
 

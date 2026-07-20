@@ -169,10 +169,21 @@ inline int real_main(int argc, char **argv) {
                   << report.estimated_closure_position_error_m
                   << " estimated_closure_yaw_error_deg="
                   << report.estimated_closure_yaw_error_rad * 180.0 / kPi
+                  << " ground_truth_closure_position_error_m="
+                  << report.ground_truth_final_position_error_m
+                  << " ground_truth_closure_yaw_error_deg="
+                  << report.ground_truth_final_yaw_error_rad * 180.0 / kPi
+                  << " total_odom_travel_distance_m="
+                  << report.total_odom_travel_distance_m
                   << " observable_wall_coverage_ratio="
                   << report.observable_wall_coverage_ratio
+                  << " occupied_cells=" << report.map_occupied_cell_count
+                  << " free_cells=" << report.map_free_cell_count
+                  << " unknown_cells=" << report.map_unknown_cell_count
                   << " p95_wall_thickness_cells="
                   << report.p95_wall_thickness_cells
+                  << " maximum_wall_thickness_cells="
+                  << report.maximum_wall_thickness_cells
                   << " ghost_occupied_cell_ratio="
                   << report.ghost_occupied_cell_ratio
                   << " duplicate_wall_band_count="
@@ -180,6 +191,14 @@ inline int real_main(int argc, char **argv) {
                   << " final_map_saved=" << (report.final_map_saved ? "true" : "false")
                   << " final_map_reload_verified="
                   << (report.final_map_reload_verified ? "true" : "false")
+                  << " forced_pose_snap_used="
+                  << (report.forced_pose_snap_used ? "true" : "false")
+                  << " rectangle_geometry_snap_used="
+                  << (report.rectangle_geometry_snap_used ? "true" : "false")
+                  << " controller_map_odom_write_attempt_count="
+                  << report.controller_map_odom_write_attempt_count
+                  << " commands_submitted_after_completion="
+                  << report.commands_submitted_after_completion
                   << " command_speed_used_as_odometry="
                   << (report.command_speed_used_as_odometry ? "true" : "false")
                   << " ground_truth_used_by_algorithm="

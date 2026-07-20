@@ -499,7 +499,20 @@ public:
 
         const double dt = config.exploration_simulation_fixed_dt_s > 0.0
             ? config.exploration_simulation_fixed_dt_s : 0.02;
+        RobotPose2D ground_truth_evaluator_anchor = ground_truth_start;
+        bool ground_truth_evaluator_anchor_captured = false;
+        const auto capture_evaluator_anchor = [&]() {
+            if (!ground_truth_evaluator_anchor_captured &&
+                controller.report().run_start_anchor.valid) {
+                // Acceptance-only correspondence for the Controller's
+                // estimated run-start anchor.  This value is never returned
+                // to the Controller/Core or used to influence motion.
+                ground_truth_evaluator_anchor = plant->state().pose;
+                ground_truth_evaluator_anchor_captured = true;
+            }
+        };
         bool tick_ok = controller.tick(clock->now_s());
+        capture_evaluator_anchor();
         std::size_t guard = 0;
         while (tick_ok && !controller.terminal() && guard++ < 20000U) {
             if (scenario == "frame_epoch_change_mid_run" &&
@@ -509,6 +522,7 @@ public:
                 frame_epoch_injection_attempted = true;
                 frame_epoch_injection_succeeded = inject_frame_epoch_change();
                 tick_ok = controller.tick(clock->now_s());
+                capture_evaluator_anchor();
                 continue;
             }
             if (!clock->advance(dt) || !motion->advance(dt, clock->now_s(), world.get())) {
@@ -516,6 +530,7 @@ public:
                 break;
             }
             tick_ok = controller.tick(clock->now_s());
+            capture_evaluator_anchor();
         }
         auto report = controller.report();
         report.simulation_tick_count = guard;
@@ -561,7 +576,7 @@ public:
                 {-1.06, 0.60, -1.06, -0.90, 104}}};
             const auto quality = evaluate_rectangle_map_quality(
                 map_snapshot, world->segments(), inner_walls,
-                ground_truth_start, plant->state().pose,
+                ground_truth_evaluator_anchor, plant->state().pose,
                 report.run_start_anchor.start_map_pose);
             report.map_occupied_cell_count = quality.occupied_cell_count;
             report.map_free_cell_count = quality.free_cell_count;
@@ -731,6 +746,19 @@ public:
                         << report.estimated_closure_position_error_m
                         << ",\"estimated_closure_yaw_error_deg\":"
                         << report.estimated_closure_yaw_error_rad * 180.0 / kPi
+                        << ",\"ground_truth_closure_position_error_m\":"
+                        << report.ground_truth_final_position_error_m
+                        << ",\"ground_truth_closure_yaw_error_deg\":"
+                        << report.ground_truth_final_yaw_error_rad * 180.0 / kPi
+                        << ",\"total_odom_travel_distance_m\":"
+                        << report.total_odom_travel_distance_m
+                        << ",\"occupied_cells\":" << report.map_occupied_cell_count
+                        << ",\"free_cells\":" << report.map_free_cell_count
+                        << ",\"unknown_cells\":" << report.map_unknown_cell_count
+                        << ",\"uncertain_cells\":" << report.map_uncertain_cell_count
+                        << ",\"map_bounds_cells\":["
+                        << report.map_min_x_cell << ',' << report.map_min_y_cell << ','
+                        << report.map_max_x_cell << ',' << report.map_max_y_cell << ']'
                         << ",\"observable_wall_coverage_ratio\":"
                         << report.observable_wall_coverage_ratio
                         << ",\"p95_wall_thickness_cells\":"
@@ -753,7 +781,15 @@ public:
                         << ",\"map_saved\":"
                         << (report.final_map_saved ? "true" : "false")
                         << ",\"map_reload_verified\":"
-                        << (report.final_map_reload_verified ? "true" : "false") << "}\n";
+                        << (report.final_map_reload_verified ? "true" : "false")
+                        << ",\"forced_pose_snap_used\":"
+                        << (report.forced_pose_snap_used ? "true" : "false")
+                        << ",\"rectangle_geometry_snap_used\":"
+                        << (report.rectangle_geometry_snap_used ? "true" : "false")
+                        << ",\"controller_map_odom_write_attempt_count\":"
+                        << report.controller_map_odom_write_attempt_count
+                        << ",\"commands_submitted_after_completion\":"
+                        << report.commands_submitted_after_completion << "}\n";
                 }
             }
             report.ground_truth_used_by_algorithm = false;

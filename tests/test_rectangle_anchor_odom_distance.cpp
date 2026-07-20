@@ -19,6 +19,11 @@ int main() {
            first.total_odom_travel_distance_m != first.completed_steps * 0.020 &&
            !first.command_target_used_as_odometry &&
            first.run_anchor_hash == second.run_anchor_hash &&
+           first.command_ids == second.command_ids &&
+           first.wall_segment_sequence == second.wall_segment_sequence &&
+           first.wall_point_sequence_hash == second.wall_point_sequence_hash &&
+           first.wall_model_sequence_hash == second.wall_model_sequence_hash &&
+           first.final_map_checksum == second.final_map_checksum &&
            std::fabs(first.total_odom_travel_distance_m -
                      second.total_odom_travel_distance_m) < 1e-12 ? 0 : 1;
 }
