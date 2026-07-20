@@ -10,6 +10,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <vector>
 
 namespace robot_slamd {
@@ -77,6 +78,45 @@ public:
         append_tof(out, "front", st.front, s.multi_tof.front);
         append_tof(out, "left", st.left, s.multi_tof.left);
         append_tof(out, "right", st.right, s.multi_tof.right);
+        out << " epoch=" << record.frame_transform_epoch
+            << " wall_point_accepted=" << (record.left_wall_point_accepted ? 1 : 0)
+            << " wall_point_x=" << record.left_wall_point.x_m
+            << " wall_point_y=" << record.left_wall_point.y_m
+            << " wall_point_t=" << record.left_wall_point.timestamp_s
+            << " wall_point_confidence=" << record.left_wall_point.confidence
+            << " wall_point_cycle=" << record.left_wall_point.cycle_index
+            << " wall_point_revision=" << record.left_wall_point.map_revision
+            << " wall_model_valid=" << (record.wall_model.valid ? 1 : 0)
+            << " wall_heading=" << record.wall_model.wall_heading_rad
+            << " wall_distance=" << record.wall_model.signed_base_to_wall_distance_m
+            << " wall_rms=" << record.wall_model.rms_residual_m
+            << " wall_baseline=" << record.wall_model.baseline_m
+            << " wall_input=" << record.wall_model.input_point_count
+            << " wall_inliers=" << record.wall_model.inlier_point_count
+            << " control_action=" << static_cast<int>(record.control_decision.action)
+            << " heading_error=" << record.control_decision.heading_error_rad
+            << " distance_error=" << record.control_decision.distance_error_m
+            << " distance_bias=" << record.control_decision.distance_bias_rad
+            << " turn_error=" << record.control_decision.turn_error_rad
+            << " correction_deg=" << record.control_decision.correction_amount_deg
+            << " post_turn_verified=" << (record.post_turn_verified ? 1 : 0)
+            << " odom_count=" << record.odom_samples.size();
+        for (std::size_t index = 0; index < record.odom_samples.size(); ++index) {
+            const auto &sample = record.odom_samples[index];
+            const auto key = [index](const char *suffix) {
+                std::ostringstream name;
+                name << "odom" << index << "_" << suffix;
+                return name.str();
+            };
+            out << " " << key("wheel_t") << "=" << sample.wheel.timestamp_s
+                << " " << key("linear") << "=" << sample.wheel.linear_mps
+                << " " << key("angular") << "=" << sample.wheel.angular_rad_s
+                << " " << key("left_ticks") << "=" << sample.wheel.left_ticks
+                << " " << key("right_ticks") << "=" << sample.wheel.right_ticks
+                << " " << key("wheel_valid") << "=" << (sample.wheel.valid ? 1 : 0)
+                << " " << key("imu_t") << "=" << sample.imu.timestamp_s
+                << " " << key("gyro_z") << "=" << sample.imu.yaw_rate_rad_s;
+        }
         out << " controller_state=" << static_cast<int>(record.controller_state) << "\n";
         return out.str();
     }
@@ -129,6 +169,56 @@ public:
             decode_tof(fields, "front", result.record.stable_sample.front, s.multi_tof.front);
             decode_tof(fields, "left", result.record.stable_sample.left, s.multi_tof.left);
             decode_tof(fields, "right", result.record.stable_sample.right, s.multi_tof.right);
+            read_optional(fields, "epoch", result.record.frame_transform_epoch);
+            read_optional(fields, "wall_point_accepted", result.record.left_wall_point_accepted);
+            read_optional(fields, "wall_point_x", result.record.left_wall_point.x_m);
+            read_optional(fields, "wall_point_y", result.record.left_wall_point.y_m);
+            read_optional(fields, "wall_point_t", result.record.left_wall_point.timestamp_s);
+            read_optional(fields, "wall_point_confidence", result.record.left_wall_point.confidence);
+            read_optional(fields, "wall_point_cycle", result.record.left_wall_point.cycle_index);
+            read_optional(fields, "wall_point_revision", result.record.left_wall_point.map_revision);
+            read_optional(fields, "wall_model_valid", result.record.wall_model.valid);
+            read_optional(fields, "wall_heading", result.record.wall_model.wall_heading_rad);
+            read_optional(fields, "wall_distance", result.record.wall_model.signed_base_to_wall_distance_m);
+            read_optional(fields, "wall_rms", result.record.wall_model.rms_residual_m);
+            read_optional(fields, "wall_baseline", result.record.wall_model.baseline_m);
+            read_optional(fields, "wall_input", result.record.wall_model.input_point_count);
+            read_optional(fields, "wall_inliers", result.record.wall_model.inlier_point_count);
+            int control_action = 0;
+            read_optional(fields, "control_action", control_action);
+            if (control_action >= 0 && control_action <= 2) {
+                result.record.control_decision.action =
+                    static_cast<LeftWallControlAction>(control_action);
+            }
+            read_optional(fields, "heading_error", result.record.control_decision.heading_error_rad);
+            read_optional(fields, "distance_error", result.record.control_decision.distance_error_m);
+            read_optional(fields, "distance_bias", result.record.control_decision.distance_bias_rad);
+            read_optional(fields, "turn_error", result.record.control_decision.turn_error_rad);
+            read_optional(fields, "correction_deg", result.record.control_decision.correction_amount_deg);
+            read_optional(fields, "post_turn_verified", result.record.post_turn_verified);
+            std::size_t odom_count = 0;
+            read_optional(fields, "odom_count", odom_count);
+            if (odom_count > 10000U) {
+                result.reason = "replay_odom_sample_count_exceeded";
+                return result;
+            }
+            for (std::size_t index = 0; index < odom_count; ++index) {
+                const auto key = [index](const char *suffix) {
+                    std::ostringstream name;
+                    name << "odom" << index << "_" << suffix;
+                    return name.str();
+                };
+                StopGoReplayOdomSample sample;
+                sample.wheel.timestamp_s = std::stod(fields.at(key("wheel_t")));
+                sample.wheel.linear_mps = std::stod(fields.at(key("linear")));
+                sample.wheel.angular_rad_s = std::stod(fields.at(key("angular")));
+                sample.wheel.left_ticks = std::stod(fields.at(key("left_ticks")));
+                sample.wheel.right_ticks = std::stod(fields.at(key("right_ticks")));
+                sample.wheel.valid = std::stoi(fields.at(key("wheel_valid"))) != 0;
+                sample.imu.timestamp_s = std::stod(fields.at(key("imu_t")));
+                sample.imu.yaw_rate_rad_s = std::stod(fields.at(key("gyro_z")));
+                result.record.odom_samples.push_back(sample);
+            }
             s.has_multi_tof = true;
             s.multi_tof.has_front = true;
             s.multi_tof.has_left = true;
@@ -176,6 +266,20 @@ public:
     }
 
 private:
+    template <typename T>
+    static void read_optional(const std::map<std::string, std::string> &fields,
+                              const char *name, T &value) {
+        const auto found = fields.find(name);
+        if (found == fields.end()) return;
+        if constexpr (std::is_same<T, bool>::value) {
+            value = std::stoi(found->second) != 0;
+        } else if constexpr (std::is_integral<T>::value) {
+            value = static_cast<T>(std::stoull(found->second));
+        } else {
+            value = static_cast<T>(std::stod(found->second));
+        }
+    }
+
     static void append_tof(std::ostringstream &out, const char *prefix,
                            const StableTofReading &stable,
                            const ScalarTofSnapshotFrame &selected) {

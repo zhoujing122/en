@@ -173,7 +173,8 @@ public:
         double now_s,
         const RobotSlamMotionFeedback &motion_feedback = {},
         ActiveObservationControl observation_control =
-            ActiveObservationControl::None) {
+            ActiveObservationControl::None,
+        bool mapping_write_enabled_override = true) {
         if (!initialized_) {
             return reject_step("application_not_initialized");
         }
@@ -206,9 +207,9 @@ public:
         request.observation_control = observation_control;
         request.snapshot = snapshot;
         request.now_s = now_s;
-        request.mapping_write_enabled =
-            operation_ == OperationMode::Mapping ||
-            operation_ == OperationMode::StopGoWallMapping;
+        request.mapping_write_enabled = mapping_write_enabled_override &&
+            (operation_ == OperationMode::Mapping ||
+             operation_ == OperationMode::StopGoWallMapping);
         const auto result = core_.step(request);
         report_.core_step_count++;
         report_.last_reason = result.message;

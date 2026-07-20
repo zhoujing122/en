@@ -229,6 +229,31 @@ struct Config {
     int stop_go_tof_mapping_max_distance_mm = 4500;
     int stop_go_tof_mapping_min_confidence = 70;
     std::string stop_go_log_path;
+    // "straight" preserves the P2 stop-go mapping contract.  P4 selects
+    // "left_wall_follow" explicitly and uses the bounded wall controller
+    // below.
+    std::string stop_go_mapping_mode = "straight";
+    std::string stop_go_desired_distance_mode = "configured";
+    double stop_go_desired_base_to_wall_distance_mm = 150.0;
+    int stop_go_wall_window_max_points = 10;
+    int stop_go_wall_min_fit_points = 5;
+    double stop_go_wall_min_baseline_mm = 50.0;
+    double stop_go_wall_max_fit_rms_mm = 30.0;
+    double stop_go_wall_outlier_min_threshold_mm = 20.0;
+    double stop_go_wall_outlier_mad_scale = 3.0;
+    int stop_go_wall_acquisition_max_forward_steps = 6;
+    int stop_go_wall_max_stationary_resample_attempts = 3;
+    int stop_go_wall_max_consecutive_misses = 2;
+    double stop_go_wall_heading_deadband_deg = 1.0;
+    double stop_go_wall_distance_deadband_mm = 10.0;
+    double stop_go_wall_distance_to_heading_gain_deg_per_m = 20.0;
+    double stop_go_wall_max_distance_bias_deg = 3.0;
+    double stop_go_wall_min_correction_deg = 1.0;
+    double stop_go_wall_max_correction_deg = 3.0;
+    double stop_go_wall_min_allowed_distance_mm = 50.0;
+    double stop_go_wall_max_allowed_distance_mm = 500.0;
+    double stop_go_front_stop_threshold_mm = 200.0;
+    int stop_go_front_max_invalid_samples = 2;
     std::string sparse_slam_map_startup_mode = "create_new";
     std::string sparse_slam_initial_pose_mode = "startup_zero";
     bool sparse_slam_has_configured_pose = false;

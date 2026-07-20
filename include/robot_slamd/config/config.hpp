@@ -194,6 +194,28 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.stop_go_tof_mapping_max_distance_mm = get_int(kv, "stop_go_mapping.tof.mapping_max_distance_mm", c.stop_go_tof_mapping_max_distance_mm);
     c.stop_go_tof_mapping_min_confidence = get_int(kv, "stop_go_mapping.tof.mapping_min_confidence", c.stop_go_tof_mapping_min_confidence);
     c.stop_go_log_path = get_string(kv, "stop_go_mapping.log_path", c.stop_go_log_path);
+    c.stop_go_mapping_mode = get_string(kv, "stop_go_mapping.mode", c.stop_go_mapping_mode);
+    c.stop_go_desired_distance_mode = get_string(kv, "stop_go_mapping.wall.desired_distance_mode", c.stop_go_desired_distance_mode);
+    c.stop_go_desired_base_to_wall_distance_mm = get_double(kv, "stop_go_mapping.wall.desired_base_to_wall_distance_mm", c.stop_go_desired_base_to_wall_distance_mm);
+    c.stop_go_wall_window_max_points = get_int(kv, "stop_go_mapping.wall.window_max_points", c.stop_go_wall_window_max_points);
+    c.stop_go_wall_min_fit_points = get_int(kv, "stop_go_mapping.wall.min_fit_points", c.stop_go_wall_min_fit_points);
+    c.stop_go_wall_min_baseline_mm = get_double(kv, "stop_go_mapping.wall.min_baseline_mm", c.stop_go_wall_min_baseline_mm);
+    c.stop_go_wall_max_fit_rms_mm = get_double(kv, "stop_go_mapping.wall.max_fit_rms_mm", c.stop_go_wall_max_fit_rms_mm);
+    c.stop_go_wall_outlier_min_threshold_mm = get_double(kv, "stop_go_mapping.wall.outlier_min_threshold_mm", c.stop_go_wall_outlier_min_threshold_mm);
+    c.stop_go_wall_outlier_mad_scale = get_double(kv, "stop_go_mapping.wall.outlier_mad_scale", c.stop_go_wall_outlier_mad_scale);
+    c.stop_go_wall_acquisition_max_forward_steps = get_int(kv, "stop_go_mapping.wall.acquisition_max_forward_steps", c.stop_go_wall_acquisition_max_forward_steps);
+    c.stop_go_wall_max_stationary_resample_attempts = get_int(kv, "stop_go_mapping.wall.max_stationary_resample_attempts", c.stop_go_wall_max_stationary_resample_attempts);
+    c.stop_go_wall_max_consecutive_misses = get_int(kv, "stop_go_mapping.wall.max_consecutive_wall_misses", c.stop_go_wall_max_consecutive_misses);
+    c.stop_go_wall_heading_deadband_deg = get_double(kv, "stop_go_mapping.wall.heading_deadband_deg", c.stop_go_wall_heading_deadband_deg);
+    c.stop_go_wall_distance_deadband_mm = get_double(kv, "stop_go_mapping.wall.distance_deadband_mm", c.stop_go_wall_distance_deadband_mm);
+    c.stop_go_wall_distance_to_heading_gain_deg_per_m = get_double(kv, "stop_go_mapping.wall.distance_to_heading_gain_deg_per_m", c.stop_go_wall_distance_to_heading_gain_deg_per_m);
+    c.stop_go_wall_max_distance_bias_deg = get_double(kv, "stop_go_mapping.wall.max_distance_bias_deg", c.stop_go_wall_max_distance_bias_deg);
+    c.stop_go_wall_min_correction_deg = get_double(kv, "stop_go_mapping.wall.min_correction_deg", c.stop_go_wall_min_correction_deg);
+    c.stop_go_wall_max_correction_deg = get_double(kv, "stop_go_mapping.wall.max_correction_deg", c.stop_go_wall_max_correction_deg);
+    c.stop_go_wall_min_allowed_distance_mm = get_double(kv, "stop_go_mapping.wall.min_allowed_base_to_wall_distance_mm", c.stop_go_wall_min_allowed_distance_mm);
+    c.stop_go_wall_max_allowed_distance_mm = get_double(kv, "stop_go_mapping.wall.max_allowed_base_to_wall_distance_mm", c.stop_go_wall_max_allowed_distance_mm);
+    c.stop_go_front_stop_threshold_mm = get_double(kv, "stop_go_mapping.front_safety.stop_threshold_mm", c.stop_go_front_stop_threshold_mm);
+    c.stop_go_front_max_invalid_samples = get_int(kv, "stop_go_mapping.front_safety.max_invalid_samples", c.stop_go_front_max_invalid_samples);
     c.sparse_slam_map_startup_mode = get_string(kv, "sparse_slam.map_startup_mode", c.sparse_slam_map_startup_mode);
     c.sparse_slam_initial_pose_mode = get_string(kv, "sparse_slam.initial_pose_mode", c.sparse_slam_initial_pose_mode);
     c.sparse_slam_has_configured_pose = get_bool(kv, "sparse_slam.has_configured_pose", c.sparse_slam_has_configured_pose);
@@ -904,6 +926,38 @@ void validate_config(const Config &c) {
         if (c.stop_go_tof_protocol_min_distance_mm < 20 || c.stop_go_tof_protocol_max_distance_mm > 4500 || c.stop_go_tof_protocol_min_distance_mm >= c.stop_go_tof_protocol_max_distance_mm) errors.push_back("stop_go_mapping.tof protocol range must be within 20..4500 mm");
         if (c.stop_go_tof_mapping_min_distance_mm < c.stop_go_tof_protocol_min_distance_mm || c.stop_go_tof_mapping_max_distance_mm > c.stop_go_tof_protocol_max_distance_mm || c.stop_go_tof_mapping_min_distance_mm >= c.stop_go_tof_mapping_max_distance_mm) errors.push_back("stop_go_mapping.tof mapping range must be within protocol range");
         if (c.stop_go_tof_mapping_min_confidence < 0 || c.stop_go_tof_mapping_min_confidence > 100) errors.push_back("stop_go_mapping.tof.mapping_min_confidence must be in [0, 100]");
+    }
+    if (!one_of(c.stop_go_mapping_mode, {"straight", "left_wall_follow"})) {
+        errors.push_back("stop_go_mapping.mode must be straight or left_wall_follow");
+    }
+    if (!one_of(c.stop_go_desired_distance_mode, {"configured", "capture_initial"})) {
+        errors.push_back("stop_go_mapping.wall.desired_distance_mode must be configured or capture_initial");
+    }
+    if (c.stop_go_mapping_mode == "left_wall_follow" ||
+        c.runtime_operation == "stop_go_wall_mapping") {
+        positive("stop_go_mapping.wall.desired_base_to_wall_distance_mm",
+                 c.stop_go_desired_base_to_wall_distance_mm);
+        if (c.stop_go_wall_window_max_points <= 0) errors.push_back("stop_go_mapping.wall.window_max_points must be > 0");
+        if (c.stop_go_wall_min_fit_points < 2 || c.stop_go_wall_min_fit_points > c.stop_go_wall_window_max_points) errors.push_back("stop_go_mapping.wall.min_fit_points must be in [2, window_max_points]");
+        positive("stop_go_mapping.wall.min_baseline_mm", c.stop_go_wall_min_baseline_mm);
+        non_negative("stop_go_mapping.wall.max_fit_rms_mm", c.stop_go_wall_max_fit_rms_mm);
+        non_negative("stop_go_mapping.wall.outlier_min_threshold_mm", c.stop_go_wall_outlier_min_threshold_mm);
+        positive("stop_go_mapping.wall.outlier_mad_scale", c.stop_go_wall_outlier_mad_scale);
+        if (c.stop_go_wall_acquisition_max_forward_steps <= 0) errors.push_back("stop_go_mapping.wall.acquisition_max_forward_steps must be > 0");
+        if (c.stop_go_wall_max_stationary_resample_attempts <= 0) errors.push_back("stop_go_mapping.wall.max_stationary_resample_attempts must be > 0");
+        if (c.stop_go_wall_max_consecutive_misses <= 0) errors.push_back("stop_go_mapping.wall.max_consecutive_wall_misses must be > 0");
+        non_negative("stop_go_mapping.wall.heading_deadband_deg", c.stop_go_wall_heading_deadband_deg);
+        non_negative("stop_go_mapping.wall.distance_deadband_mm", c.stop_go_wall_distance_deadband_mm);
+        if (!std::isfinite(c.stop_go_wall_distance_to_heading_gain_deg_per_m)) errors.push_back("stop_go_mapping.wall.distance_to_heading_gain_deg_per_m must be finite");
+        non_negative("stop_go_mapping.wall.max_distance_bias_deg", c.stop_go_wall_max_distance_bias_deg);
+        non_negative("stop_go_mapping.wall.min_correction_deg", c.stop_go_wall_min_correction_deg);
+        positive("stop_go_mapping.wall.max_correction_deg", c.stop_go_wall_max_correction_deg);
+        if (c.stop_go_wall_min_correction_deg > c.stop_go_wall_max_correction_deg) errors.push_back("stop_go_mapping.wall.min_correction_deg must be <= max_correction_deg");
+        positive("stop_go_mapping.wall.min_allowed_base_to_wall_distance_mm", c.stop_go_wall_min_allowed_distance_mm);
+        positive("stop_go_mapping.wall.max_allowed_base_to_wall_distance_mm", c.stop_go_wall_max_allowed_distance_mm);
+        if (c.stop_go_wall_min_allowed_distance_mm > c.stop_go_wall_max_allowed_distance_mm) errors.push_back("stop_go_mapping.wall min_allowed must be <= max_allowed");
+        positive("stop_go_mapping.front_safety.stop_threshold_mm", c.stop_go_front_stop_threshold_mm);
+        if (c.stop_go_front_max_invalid_samples <= 0) errors.push_back("stop_go_mapping.front_safety.max_invalid_samples must be > 0");
     }
     if (c.runtime_sensor_source == "replay" &&
         c.runtime_replay_path.empty()) {
@@ -1904,6 +1958,7 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "  log_hz: " << c.log_hz << "\n";
     o << "stop_go_mapping:\n"
       << "  enabled: " << bool_yaml(c.stop_go_mapping_enabled) << "\n"
+      << "  mode: " << c.stop_go_mapping_mode << "\n"
       << "  forward_step_mm: " << c.stop_go_forward_step_mm << "\n"
       << "  max_steps: " << c.stop_go_max_steps << "\n"
       << "  max_total_distance_mm: " << c.stop_go_max_total_distance_mm << "\n"
@@ -1922,7 +1977,30 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "    protocol_max_distance_mm: " << c.stop_go_tof_protocol_max_distance_mm << "\n"
       << "    mapping_min_distance_mm: " << c.stop_go_tof_mapping_min_distance_mm << "\n"
       << "    mapping_max_distance_mm: " << c.stop_go_tof_mapping_max_distance_mm << "\n"
-      << "    mapping_min_confidence: " << c.stop_go_tof_mapping_min_confidence << "\n";
+      << "    mapping_min_confidence: " << c.stop_go_tof_mapping_min_confidence << "\n"
+      << "  wall:\n"
+      << "    desired_distance_mode: " << c.stop_go_desired_distance_mode << "\n"
+      << "    desired_base_to_wall_distance_mm: " << c.stop_go_desired_base_to_wall_distance_mm << "\n"
+      << "    window_max_points: " << c.stop_go_wall_window_max_points << "\n"
+      << "    min_fit_points: " << c.stop_go_wall_min_fit_points << "\n"
+      << "    min_baseline_mm: " << c.stop_go_wall_min_baseline_mm << "\n"
+      << "    max_fit_rms_mm: " << c.stop_go_wall_max_fit_rms_mm << "\n"
+      << "    outlier_min_threshold_mm: " << c.stop_go_wall_outlier_min_threshold_mm << "\n"
+      << "    outlier_mad_scale: " << c.stop_go_wall_outlier_mad_scale << "\n"
+      << "    acquisition_max_forward_steps: " << c.stop_go_wall_acquisition_max_forward_steps << "\n"
+      << "    max_stationary_resample_attempts: " << c.stop_go_wall_max_stationary_resample_attempts << "\n"
+      << "    max_consecutive_wall_misses: " << c.stop_go_wall_max_consecutive_misses << "\n"
+      << "    heading_deadband_deg: " << c.stop_go_wall_heading_deadband_deg << "\n"
+      << "    distance_deadband_mm: " << c.stop_go_wall_distance_deadband_mm << "\n"
+      << "    distance_to_heading_gain_deg_per_m: " << c.stop_go_wall_distance_to_heading_gain_deg_per_m << "\n"
+      << "    max_distance_bias_deg: " << c.stop_go_wall_max_distance_bias_deg << "\n"
+      << "    min_correction_deg: " << c.stop_go_wall_min_correction_deg << "\n"
+      << "    max_correction_deg: " << c.stop_go_wall_max_correction_deg << "\n"
+      << "    min_allowed_base_to_wall_distance_mm: " << c.stop_go_wall_min_allowed_distance_mm << "\n"
+      << "    max_allowed_base_to_wall_distance_mm: " << c.stop_go_wall_max_allowed_distance_mm << "\n"
+      << "  front_safety:\n"
+      << "    stop_threshold_mm: " << c.stop_go_front_stop_threshold_mm << "\n"
+      << "    max_invalid_samples: " << c.stop_go_front_max_invalid_samples << "\n";
     o << "sparse_slam:\n"
       << "  map_startup_mode: " << c.sparse_slam_map_startup_mode << "\n"
       << "  initial_pose_mode: " << c.sparse_slam_initial_pose_mode << "\n"

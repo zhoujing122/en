@@ -174,6 +174,7 @@ struct SparseSlamRuntimeCoreReport {
     double bundle_yaw_span_rad = 0.0;
     std::uint64_t reference_map_revision = 0;
     std::uint64_t current_map_revision = 0;
+    std::uint64_t frame_transform_epoch = 0;
     std::size_t reference_map_cell_count = 0;
     std::size_t map_commit_blocked_count = 0;
     std::size_t map_update_during_bundle_count = 0;
@@ -279,6 +280,19 @@ struct SparseSlamRuntimeCoreStepResult {
     bool backend_called = false;
     std::string status;
     std::string message;
+};
+
+// Narrow read-only handoff for consumers that need the exact pose used by the
+// backend for an accepted measurement.  It deliberately does not expose a
+// mutable frame state or a second pose source.
+struct LastAcceptedMapObservationView {
+    bool valid = false;
+    std::uint64_t snapshot_identity = 0;
+    MultiTofMeasurementPoseSet measurement_poses;
+    std::uint64_t map_revision_before = 0;
+    std::uint64_t map_revision_after = 0;
+    std::uint64_t frame_transform_epoch = 0;
+    bool backend_accepted = false;
 };
 
 struct SparseSlamStepRequest {
@@ -404,6 +418,9 @@ public:
         }
         init_request_ = staged_request;
         frame_state_ = MapOdomFrameState{};
+        frame_transform_epoch_ = 0;
+        last_accepted_map_observation_ = {};
+        next_snapshot_identity_ = 0;
         relocalization_manager_.reset();
         localization_health_.reset();
         report_.relocalization_required =
@@ -661,8 +678,18 @@ public:
             backend_report.legacy_projection_consumed;
         report_.sparse_map_cell_count = backend_report.active_cell_count;
         if (accepted) {
+            const std::uint64_t revision_before = current_map_revision_;
             current_map_revision_++;
             report_.current_map_revision = current_map_revision_;
+            last_accepted_map_observation_.valid = true;
+            last_accepted_map_observation_.snapshot_identity =
+                ++next_snapshot_identity_;
+            last_accepted_map_observation_.measurement_poses = resolved.poses;
+            last_accepted_map_observation_.map_revision_before = revision_before;
+            last_accepted_map_observation_.map_revision_after = current_map_revision_;
+            last_accepted_map_observation_.frame_transform_epoch =
+                frame_transform_epoch_;
+            last_accepted_map_observation_.backend_accepted = true;
             report_.backend_accept_count++;
             report_.last_fault = "none";
             report_.last_message = "sparse_slam_core_backend_accepted";
@@ -679,6 +706,13 @@ public:
     }
 
     const SparseSlamRuntimeCoreReport &report() const { return report_; }
+    const LastAcceptedMapObservationView &
+    last_accepted_map_observation() const {
+        return last_accepted_map_observation_;
+    }
+    std::uint64_t frame_transform_epoch() const {
+        return frame_transform_epoch_;
+    }
     MapPose2D current_map_pose() const {
         return frame_state_.map_pose_from_odom(
             make_odom_pose(estimator_.estimated_pose()));
@@ -1285,13 +1319,32 @@ private:
         }
         bool transform_committed = false;
         if (frame_state_.relocalization_pending()) {
+            const auto before_transform = frame_state_.current_map_from_odom();
             transform_committed = frame_state_.commit_relocalization_transform(
                 *result.accepted_map_from_odom);
+            if (transform_committed &&
+                (before_transform.map_T_odom.x_m !=
+                     result.accepted_map_from_odom->map_T_odom.x_m ||
+                 before_transform.map_T_odom.y_m !=
+                     result.accepted_map_from_odom->map_T_odom.y_m ||
+                 before_transform.map_T_odom.yaw_rad !=
+                     result.accepted_map_from_odom->map_T_odom.yaw_rad)) {
+                ++frame_transform_epoch_;
+            }
         } else if (frame_state_.can_apply_local_slam_transform(
                        *result.accepted_map_from_odom)) {
+            const auto before_transform = frame_state_.current_map_from_odom();
             frame_state_.commit_local_slam_transform(
                 *result.accepted_map_from_odom);
             transform_committed = true;
+            if (before_transform.map_T_odom.x_m !=
+                    result.accepted_map_from_odom->map_T_odom.x_m ||
+                before_transform.map_T_odom.y_m !=
+                    result.accepted_map_from_odom->map_T_odom.y_m ||
+                before_transform.map_T_odom.yaw_rad !=
+                    result.accepted_map_from_odom->map_T_odom.yaw_rad) {
+                ++frame_transform_epoch_;
+            }
         }
         if (!transform_committed) {
             report_.relocalization_failure_count++;
@@ -1328,6 +1381,7 @@ private:
         report_.map_from_odom_x_m = transform.map_T_odom.x_m;
         report_.map_from_odom_y_m = transform.map_T_odom.y_m;
         report_.map_from_odom_yaw_rad = transform.map_T_odom.yaw_rad;
+        report_.frame_transform_epoch = frame_transform_epoch_;
         phase_ = SparseSlamRuntimeCorePhase::Ready;
         clear_prepared_local_match_objects();
         report_.last_fault = "none";
@@ -1574,8 +1628,18 @@ private:
         }
 
         keyframe_manager_.commit(std::move(keyframe_prepare.prepared));
+        const auto before_transform = frame_state_.current_map_from_odom();
         frame_state_.commit_local_slam_transform(
             *match.proposed_map_from_odom);
+        if (before_transform.map_T_odom.x_m !=
+                match.proposed_map_from_odom->map_T_odom.x_m ||
+            before_transform.map_T_odom.y_m !=
+                match.proposed_map_from_odom->map_T_odom.y_m ||
+            before_transform.map_T_odom.yaw_rad !=
+                match.proposed_map_from_odom->map_T_odom.yaw_rad) {
+            ++frame_transform_epoch_;
+        }
+        report_.frame_transform_epoch = frame_transform_epoch_;
         current_map_revision_ = revision_before + 1;
         const auto consumed =
             observation_controller_.commit_frozen_bundle(bundle_id);
@@ -1815,6 +1879,10 @@ private:
                 SparseSlamInitializationStatus::WheelBaselineFailed,
                 reset.message);
         }
+        // Establish the first immutable coordinate-frame epoch only after the
+        // complete Core startup sequence has succeeded.
+        frame_transform_epoch_ = 1;
+        report_.frame_transform_epoch = frame_transform_epoch_;
         pose_buffer_.clear();
         const bool relocalizing = frame_state_.relocalization_pending();
         if (relocalizing &&
@@ -1909,6 +1977,9 @@ private:
     std::vector<double> gyro_samples_;
     double gyro_bias_rad_s_ = 0.0;
     std::uint64_t current_map_revision_ = 0;
+    std::uint64_t frame_transform_epoch_ = 0;
+    std::uint64_t next_snapshot_identity_ = 0;
+    LastAcceptedMapObservationView last_accepted_map_observation_;
 };
 
 } // namespace robot_slamd

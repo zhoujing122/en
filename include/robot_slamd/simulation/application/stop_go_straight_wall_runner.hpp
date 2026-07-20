@@ -20,6 +20,12 @@ class StopGoStraightWallSimulationRunner final {
 public:
     StopGoMappingRunReport run(const Config &input_config,
                                const std::string &run_dir) const {
+        return run_scenario(input_config, run_dir, "straight");
+    }
+
+    StopGoMappingRunReport run_scenario(const Config &input_config,
+                                        const std::string &run_dir,
+                                        const std::string &scenario) const {
         Config config = input_config;
         StopGoMappingRunReport failed;
         SensorSource source;
@@ -39,10 +45,30 @@ public:
             failed.termination_reason = "straight_wall_world_setup_failed";
             return failed;
         }
+        if (scenario == "front_blocked" &&
+            !world->add_axis_aligned_obstacle(-1.02, 0.35, -0.99, 0.55)) {
+            failed.termination_reason = "front_blocked_world_setup_failed";
+            return failed;
+        }
+        if (scenario == "heading_toward_wall") {
+            config.exploration_simulation_initial_yaw_rad = 5.0 * kPi / 180.0;
+        } else if (scenario == "heading_away_from_wall") {
+            config.exploration_simulation_initial_yaw_rad = -5.0 * kPi / 180.0;
+        } else if (scenario == "too_far_from_wall") {
+            config.exploration_simulation_initial_y_m = 0.43;
+            // The formal too-far fixture gives the bounded bias enough
+            // longitudinal distance to demonstrate convergence while the
+            // default P4 gain remains the configured provisional value.
+            config.stop_go_wall_distance_to_heading_gain_deg_per_m = 60.0;
+        } else if (scenario == "too_close_to_wall") {
+            config.exploration_simulation_initial_y_m = 0.47;
+            config.sparse_slam_left_tof_y_m = 0.03;
+            config.stop_go_wall_distance_to_heading_gain_deg_per_m = 60.0;
+        }
         SimRobotPlantConfig plant_config;
         plant_config.wheel_radius_m = config.wheel_radius_left_m;
         plant_config.wheel_base_m = config.wheel_base_m;
-        plant_config.collision_check_enabled = false;
+        plant_config.collision_check_enabled = scenario != "straight";
         auto plant = std::make_shared<SimRobotPlant>(plant_config);
         if (!plant->reset({config.exploration_simulation_initial_x_m,
                            config.exploration_simulation_initial_y_m,
@@ -93,7 +119,13 @@ public:
             clock, world, plant, SimThreeScalarTof(tof_config), StableTofDirection::Right);
         StableThreeTofSampler sampler({
             [&front_reader]() { return front_reader.read(); },
-            [&left_reader]() { return left_reader.read(); },
+            [&left_reader, &plant, &scenario]() {
+                if (scenario == "left_wall_loss" &&
+                    plant->state().pose.x_m > -0.95) {
+                    return TimedTofFrame{};
+                }
+                return left_reader.read();
+            },
             [&right_reader]() { return right_reader.read(); }}, stop_go_config.tof);
         std::string log_path = stop_go_config.log_path;
         if (log_path.empty() && !run_dir.empty()) log_path = run_dir + "/stop_go_mapping.jsonl";
@@ -127,6 +159,7 @@ public:
         report.collision_count = plant->state().collision ? 1U : 0U;
         report.map_revision = application.core().report().current_map_revision;
         report.map_cells = application.core().report().sparse_map_cell_count;
+        report.final_estimated_pose = application.core().current_map_pose().map_T_base;
         const auto map_snapshot = application.core().sparse_map_snapshot();
         for (const auto &cell : map_snapshot.cells()) {
             if (cell.evidence >= map_snapshot.occupied_threshold() &&
@@ -159,13 +192,23 @@ public:
                 report.log_error = replay_reason;
             }
         }
-        report.ok = report.ok && report.completed_steps > 0 &&
-                    report.stable_samples == report.completed_steps + 1 &&
-                    report.map_commits == report.stable_samples &&
-                    report.collision_count == 0 &&
-                    report.map_writes_while_moving == 0;
+        if (config.stop_go_mapping_mode == "left_wall_follow") {
+            report.ok = report.ok && report.completed_steps > 0 &&
+                        !report.replay_records.empty() &&
+                        report.map_commits == report.replay_records.size() &&
+                        report.collision_count == 0 &&
+                        report.map_writes_while_moving == 0 &&
+                        report.map_writes_during_turn_or_verify == 0;
+        } else {
+            report.ok = report.ok && report.completed_steps > 0 &&
+                        report.stable_samples == report.completed_steps + 1 &&
+                        report.map_commits == report.stable_samples &&
+                        report.collision_count == 0 &&
+                        report.map_writes_while_moving == 0;
+        }
         report.ground_truth_used_by_algorithm = false;
         report.command_speed_used_as_odometry = false;
+        report.command_target_used_as_odometry = false;
         return report;
     }
 };
