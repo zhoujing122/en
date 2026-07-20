@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <memory>
 #include <sstream>
+#include <vector>
 
 namespace robot_slamd {
 
@@ -17,7 +18,14 @@ public:
                                        double corner_turn_rate_scale = 1.0)
         : plant_(std::move(plant)), corner_turn_rate_scale_(corner_turn_rate_scale) {}
 
+    SimRelativeMotionStepPort(std::shared_ptr<SimRobotPlant> plant,
+                              std::vector<double> corner_turn_rate_scales)
+        : plant_(std::move(plant)),
+          corner_turn_rate_scales_(std::move(corner_turn_rate_scales)) {}
+
     bool ready() const override { return plant_ && plant_->valid() && !estop_latched_; }
+
+    std::size_t corner_turn_count() const { return corner_turn_count_; }
 
     RelativeMotionStepResult submit(const RelativeMotionStepCommand &command,
                                     double now_s) override {
@@ -57,9 +65,15 @@ public:
             // error on the single main 90 degree turn.  Duration remains the
             // nominal command duration so the controller must validate the
             // result from Core's odom yaw rather than this requested amount.
-            if (std::fabs(command.target_amount - 90.0) < 1e-9 &&
-                std::isfinite(corner_turn_rate_scale_) && corner_turn_rate_scale_ > 0.0) {
-                target_angular_rad_s_ *= corner_turn_rate_scale_;
+            if (std::fabs(command.target_amount - 90.0) < 1e-9) {
+                double scale = corner_turn_rate_scale_;
+                if (corner_turn_count_ < corner_turn_rate_scales_.size()) {
+                    scale = corner_turn_rate_scales_[corner_turn_count_];
+                }
+                ++corner_turn_count_;
+                if (std::isfinite(scale) && scale > 0.0) {
+                    target_angular_rad_s_ *= scale;
+                }
             }
         }
         if (!std::isfinite(duration_s_) || duration_s_ <= 0.0 ||
@@ -205,6 +219,8 @@ private:
     double start_left_rad_ = 0.0;
     double start_right_rad_ = 0.0;
     double corner_turn_rate_scale_ = 1.0;
+    std::vector<double> corner_turn_rate_scales_;
+    std::size_t corner_turn_count_ = 0;
 };
 
 } // namespace robot_slamd

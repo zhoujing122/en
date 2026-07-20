@@ -148,6 +148,7 @@ inline int real_main(int argc, char **argv) {
         }
         const auto report = StopGoStraightWallSimulationRunner{}.run(config, run_dir);
         std::cout << "stop_go_formal"
+                  << " mode=" << config.stop_go_mapping_mode
                   << " completed_steps=" << report.completed_steps
                   << " commands_completed=" << report.commands_completed
                   << " stable_samples=" << report.stable_samples
@@ -157,6 +158,28 @@ inline int real_main(int argc, char **argv) {
                   << " left_wall_observed_cells=" << report.left_wall_observed_cells
                   << " collision_count=" << report.collision_count
                   << " map_writes_while_moving=" << report.map_writes_while_moving
+                  << " map_writes_during_corner_phases="
+                  << (report.map_writes_during_corner_confirm +
+                      report.map_writes_during_corner_turn +
+                      report.map_writes_during_turn_verification)
+                  << " map_writes_during_closure_confirm="
+                  << report.map_writes_during_closure_confirm
+                  << " corner_transition_count=" << report.corner_transition_count
+                  << " estimated_closure_position_error_m="
+                  << report.estimated_closure_position_error_m
+                  << " estimated_closure_yaw_error_deg="
+                  << report.estimated_closure_yaw_error_rad * 180.0 / kPi
+                  << " observable_wall_coverage_ratio="
+                  << report.observable_wall_coverage_ratio
+                  << " p95_wall_thickness_cells="
+                  << report.p95_wall_thickness_cells
+                  << " ghost_occupied_cell_ratio="
+                  << report.ghost_occupied_cell_ratio
+                  << " duplicate_wall_band_count="
+                  << report.duplicate_wall_band_count
+                  << " final_map_saved=" << (report.final_map_saved ? "true" : "false")
+                  << " final_map_reload_verified="
+                  << (report.final_map_reload_verified ? "true" : "false")
                   << " command_speed_used_as_odometry="
                   << (report.command_speed_used_as_odometry ? "true" : "false")
                   << " ground_truth_used_by_algorithm="

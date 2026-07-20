@@ -123,6 +123,36 @@ public:
             << " post_turn_odom_yaw=" << record.post_turn_odom_yaw_rad
             << " actual_turn_delta=" << record.actual_turn_delta_rad
             << " turn_residual=" << record.turn_residual_rad
+            << " closure_candidate=" << (record.closure_candidate ? 1 : 0)
+            << " closure_confirmation_pass=" << (record.closure_confirmation_pass ? 1 : 0)
+            << " final_mapping_commit=" << (record.final_mapping_commit ? 1 : 0)
+            << " corner_transition_count=" << record.corner_transition_count
+            << " run_anchor_valid=" << (record.run_start_anchor_valid ? 1 : 0)
+            << " run_start_map_x=" << record.run_start_map_pose.x_m
+            << " run_start_map_y=" << record.run_start_map_pose.y_m
+            << " run_start_map_yaw=" << record.run_start_map_pose.yaw_rad
+            << " run_start_odom_x=" << record.run_start_odom_pose.x_m
+            << " run_start_odom_y=" << record.run_start_odom_pose.y_m
+            << " run_start_odom_yaw=" << record.run_start_odom_pose.yaw_rad
+            << " run_start_time=" << record.run_start_timestamp_s
+            << " run_start_revision=" << record.run_start_map_revision
+            << " run_start_epoch=" << record.run_start_frame_transform_epoch
+            << " run_start_wall_heading=" << record.run_start_wall_heading_rad
+            << " run_start_wall_distance=" << record.run_start_wall_distance_m
+            << " run_start_wall_offset=" << record.run_start_wall_line_offset_m
+            << " run_start_wall_signature=" << record.run_start_wall_signature_hash
+            << " total_odom_distance=" << record.total_odom_travel_distance_m
+            << " segment_odom_distance=" << record.segment_odom_distance_m
+            << " forward_steps_since_corner=" << record.forward_steps_since_last_corner
+            << " corner_rearm_count=" << record.corner_rearm_count
+            << " closure_candidate_count=" << record.closure_candidate_count
+            << " closure_attempt_count=" << record.closure_confirmation_attempt_count
+            << " closure_pass_count=" << record.closure_confirmation_pass_count
+            << " closure_reject_count=" << record.closure_confirmation_reject_count
+            << " closure_position_error=" << record.estimated_closure_position_error_m
+            << " closure_yaw_error=" << record.estimated_closure_yaw_error_rad
+            << " final_map_revision=" << record.final_map_revision
+            << " final_map_checksum=" << record.final_map_checksum
             << " odom_count=" << record.odom_samples.size();
         for (std::size_t index = 0; index < record.odom_samples.size(); ++index) {
             const auto &sample = record.odom_samples[index];
@@ -242,6 +272,36 @@ public:
             read_optional(fields, "post_turn_odom_yaw", result.record.post_turn_odom_yaw_rad);
             read_optional(fields, "actual_turn_delta", result.record.actual_turn_delta_rad);
             read_optional(fields, "turn_residual", result.record.turn_residual_rad);
+            read_optional(fields, "closure_candidate", result.record.closure_candidate);
+            read_optional(fields, "closure_confirmation_pass", result.record.closure_confirmation_pass);
+            read_optional(fields, "final_mapping_commit", result.record.final_mapping_commit);
+            read_optional(fields, "corner_transition_count", result.record.corner_transition_count);
+            read_optional(fields, "run_anchor_valid", result.record.run_start_anchor_valid);
+            read_optional(fields, "run_start_map_x", result.record.run_start_map_pose.x_m);
+            read_optional(fields, "run_start_map_y", result.record.run_start_map_pose.y_m);
+            read_optional(fields, "run_start_map_yaw", result.record.run_start_map_pose.yaw_rad);
+            read_optional(fields, "run_start_odom_x", result.record.run_start_odom_pose.x_m);
+            read_optional(fields, "run_start_odom_y", result.record.run_start_odom_pose.y_m);
+            read_optional(fields, "run_start_odom_yaw", result.record.run_start_odom_pose.yaw_rad);
+            read_optional(fields, "run_start_time", result.record.run_start_timestamp_s);
+            read_optional(fields, "run_start_revision", result.record.run_start_map_revision);
+            read_optional(fields, "run_start_epoch", result.record.run_start_frame_transform_epoch);
+            read_optional(fields, "run_start_wall_heading", result.record.run_start_wall_heading_rad);
+            read_optional(fields, "run_start_wall_distance", result.record.run_start_wall_distance_m);
+            read_optional(fields, "run_start_wall_offset", result.record.run_start_wall_line_offset_m);
+            read_optional(fields, "run_start_wall_signature", result.record.run_start_wall_signature_hash);
+            read_optional(fields, "total_odom_distance", result.record.total_odom_travel_distance_m);
+            read_optional(fields, "segment_odom_distance", result.record.segment_odom_distance_m);
+            read_optional(fields, "forward_steps_since_corner", result.record.forward_steps_since_last_corner);
+            read_optional(fields, "corner_rearm_count", result.record.corner_rearm_count);
+            read_optional(fields, "closure_candidate_count", result.record.closure_candidate_count);
+            read_optional(fields, "closure_attempt_count", result.record.closure_confirmation_attempt_count);
+            read_optional(fields, "closure_pass_count", result.record.closure_confirmation_pass_count);
+            read_optional(fields, "closure_reject_count", result.record.closure_confirmation_reject_count);
+            read_optional(fields, "closure_position_error", result.record.estimated_closure_position_error_m);
+            read_optional(fields, "closure_yaw_error", result.record.estimated_closure_yaw_error_rad);
+            read_optional(fields, "final_map_revision", result.record.final_map_revision);
+            read_optional(fields, "final_map_checksum", result.record.final_map_checksum);
             std::size_t odom_count = 0;
             read_optional(fields, "odom_count", odom_count);
             if (odom_count > 10000U) {

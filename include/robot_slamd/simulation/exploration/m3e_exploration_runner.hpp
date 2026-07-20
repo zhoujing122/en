@@ -57,6 +57,9 @@ struct M3EExplorationRunReport {
     std::size_t localization_stop_count = 0;
     bool exploration_resumed = false;
     RobotPose2D final_ground_truth_pose;
+    RobotPose2D initial_ground_truth_pose;
+    RobotPose2D initial_estimated_map_pose;
+    SparseOccupancyGridSnapshot final_map_snapshot;
     double final_position_error_m = 0.0;
     double final_yaw_error_rad = 0.0;
 };
@@ -264,12 +267,18 @@ public:
         const std::size_t maximum_steps = static_cast<std::size_t>(
             std::ceil(config.exploration_max_duration_s / dt)) + 1U;
         bool terminal = false;
+        bool initial_pose_captured = false;
         for (std::size_t step = 0; step < maximum_steps && !terminal; ++step) {
             const double now = adapter.clock->now_s();
             adapter.motion->update(now);
             const auto before = adapter.plant->state().pose;
             const auto result = application.step(now);
             const auto pose = core.current_map_pose().map_T_base;
+            if (!initial_pose_captured && core.localization_ready()) {
+                report.initial_ground_truth_pose = before;
+                report.initial_estimated_map_pose = pose;
+                initial_pose_captured = true;
+            }
             trajectory << now << ',' << pose.x_m << ',' << pose.y_m << ','
                        << pose.yaw_rad << ',' << to_string(controller.state()) << ','
                        << core.report().current_map_revision << ','
@@ -325,6 +334,7 @@ public:
         report.exploration_resumed =
             controller.report().exploration_resume_count > 0;
         report.final_ground_truth_pose = adapter.plant->state().pose;
+        report.final_map_snapshot = core.sparse_map_snapshot();
         report.final_position_error_m = std::hypot(
             report.exploration.final_estimated_map_pose.x_m -
                 report.final_ground_truth_pose.x_m,

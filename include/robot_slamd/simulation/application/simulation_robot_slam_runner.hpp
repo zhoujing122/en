@@ -45,11 +45,18 @@ build_simulation_robot_slam_adapter(
         operation == OperationMode::Exploration ? 0.0 : 1.0;
     result.clock = std::make_shared<SimClock>(kSimulationStartTimeS);
     result.world = std::make_shared<FakeWorld2D>();
-    if (!result.world->add_axis_aligned_room(
-            config.exploration_min_x_m, config.exploration_min_y_m,
-            config.exploration_max_x_m, config.exploration_max_y_m) ||
-        !result.world->add_axis_aligned_obstacle(
-            0.25, -0.15, 0.55, 0.35)) {
+    const bool rectangle_world = config.stop_go_mapping_mode == "rectangle_loop";
+    const bool world_ok = (rectangle_world
+        ? result.world->add_axis_aligned_room(-2.0, -2.0, 2.0, 2.0) &&
+          result.world->add_axis_aligned_obstacle(-1.06, 0.595, 0.80, 0.605) &&
+          result.world->add_axis_aligned_obstacle(0.795, -0.90, 0.805, 0.60) &&
+          result.world->add_axis_aligned_obstacle(-1.06, -0.905, 0.80, -0.895) &&
+          result.world->add_axis_aligned_obstacle(-1.065, -0.90, -1.055, 0.60)
+        : result.world->add_axis_aligned_room(
+              config.exploration_min_x_m, config.exploration_min_y_m,
+              config.exploration_max_x_m, config.exploration_max_y_m) &&
+          result.world->add_axis_aligned_obstacle(0.25, -0.15, 0.55, 0.35));
+    if (!world_ok) {
         result.reason = "simulation_world_setup_failed";
         return result;
     }

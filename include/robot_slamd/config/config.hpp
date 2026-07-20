@@ -238,6 +238,35 @@ Config load_config(const std::string &path, const std::string &output_override) 
     c.stop_go_corner_new_wall_stationary_resample_attempts = get_int(kv, "stop_go_mapping.corner.new_wall_stationary_resample_attempts", c.stop_go_corner_new_wall_stationary_resample_attempts);
     c.stop_go_corner_new_wall_acquisition_max_forward_steps = get_int(kv, "stop_go_mapping.corner.new_wall_acquisition_max_forward_steps", c.stop_go_corner_new_wall_acquisition_max_forward_steps);
     c.stop_go_corner_post_corner_required_follow_steps = get_int(kv, "stop_go_mapping.corner.post_corner_required_follow_steps", c.stop_go_corner_post_corner_required_follow_steps);
+    c.stop_go_rectangle_target_corner_transitions = get_int(kv, "stop_go_mapping.rectangle.target_corner_transitions", c.stop_go_rectangle_target_corner_transitions);
+    c.stop_go_rectangle_maximum_corner_transitions = get_int(kv, "stop_go_mapping.rectangle.maximum_corner_transitions", c.stop_go_rectangle_maximum_corner_transitions);
+    c.stop_go_rectangle_minimum_follow_steps_before_next_corner = get_int(kv, "stop_go_mapping.rectangle.minimum_follow_steps_before_next_corner", c.stop_go_rectangle_minimum_follow_steps_before_next_corner);
+    c.stop_go_rectangle_minimum_odom_distance_before_next_corner_mm = get_double(kv, "stop_go_mapping.rectangle.minimum_odom_distance_before_next_corner_mm", c.stop_go_rectangle_minimum_odom_distance_before_next_corner_mm);
+    c.stop_go_rectangle_corner_rearm_front_clearance_mm = get_double(kv, "stop_go_mapping.rectangle.corner_rearm_front_clearance_mm", c.stop_go_rectangle_corner_rearm_front_clearance_mm);
+    c.stop_go_rectangle_minimum_total_distance_before_closure_mm = get_double(kv, "stop_go_mapping.rectangle.minimum_total_distance_before_closure_mm", c.stop_go_rectangle_minimum_total_distance_before_closure_mm);
+    c.stop_go_rectangle_minimum_steps_after_fourth_corner = get_int(kv, "stop_go_mapping.rectangle.minimum_steps_after_fourth_corner", c.stop_go_rectangle_minimum_steps_after_fourth_corner);
+    c.stop_go_rectangle_minimum_distance_after_fourth_corner_mm = get_double(kv, "stop_go_mapping.rectangle.minimum_distance_after_fourth_corner_mm", c.stop_go_rectangle_minimum_distance_after_fourth_corner_mm);
+    c.stop_go_rectangle_closure_position_tolerance_mm = get_double(kv, "stop_go_mapping.rectangle.closure_position_tolerance_mm", c.stop_go_rectangle_closure_position_tolerance_mm);
+    c.stop_go_rectangle_closure_yaw_tolerance_deg = get_double(kv, "stop_go_mapping.rectangle.closure_yaw_tolerance_deg", c.stop_go_rectangle_closure_yaw_tolerance_deg);
+    c.stop_go_rectangle_closure_wall_heading_tolerance_deg = get_double(kv, "stop_go_mapping.rectangle.closure_wall_heading_tolerance_deg", c.stop_go_rectangle_closure_wall_heading_tolerance_deg);
+    c.stop_go_rectangle_closure_wall_distance_tolerance_mm = get_double(kv, "stop_go_mapping.rectangle.closure_wall_distance_tolerance_mm", c.stop_go_rectangle_closure_wall_distance_tolerance_mm);
+    c.stop_go_rectangle_closure_wall_line_offset_tolerance_mm = get_double(kv, "stop_go_mapping.rectangle.closure_wall_line_offset_tolerance_mm", c.stop_go_rectangle_closure_wall_line_offset_tolerance_mm);
+    c.stop_go_rectangle_closure_confirmation_samples = get_int(kv, "stop_go_mapping.rectangle.closure_confirmation_samples", c.stop_go_rectangle_closure_confirmation_samples);
+    c.stop_go_rectangle_closure_confirmation_required_passes = get_int(kv, "stop_go_mapping.rectangle.closure_confirmation_required_passes", c.stop_go_rectangle_closure_confirmation_required_passes);
+    c.stop_go_rectangle_closure_confirmation_max_attempts = get_int(kv, "stop_go_mapping.rectangle.closure_confirmation_max_attempts", c.stop_go_rectangle_closure_confirmation_max_attempts);
+    c.stop_go_rectangle_maximum_post_fourth_corner_forward_steps = get_int(kv, "stop_go_mapping.rectangle.maximum_post_fourth_corner_forward_steps", c.stop_go_rectangle_maximum_post_fourth_corner_forward_steps);
+    c.stop_go_rectangle_maximum_post_fourth_corner_odom_distance_mm = get_double(kv, "stop_go_mapping.rectangle.maximum_post_fourth_corner_odom_distance_mm", c.stop_go_rectangle_maximum_post_fourth_corner_odom_distance_mm);
+    c.stop_go_rectangle_maximum_total_forward_steps = get_int(kv, "stop_go_mapping.rectangle.maximum_total_forward_steps", c.stop_go_rectangle_maximum_total_forward_steps);
+    c.stop_go_rectangle_maximum_total_odom_distance_mm = get_double(kv, "stop_go_mapping.rectangle.maximum_total_odom_distance_mm", c.stop_go_rectangle_maximum_total_odom_distance_mm);
+    c.stop_go_rectangle_maximum_runtime_s = get_double(kv, "stop_go_mapping.rectangle.maximum_runtime_s", c.stop_go_rectangle_maximum_runtime_s);
+    c.stop_go_rectangle_map_quality_max_p95_wall_thickness_cells = get_double(kv, "stop_go_mapping.map_quality.maximum_p95_wall_thickness_cells", c.stop_go_rectangle_map_quality_max_p95_wall_thickness_cells);
+    c.stop_go_rectangle_map_quality_max_ghost_occupied_ratio = get_double(kv, "stop_go_mapping.map_quality.maximum_ghost_occupied_ratio", c.stop_go_rectangle_map_quality_max_ghost_occupied_ratio);
+    c.stop_go_rectangle_map_quality_max_duplicate_wall_bands = get_int(kv, "stop_go_mapping.map_quality.maximum_duplicate_wall_bands", c.stop_go_rectangle_map_quality_max_duplicate_wall_bands);
+    c.stop_go_rectangle_map_quality_min_observable_wall_coverage_ratio = get_double(kv, "stop_go_mapping.map_quality.minimum_observable_wall_coverage_ratio", c.stop_go_rectangle_map_quality_min_observable_wall_coverage_ratio);
+    c.stop_go_rectangle_map_output_path = get_string(kv, "stop_go_mapping.rectangle.map_output_path", c.stop_go_rectangle_map_output_path);
+    c.stop_go_rectangle_run_summary_output_path = get_string(kv, "stop_go_mapping.rectangle.run_summary_output_path", c.stop_go_rectangle_run_summary_output_path);
+    c.stop_go_rectangle_save_failure_diagnostic_map = get_bool(kv, "stop_go_mapping.rectangle.save_failure_diagnostic_map", c.stop_go_rectangle_save_failure_diagnostic_map);
+    c.stop_go_rectangle_failure_map_output_path = get_string(kv, "stop_go_mapping.rectangle.failure_map_output_path", c.stop_go_rectangle_failure_map_output_path);
     c.sparse_slam_map_startup_mode = get_string(kv, "sparse_slam.map_startup_mode", c.sparse_slam_map_startup_mode);
     c.sparse_slam_initial_pose_mode = get_string(kv, "sparse_slam.initial_pose_mode", c.sparse_slam_initial_pose_mode);
     c.sparse_slam_has_configured_pose = get_bool(kv, "sparse_slam.has_configured_pose", c.sparse_slam_has_configured_pose);
@@ -949,8 +978,8 @@ void validate_config(const Config &c) {
         if (c.stop_go_tof_mapping_min_distance_mm < c.stop_go_tof_protocol_min_distance_mm || c.stop_go_tof_mapping_max_distance_mm > c.stop_go_tof_protocol_max_distance_mm || c.stop_go_tof_mapping_min_distance_mm >= c.stop_go_tof_mapping_max_distance_mm) errors.push_back("stop_go_mapping.tof mapping range must be within protocol range");
         if (c.stop_go_tof_mapping_min_confidence < 0 || c.stop_go_tof_mapping_min_confidence > 100) errors.push_back("stop_go_mapping.tof.mapping_min_confidence must be in [0, 100]");
     }
-    if (!one_of(c.stop_go_mapping_mode, {"straight", "left_wall_follow", "single_corner"})) {
-        errors.push_back("stop_go_mapping.mode must be straight, left_wall_follow, or single_corner");
+    if (!one_of(c.stop_go_mapping_mode, {"straight", "left_wall_follow", "single_corner", "rectangle_loop"})) {
+        errors.push_back("stop_go_mapping.mode must be straight, left_wall_follow, single_corner, or rectangle_loop");
     }
     if (!one_of(c.stop_go_desired_distance_mode, {"configured", "capture_initial"})) {
         errors.push_back("stop_go_mapping.wall.desired_distance_mode must be configured or capture_initial");
@@ -1013,6 +1042,91 @@ void validate_config(const Config &c) {
             c.stop_go_forward_step_mm + c.stop_go_corner_expected_forward_overrun_mm;
         if (std::isfinite(minimum_trigger) && c.stop_go_corner_trigger_distance_mm + 1e-9 < minimum_trigger) {
             errors.push_back("stop_go_mapping.corner.trigger_distance_mm is below the turning-sweep safety minimum");
+        }
+    }
+    if (c.stop_go_mapping_mode == "rectangle_loop") {
+        if (c.stop_go_rectangle_target_corner_transitions != 4 ||
+            c.stop_go_rectangle_maximum_corner_transitions != 4) {
+            errors.push_back("stop_go_mapping.rectangle target and maximum corner transitions must both be 4 in P6");
+        }
+        if (c.stop_go_corner_maximum_transitions != 1) {
+            errors.push_back("stop_go_mapping.corner.maximum_corner_transitions must remain 1 for each P5 transition");
+        }
+        if (c.stop_go_rectangle_minimum_follow_steps_before_next_corner <= 0 ||
+            c.stop_go_rectangle_minimum_follow_steps_before_next_corner > 100) {
+            errors.push_back("stop_go_mapping.rectangle.minimum_follow_steps_before_next_corner must be in [1, 100]");
+        }
+        if (c.stop_go_rectangle_minimum_steps_after_fourth_corner <= 0 ||
+            c.stop_go_rectangle_minimum_steps_after_fourth_corner > 100) {
+            errors.push_back("stop_go_mapping.rectangle.minimum_steps_after_fourth_corner must be in [1, 100]");
+        }
+        if (c.stop_go_rectangle_closure_confirmation_samples <= 0 ||
+            c.stop_go_rectangle_closure_confirmation_samples > 16 ||
+            c.stop_go_rectangle_closure_confirmation_required_passes <= 0 ||
+            c.stop_go_rectangle_closure_confirmation_required_passes >
+                c.stop_go_rectangle_closure_confirmation_samples ||
+            c.stop_go_rectangle_closure_confirmation_samples >
+                c.stop_go_rectangle_closure_confirmation_max_attempts ||
+            c.stop_go_rectangle_closure_confirmation_required_passes > c.stop_go_rectangle_closure_confirmation_max_attempts ||
+            c.stop_go_rectangle_closure_confirmation_max_attempts > 32) {
+            errors.push_back("stop_go_mapping.rectangle closure confirmation counts are not bounded");
+        }
+        if (c.stop_go_rectangle_maximum_post_fourth_corner_forward_steps <= 0 ||
+            c.stop_go_rectangle_maximum_total_forward_steps <= 0) {
+            errors.push_back("stop_go_mapping.rectangle forward search limits must be > 0");
+        }
+        const auto rect_positive = [&errors](const char *name, double value) {
+            if (!std::isfinite(value) || value <= 0.0) errors.push_back(std::string(name) + " must be finite and > 0");
+        };
+        rect_positive("stop_go_mapping.rectangle.minimum_odom_distance_before_next_corner_mm", c.stop_go_rectangle_minimum_odom_distance_before_next_corner_mm);
+        rect_positive("stop_go_mapping.rectangle.corner_rearm_front_clearance_mm", c.stop_go_rectangle_corner_rearm_front_clearance_mm);
+        rect_positive("stop_go_mapping.rectangle.minimum_total_distance_before_closure_mm", c.stop_go_rectangle_minimum_total_distance_before_closure_mm);
+        rect_positive("stop_go_mapping.rectangle.minimum_distance_after_fourth_corner_mm", c.stop_go_rectangle_minimum_distance_after_fourth_corner_mm);
+        rect_positive("stop_go_mapping.rectangle.closure_position_tolerance_mm", c.stop_go_rectangle_closure_position_tolerance_mm);
+        rect_positive("stop_go_mapping.rectangle.closure_yaw_tolerance_deg", c.stop_go_rectangle_closure_yaw_tolerance_deg);
+        rect_positive("stop_go_mapping.rectangle.closure_wall_heading_tolerance_deg", c.stop_go_rectangle_closure_wall_heading_tolerance_deg);
+        rect_positive("stop_go_mapping.rectangle.closure_wall_distance_tolerance_mm", c.stop_go_rectangle_closure_wall_distance_tolerance_mm);
+        rect_positive("stop_go_mapping.rectangle.closure_wall_line_offset_tolerance_mm", c.stop_go_rectangle_closure_wall_line_offset_tolerance_mm);
+        rect_positive("stop_go_mapping.rectangle.maximum_post_fourth_corner_odom_distance_mm", c.stop_go_rectangle_maximum_post_fourth_corner_odom_distance_mm);
+        rect_positive("stop_go_mapping.rectangle.maximum_total_odom_distance_mm", c.stop_go_rectangle_maximum_total_odom_distance_mm);
+        rect_positive("stop_go_mapping.rectangle.maximum_runtime_s", c.stop_go_rectangle_maximum_runtime_s);
+        if (!std::isfinite(c.stop_go_rectangle_map_quality_max_p95_wall_thickness_cells) ||
+            c.stop_go_rectangle_map_quality_max_p95_wall_thickness_cells <= 0.0 ||
+            !std::isfinite(c.stop_go_rectangle_map_quality_max_ghost_occupied_ratio) ||
+            c.stop_go_rectangle_map_quality_max_ghost_occupied_ratio < 0.0 ||
+            c.stop_go_rectangle_map_quality_max_ghost_occupied_ratio > 1.0 ||
+            c.stop_go_rectangle_map_quality_max_duplicate_wall_bands < 0 ||
+            !std::isfinite(c.stop_go_rectangle_map_quality_min_observable_wall_coverage_ratio) ||
+            c.stop_go_rectangle_map_quality_min_observable_wall_coverage_ratio < 0.0 ||
+            c.stop_go_rectangle_map_quality_min_observable_wall_coverage_ratio > 1.0) {
+            errors.push_back("stop_go_mapping.map_quality thresholds are invalid");
+        }
+        if (c.stop_go_rectangle_minimum_steps_after_fourth_corner >
+                c.stop_go_rectangle_maximum_post_fourth_corner_forward_steps ||
+            c.stop_go_rectangle_minimum_distance_after_fourth_corner_mm >
+                c.stop_go_rectangle_maximum_post_fourth_corner_odom_distance_mm ||
+            c.stop_go_rectangle_minimum_total_distance_before_closure_mm >
+                c.stop_go_rectangle_maximum_total_odom_distance_mm ||
+            c.stop_go_rectangle_maximum_post_fourth_corner_forward_steps >
+                c.stop_go_rectangle_maximum_total_forward_steps) {
+            errors.push_back("stop_go_mapping.rectangle minimum/maximum search bounds are inconsistent");
+        }
+        const double minimum_trigger = std::max(0.0,
+            c.stop_go_corner_robot_turning_sweep_radius_mm +
+            c.stop_go_corner_turn_clearance_margin_mm -
+            c.stop_go_corner_front_tof_forward_offset_mm) +
+            c.stop_go_forward_step_mm + c.stop_go_corner_expected_forward_overrun_mm;
+        if (!std::isfinite(minimum_trigger) || c.stop_go_corner_trigger_distance_mm + 1e-9 < minimum_trigger) {
+            errors.push_back("stop_go_mapping.corner.trigger_distance_mm is below the P6 turning-sweep safety minimum");
+        }
+        if (!c.stop_go_rectangle_map_output_path.empty() &&
+            (c.stop_go_rectangle_map_output_path.find("/src/") != std::string::npos ||
+             c.stop_go_rectangle_map_output_path.find("/include/") != std::string::npos ||
+             c.stop_go_rectangle_map_output_path.find("/config/") != std::string::npos)) {
+            errors.push_back("stop_go_mapping.rectangle.map_output_path must not point into source directories");
+        }
+        if (c.runtime_sensor_source == "real") {
+            errors.push_back("rectangle_loop real mode is uncalibrated and must fail closed in P6");
         }
     }
     if (c.runtime_sensor_source == "replay" &&
@@ -2079,7 +2193,38 @@ void write_resolved_config(const Config &c, const std::string &path) {
       << "    new_wall_max_distance_mm: " << c.stop_go_corner_new_wall_max_distance_mm << "\n"
       << "    new_wall_stationary_resample_attempts: " << c.stop_go_corner_new_wall_stationary_resample_attempts << "\n"
       << "    new_wall_acquisition_max_forward_steps: " << c.stop_go_corner_new_wall_acquisition_max_forward_steps << "\n"
-      << "    post_corner_required_follow_steps: " << c.stop_go_corner_post_corner_required_follow_steps << "\n";
+      << "    post_corner_required_follow_steps: " << c.stop_go_corner_post_corner_required_follow_steps << "\n"
+      << "  rectangle:\n"
+      << "    target_corner_transitions: " << c.stop_go_rectangle_target_corner_transitions << "\n"
+      << "    maximum_corner_transitions: " << c.stop_go_rectangle_maximum_corner_transitions << "\n"
+      << "    minimum_follow_steps_before_next_corner: " << c.stop_go_rectangle_minimum_follow_steps_before_next_corner << "\n"
+      << "    minimum_odom_distance_before_next_corner_mm: " << c.stop_go_rectangle_minimum_odom_distance_before_next_corner_mm << "\n"
+      << "    corner_rearm_front_clearance_mm: " << c.stop_go_rectangle_corner_rearm_front_clearance_mm << "\n"
+      << "    minimum_total_distance_before_closure_mm: " << c.stop_go_rectangle_minimum_total_distance_before_closure_mm << "\n"
+      << "    minimum_steps_after_fourth_corner: " << c.stop_go_rectangle_minimum_steps_after_fourth_corner << "\n"
+      << "    minimum_distance_after_fourth_corner_mm: " << c.stop_go_rectangle_minimum_distance_after_fourth_corner_mm << "\n"
+      << "    closure_position_tolerance_mm: " << c.stop_go_rectangle_closure_position_tolerance_mm << "\n"
+      << "    closure_yaw_tolerance_deg: " << c.stop_go_rectangle_closure_yaw_tolerance_deg << "\n"
+      << "    closure_wall_heading_tolerance_deg: " << c.stop_go_rectangle_closure_wall_heading_tolerance_deg << "\n"
+      << "    closure_wall_distance_tolerance_mm: " << c.stop_go_rectangle_closure_wall_distance_tolerance_mm << "\n"
+      << "    closure_wall_line_offset_tolerance_mm: " << c.stop_go_rectangle_closure_wall_line_offset_tolerance_mm << "\n"
+      << "    closure_confirmation_samples: " << c.stop_go_rectangle_closure_confirmation_samples << "\n"
+      << "    closure_confirmation_required_passes: " << c.stop_go_rectangle_closure_confirmation_required_passes << "\n"
+      << "    closure_confirmation_max_attempts: " << c.stop_go_rectangle_closure_confirmation_max_attempts << "\n"
+      << "    maximum_post_fourth_corner_forward_steps: " << c.stop_go_rectangle_maximum_post_fourth_corner_forward_steps << "\n"
+      << "    maximum_post_fourth_corner_odom_distance_mm: " << c.stop_go_rectangle_maximum_post_fourth_corner_odom_distance_mm << "\n"
+      << "    maximum_total_forward_steps: " << c.stop_go_rectangle_maximum_total_forward_steps << "\n"
+      << "    maximum_total_odom_distance_mm: " << c.stop_go_rectangle_maximum_total_odom_distance_mm << "\n"
+      << "    maximum_runtime_s: " << c.stop_go_rectangle_maximum_runtime_s << "\n"
+      << "    map_output_path: " << std::quoted(c.stop_go_rectangle_map_output_path) << "\n"
+      << "    run_summary_output_path: " << std::quoted(c.stop_go_rectangle_run_summary_output_path) << "\n"
+      << "    save_failure_diagnostic_map: " << bool_yaml(c.stop_go_rectangle_save_failure_diagnostic_map) << "\n"
+      << "    failure_map_output_path: " << std::quoted(c.stop_go_rectangle_failure_map_output_path) << "\n"
+      << "  map_quality:\n"
+      << "    maximum_p95_wall_thickness_cells: " << c.stop_go_rectangle_map_quality_max_p95_wall_thickness_cells << "\n"
+      << "    maximum_ghost_occupied_ratio: " << c.stop_go_rectangle_map_quality_max_ghost_occupied_ratio << "\n"
+      << "    maximum_duplicate_wall_bands: " << c.stop_go_rectangle_map_quality_max_duplicate_wall_bands << "\n"
+      << "    minimum_observable_wall_coverage_ratio: " << c.stop_go_rectangle_map_quality_min_observable_wall_coverage_ratio << "\n";
     o << "sparse_slam:\n"
       << "  map_startup_mode: " << c.sparse_slam_map_startup_mode << "\n"
       << "  initial_pose_mode: " << c.sparse_slam_initial_pose_mode << "\n"

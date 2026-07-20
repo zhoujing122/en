@@ -279,6 +279,37 @@ struct Config {
     int stop_go_corner_new_wall_stationary_resample_attempts = 3;
     int stop_go_corner_new_wall_acquisition_max_forward_steps = 8;
     int stop_go_corner_post_corner_required_follow_steps = 5;
+    // P6 rectangle-loop controls.  These remain Simulation-provisional and
+    // are intentionally separate from the P5 single-corner limits.
+    int stop_go_rectangle_target_corner_transitions = 4;
+    int stop_go_rectangle_maximum_corner_transitions = 4;
+    int stop_go_rectangle_minimum_follow_steps_before_next_corner = 5;
+    double stop_go_rectangle_minimum_odom_distance_before_next_corner_mm = 100.0;
+    double stop_go_rectangle_corner_rearm_front_clearance_mm = 450.0;
+    double stop_go_rectangle_minimum_total_distance_before_closure_mm = 1000.0;
+    int stop_go_rectangle_minimum_steps_after_fourth_corner = 5;
+    double stop_go_rectangle_minimum_distance_after_fourth_corner_mm = 100.0;
+    double stop_go_rectangle_closure_position_tolerance_mm = 100.0;
+    double stop_go_rectangle_closure_yaw_tolerance_deg = 5.0;
+    double stop_go_rectangle_closure_wall_heading_tolerance_deg = 8.0;
+    double stop_go_rectangle_closure_wall_distance_tolerance_mm = 35.0;
+    double stop_go_rectangle_closure_wall_line_offset_tolerance_mm = 80.0;
+    int stop_go_rectangle_closure_confirmation_samples = 3;
+    int stop_go_rectangle_closure_confirmation_required_passes = 3;
+    int stop_go_rectangle_closure_confirmation_max_attempts = 5;
+    int stop_go_rectangle_maximum_post_fourth_corner_forward_steps = 30;
+    double stop_go_rectangle_maximum_post_fourth_corner_odom_distance_mm = 700.0;
+    int stop_go_rectangle_maximum_total_forward_steps = 240;
+    double stop_go_rectangle_maximum_total_odom_distance_mm = 6000.0;
+    double stop_go_rectangle_maximum_runtime_s = 600.0;
+    double stop_go_rectangle_map_quality_max_p95_wall_thickness_cells = 2.0;
+    double stop_go_rectangle_map_quality_max_ghost_occupied_ratio = 0.10;
+    int stop_go_rectangle_map_quality_max_duplicate_wall_bands = 0;
+    double stop_go_rectangle_map_quality_min_observable_wall_coverage_ratio = 0.60;
+    std::string stop_go_rectangle_map_output_path;
+    std::string stop_go_rectangle_run_summary_output_path;
+    bool stop_go_rectangle_save_failure_diagnostic_map = true;
+    std::string stop_go_rectangle_failure_map_output_path;
     std::string sparse_slam_map_startup_mode = "create_new";
     std::string sparse_slam_initial_pose_mode = "startup_zero";
     bool sparse_slam_has_configured_pose = false;

@@ -6,6 +6,7 @@
 
 #include <fstream>
 #include <cmath>
+#include <filesystem>
 #include <memory>
 #include <sstream>
 
@@ -32,6 +33,7 @@ public:
                                const std::string &replay_path,
                                const std::string &run_dir) const {
         StopGoMappingRunReport report;
+        if (!run_dir.empty()) std::filesystem::create_directories(run_dir);
         std::vector<StopGoReplayRecord> records;
         std::string reason;
         if (!StopGoReplayLogCodec::read(replay_path, records, reason)) {
@@ -176,6 +178,9 @@ public:
         report.command_speed_used_as_odometry = false;
         report.command_target_used_as_odometry = false;
         report.ground_truth_used_by_algorithm = false;
+        report.ground_truth_used_by_controller = false;
+        report.ground_truth_used_by_core = false;
+        report.ground_truth_used_only_by_acceptance_evaluator = true;
         report.map_writes_while_moving = 0;
         report.map_writes_during_turn_or_verify = 0;
         for (const auto &record : records) {
@@ -288,6 +293,25 @@ public:
         const auto checksum_pos = payload.rfind("checksum ");
         report.final_map_checksum = checksum_pos == std::string::npos
             ? 0 : sparse_map_fnv1a64(payload.substr(0, checksum_pos));
+        report.final_map_saved = saved.ok;
+        report.final_map_path = map_path;
+        if (saved.ok) {
+            SparseMapArtifactLimits limits;
+            limits.maximum_cells = static_cast<std::size_t>(
+                std::max(1, config.sparse_slam_map_artifact_max_cells));
+            limits.maximum_file_bytes = static_cast<std::size_t>(
+                std::max(1024, config.sparse_slam_map_artifact_max_file_bytes));
+            const auto loaded = load_sparse_map_artifact(map_path, limits);
+            report.final_map_reload_verified = loaded.ok &&
+                loaded.artifact.map_id == config.sparse_slam_map_id &&
+                loaded.artifact.run_id == config.sparse_slam_map_run_id &&
+                loaded.artifact.map_revision == report.map_revision &&
+                loaded.artifact.cells.size() == application.core().sparse_map_snapshot().cell_count();
+            if (loaded.ok) {
+                report.final_map_reload_checksum = sparse_map_fnv1a64(
+                    sparse_map_artifact_payload(loaded.artifact));
+            }
+        }
         report.ok = report.completed_steps > 0 &&
                     report.map_commits == report.stable_samples &&
                     report.final_map_checksum != 0 &&
@@ -301,6 +325,72 @@ public:
             report.ok = report.ok && report.termination_reason == "single_corner_complete" &&
                         report.corner_main_turn_command_count == 1 &&
                         report.new_wall_segment_id == 2;
+        } else if (config.stop_go_mapping_mode == "rectangle_loop") {
+            report.rectangle_mode = true;
+            report.corner_transition_count = 0;
+            report.wall_segment_sequence = {1};
+            bool final_commit = false;
+            for (const auto &record : records) {
+                if (record.corner_main_turn) {
+                    ++report.corner_transition_count;
+                    report.corner_transition_ids.push_back(record.corner_transition_id);
+                    report.wall_segment_sequence.push_back(record.wall_segment_id);
+                }
+                final_commit = final_commit || record.final_mapping_commit;
+                if (record.closure_candidate) ++report.closure_candidate_count;
+                if (record.closure_confirmation_pass) {
+                    ++report.closure_confirmation_pass_count;
+                }
+                report.wall_segment_id = std::max(report.wall_segment_id,
+                                                  record.wall_segment_id);
+            }
+            const auto &summary = records.back();
+            report.run_start_anchor.valid = summary.run_start_anchor_valid;
+            report.run_start_anchor.start_map_pose = summary.run_start_map_pose;
+            report.run_start_anchor.start_odom_pose = summary.run_start_odom_pose;
+            report.run_start_anchor.start_timestamp_s = summary.run_start_timestamp_s;
+            report.run_start_anchor.start_map_revision = summary.run_start_map_revision;
+            report.run_start_anchor.start_frame_transform_epoch =
+                summary.run_start_frame_transform_epoch;
+            report.run_start_anchor.start_wall_segment_id = 1;
+            report.run_start_anchor.initial_wall_heading_rad =
+                summary.run_start_wall_heading_rad;
+            report.run_start_anchor.initial_base_to_wall_distance_m =
+                summary.run_start_wall_distance_m;
+            report.run_start_anchor.initial_wall_line_offset_m =
+                summary.run_start_wall_line_offset_m;
+            report.run_start_anchor.initial_wall_model_signature_hash =
+                summary.run_start_wall_signature_hash;
+            report.total_odom_travel_distance_m =
+                summary.total_odom_travel_distance_m;
+            report.segment_odom_distance_m = summary.segment_odom_distance_m;
+            report.forward_steps_since_last_corner =
+                summary.forward_steps_since_last_corner;
+            report.corner_rearm_count = summary.corner_rearm_count;
+            report.closure_candidate_count = summary.closure_candidate_count;
+            report.closure_confirmation_attempt_count =
+                summary.closure_confirmation_attempt_count;
+            report.closure_confirmation_pass_count =
+                summary.closure_confirmation_pass_count;
+            report.closure_confirmation_reject_count =
+                summary.closure_confirmation_reject_count;
+            report.estimated_closure_position_error_m =
+                summary.estimated_closure_position_error_m;
+            report.estimated_closure_yaw_error_rad =
+                summary.estimated_closure_yaw_error_rad;
+            report.final_mapping_commit_count = final_commit ? 1 : 0;
+            report.final_settle_complete = final_commit;
+            report.final_map_reload_verified = report.final_map_reload_verified && final_commit;
+            report.termination_reason = report.corner_transition_count == 4 && final_commit &&
+                                        report.final_map_reload_verified
+                ? "rectangle_closure_confirmed" : "replay_rectangle_incomplete";
+            report.ok = report.ok && report.termination_reason == "rectangle_closure_confirmed" &&
+                        report.wall_segment_sequence == std::vector<std::uint64_t>{1, 2, 3, 4, 5} &&
+                        report.final_map_saved && report.run_start_anchor.valid &&
+                        (summary.final_map_revision == 0 ||
+                         summary.final_map_revision == report.map_revision) &&
+                        (summary.final_map_checksum == 0 ||
+                         summary.final_map_checksum == report.final_map_checksum);
         } else {
             report.termination_reason = report.ok ? "replay_stop_go_completed" : "replay_acceptance_not_met";
         }
