@@ -13,8 +13,9 @@ namespace robot_slamd {
 
 class SimRelativeMotionStepPort final : public RelativeMotionStepPort {
 public:
-    explicit SimRelativeMotionStepPort(std::shared_ptr<SimRobotPlant> plant)
-        : plant_(std::move(plant)) {}
+    explicit SimRelativeMotionStepPort(std::shared_ptr<SimRobotPlant> plant,
+                                       double corner_turn_rate_scale = 1.0)
+        : plant_(std::move(plant)), corner_turn_rate_scale_(corner_turn_rate_scale) {}
 
     bool ready() const override { return plant_ && plant_->valid() && !estop_latched_; }
 
@@ -52,6 +53,14 @@ public:
                 plant_->config().wheel_base_m;
             duration_s_ = command.target_amount * 3.14159265358979323846 / 180.0 /
                           std::fabs(target_angular_rad_s_);
+            // P5 formal cases model a bounded, sensor-visible motor/traction
+            // error on the single main 90 degree turn.  Duration remains the
+            // nominal command duration so the controller must validate the
+            // result from Core's odom yaw rather than this requested amount.
+            if (std::fabs(command.target_amount - 90.0) < 1e-9 &&
+                std::isfinite(corner_turn_rate_scale_) && corner_turn_rate_scale_ > 0.0) {
+                target_angular_rad_s_ *= corner_turn_rate_scale_;
+            }
         }
         if (!std::isfinite(duration_s_) || duration_s_ <= 0.0 ||
             !plant_->set_target_velocity(target_linear_mps_, target_angular_rad_s_)) {
@@ -195,6 +204,7 @@ private:
     double target_angular_rad_s_ = 0.0;
     double start_left_rad_ = 0.0;
     double start_right_rad_ = 0.0;
+    double corner_turn_rate_scale_ = 1.0;
 };
 
 } // namespace robot_slamd

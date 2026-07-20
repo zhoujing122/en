@@ -179,6 +179,7 @@ public:
         report.map_writes_while_moving = 0;
         report.map_writes_during_turn_or_verify = 0;
         for (const auto &record : records) {
+            if (record.command_id != 0) report.command_ids.push_back(record.command_id);
             if (record.control_decision.action != LeftWallControlAction::NoTurn) {
                 report.correction_command_count++;
                 report.commands_submitted++;
@@ -205,6 +206,7 @@ public:
                     static_cast<std::uint64_t>(std::llround(record.left_wall_point.y_m * 1e6)));
                 mix(report.wall_point_sequence_hash, record.left_wall_point.cycle_index);
                 mix(report.wall_point_sequence_hash, record.frame_transform_epoch);
+                mix(report.wall_point_sequence_hash, record.left_wall_point.wall_segment_id);
                 mix(report.wall_model_sequence_hash,
                     record.wall_model.valid ? 1U : 0U);
                 mix(report.wall_model_sequence_hash,
@@ -217,6 +219,50 @@ public:
                     static_cast<std::uint64_t>(std::llround(record.wall_model.rms_residual_m * 1e6)));
                 mix(report.wall_model_sequence_hash, record.wall_model.inlier_point_count);
                 mix(report.wall_model_sequence_hash, record.frame_transform_epoch);
+                mix(report.wall_model_sequence_hash, record.wall_model.wall_segment_id);
+            }
+            if (record.corner_candidate) ++report.corner_candidate_count;
+            report.corner_confirmation_count = std::max(report.corner_confirmation_count,
+                                                        record.corner_confirmation_samples);
+            report.corner_confirmation_reject_count = std::max(report.corner_confirmation_reject_count,
+                                                               record.corner_confirmation_rejects);
+            report.corner_right_clearance_check_count = std::max(report.corner_right_clearance_check_count,
+                                                                 record.corner_right_clearance_checks);
+            if (record.corner_main_turn) {
+                ++report.corner_main_turn_command_count;
+                ++report.corner_right_turn_command_count;
+                report.corner_main_command_id = record.corner_main_command_id;
+                report.pre_turn_odom_yaw_rad = record.pre_turn_odom_yaw_rad;
+                if (record.corner_main_command_id != 0) {
+                    report.command_ids.push_back(record.corner_main_command_id);
+                }
+            }
+            if (record.corner_residual_correction) {
+                ++report.corner_residual_correction_count;
+                if (record.corner_residual_command_id != 0) {
+                    report.command_ids.push_back(record.corner_residual_command_id);
+                }
+                if (record.corner_residual_right) {
+                    ++report.corner_residual_right_count;
+                    ++report.corner_right_turn_command_count;
+                } else if (record.motion.action == RelativeMotionStepAction::Left) {
+                    ++report.corner_residual_left_count;
+                    ++report.corner_left_turn_command_count;
+                }
+            }
+            if (record.post_corner_sensor_verified) ++report.post_turn_sensor_verify_count;
+            report.post_corner_follow_steps = std::max(report.post_corner_follow_steps,
+                                                       record.post_corner_follow_steps);
+            report.wall_segment_id = std::max(report.wall_segment_id, record.wall_segment_id);
+            report.corner_transition_id = std::max(report.corner_transition_id, record.corner_transition_id);
+            if (record.corner_main_turn || record.corner_residual_correction) {
+                report.post_main_turn_odom_yaw_rad = record.post_turn_odom_yaw_rad;
+                report.verified_corner_turn_delta_rad = record.actual_turn_delta_rad;
+                report.final_corner_turn_error_rad = record.turn_residual_rad;
+            }
+            if (record.wall_segment_id >= 2) {
+                report.new_wall_segment_id = record.wall_segment_id;
+                report.new_wall_model_valid = report.new_wall_model_valid || record.wall_model.valid;
             }
         }
         if (!records.empty()) {
@@ -247,7 +293,17 @@ public:
                     report.final_map_checksum != 0 &&
                     report.map_writes_while_moving == 0 &&
                     report.map_writes_during_turn_or_verify == 0;
-        report.termination_reason = report.ok ? "replay_stop_go_completed" : "replay_acceptance_not_met";
+        if (config.stop_go_mapping_mode == "single_corner") {
+            report.wall_model_reset_due_to_corner_count = report.new_wall_segment_id >= 2 ? 1 : 0;
+            report.new_wall_reacquisition_samples = report.new_wall_segment_id >= 2 ? 1 : 0;
+            report.termination_reason = report.new_wall_model_valid
+                ? "single_corner_complete" : "replay_single_corner_incomplete";
+            report.ok = report.ok && report.termination_reason == "single_corner_complete" &&
+                        report.corner_main_turn_command_count == 1 &&
+                        report.new_wall_segment_id == 2;
+        } else {
+            report.termination_reason = report.ok ? "replay_stop_go_completed" : "replay_acceptance_not_met";
+        }
         return report;
     }
 };

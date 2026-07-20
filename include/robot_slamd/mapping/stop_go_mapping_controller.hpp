@@ -36,10 +36,26 @@ enum class StopGoMappingControllerState {
     WaitTurnDone,
     WaitTurnSettle,
     VerifyAfterTurn,
+    CornerCandidate,
+    CornerConfirming,
+    IssueCornerRightTurn,
+    WaitCornerTurnDone,
+    WaitCornerTurnSettle,
+    VerifyCornerTurn,
+    IssueCornerResidualCorrection,
+    WaitCornerResidualDone,
+    WaitCornerResidualSettle,
+    PostCornerTurnSensorVerify,
+    NewLeftWallReacquisition,
     CheckLimit,
     Completed,
+    SingleCornerComplete,
     WallLost,
     FrontBlocked,
+    TurnClearanceBlocked,
+    CornerTurnVerificationFailed,
+    PostTurnFrontBlocked,
+    NewLeftWallReacquisitionFailed,
     Fault,
     Estop
 };
@@ -60,10 +76,26 @@ inline const char *to_string(StopGoMappingControllerState state) {
     case StopGoMappingControllerState::WaitTurnDone: return "WAIT_TURN_DONE";
     case StopGoMappingControllerState::WaitTurnSettle: return "WAIT_TURN_SETTLE";
     case StopGoMappingControllerState::VerifyAfterTurn: return "VERIFY_AFTER_TURN";
+    case StopGoMappingControllerState::CornerCandidate: return "CORNER_CANDIDATE";
+    case StopGoMappingControllerState::CornerConfirming: return "CORNER_CONFIRMING";
+    case StopGoMappingControllerState::IssueCornerRightTurn: return "ISSUE_CORNER_RIGHT_TURN";
+    case StopGoMappingControllerState::WaitCornerTurnDone: return "WAIT_CORNER_TURN_DONE";
+    case StopGoMappingControllerState::WaitCornerTurnSettle: return "WAIT_CORNER_TURN_SETTLE";
+    case StopGoMappingControllerState::VerifyCornerTurn: return "VERIFY_CORNER_TURN";
+    case StopGoMappingControllerState::IssueCornerResidualCorrection: return "ISSUE_CORNER_RESIDUAL_CORRECTION";
+    case StopGoMappingControllerState::WaitCornerResidualDone: return "WAIT_CORNER_RESIDUAL_DONE";
+    case StopGoMappingControllerState::WaitCornerResidualSettle: return "WAIT_CORNER_RESIDUAL_SETTLE";
+    case StopGoMappingControllerState::PostCornerTurnSensorVerify: return "POST_CORNER_TURN_SENSOR_VERIFY";
+    case StopGoMappingControllerState::NewLeftWallReacquisition: return "NEW_LEFT_WALL_REACQUISITION";
     case StopGoMappingControllerState::CheckLimit: return "CHECK_LIMIT";
     case StopGoMappingControllerState::Completed: return "COMPLETED";
+    case StopGoMappingControllerState::SingleCornerComplete: return "SINGLE_CORNER_COMPLETE";
     case StopGoMappingControllerState::WallLost: return "WALL_LOST";
     case StopGoMappingControllerState::FrontBlocked: return "FRONT_BLOCKED";
+    case StopGoMappingControllerState::TurnClearanceBlocked: return "TURN_CLEARANCE_BLOCKED";
+    case StopGoMappingControllerState::CornerTurnVerificationFailed: return "CORNER_TURN_VERIFICATION_FAILED";
+    case StopGoMappingControllerState::PostTurnFrontBlocked: return "POST_TURN_FRONT_BLOCKED";
+    case StopGoMappingControllerState::NewLeftWallReacquisitionFailed: return "NEW_LEFT_WALL_REACQUISITION_FAILED";
     case StopGoMappingControllerState::Fault: return "FAULT";
     case StopGoMappingControllerState::Estop: return "ESTOP";
     }
@@ -97,6 +129,28 @@ struct StopGoMappingControllerConfig {
     double front_stop_threshold_m = 0.20;
     std::size_t front_max_invalid_samples = 2;
     RobotPose2D base_T_left_tof;
+    std::size_t maximum_corner_transitions = 1;
+    std::size_t corner_confirmation_resamples = 2;
+    std::size_t corner_confirmation_required_hits = 2;
+    double robot_turning_sweep_radius_m = 0.080;
+    double turn_clearance_margin_m = 0.020;
+    double front_tof_forward_offset_m = 0.100;
+    double expected_forward_overrun_m = 0.010;
+    double corner_trigger_distance_m = 0.350;
+    double minimum_right_turn_clearance_m = 0.200;
+    std::size_t right_clearance_resample_attempts = 2;
+    double main_turn_deg = 90.0;
+    double corner_turn_acceptance_tolerance_rad = 3.0 * 3.14159265358979323846 / 180.0;
+    double corner_turn_max_residual_correction_rad = 8.0 * 3.14159265358979323846 / 180.0;
+    std::size_t corner_turn_max_residual_corrections = 2;
+    double min_corner_residual_correction_deg = 1.0;
+    double post_turn_front_stop_threshold_m = 0.20;
+    std::size_t post_turn_sensor_resample_attempts = 3;
+    double new_wall_min_distance_m = 0.080;
+    double new_wall_max_distance_m = 0.500;
+    std::size_t new_wall_stationary_resample_attempts = 3;
+    std::size_t new_wall_acquisition_max_forward_steps = 8;
+    std::size_t post_corner_required_follow_steps = 5;
 };
 
 inline StopGoMappingControllerConfig stop_go_mapping_config_from(
@@ -161,6 +215,28 @@ inline StopGoMappingControllerConfig stop_go_mapping_config_from(
         config.sparse_slam_left_tof_x_m,
         config.sparse_slam_left_tof_y_m,
         config.sparse_slam_left_tof_yaw_rad};
+    result.maximum_corner_transitions = static_cast<std::size_t>(config.stop_go_corner_maximum_transitions);
+    result.corner_confirmation_resamples = static_cast<std::size_t>(config.stop_go_corner_confirmation_resamples);
+    result.corner_confirmation_required_hits = static_cast<std::size_t>(config.stop_go_corner_confirmation_required_hits);
+    result.robot_turning_sweep_radius_m = config.stop_go_corner_robot_turning_sweep_radius_mm / 1000.0;
+    result.turn_clearance_margin_m = config.stop_go_corner_turn_clearance_margin_mm / 1000.0;
+    result.front_tof_forward_offset_m = config.stop_go_corner_front_tof_forward_offset_mm / 1000.0;
+    result.expected_forward_overrun_m = config.stop_go_corner_expected_forward_overrun_mm / 1000.0;
+    result.corner_trigger_distance_m = config.stop_go_corner_trigger_distance_mm / 1000.0;
+    result.minimum_right_turn_clearance_m = config.stop_go_corner_minimum_right_turn_clearance_mm / 1000.0;
+    result.right_clearance_resample_attempts = static_cast<std::size_t>(config.stop_go_corner_right_clearance_resample_attempts);
+    result.main_turn_deg = config.stop_go_corner_main_turn_deg;
+    result.corner_turn_acceptance_tolerance_rad = config.stop_go_corner_turn_acceptance_tolerance_deg * 3.14159265358979323846 / 180.0;
+    result.corner_turn_max_residual_correction_rad = config.stop_go_corner_max_residual_correction_deg * 3.14159265358979323846 / 180.0;
+    result.corner_turn_max_residual_corrections = static_cast<std::size_t>(config.stop_go_corner_max_residual_corrections);
+    result.min_corner_residual_correction_deg = config.stop_go_corner_min_residual_correction_deg;
+    result.post_turn_front_stop_threshold_m = config.stop_go_corner_post_turn_front_stop_threshold_mm / 1000.0;
+    result.post_turn_sensor_resample_attempts = static_cast<std::size_t>(config.stop_go_corner_post_turn_sensor_resample_attempts);
+    result.new_wall_min_distance_m = config.stop_go_corner_new_wall_min_distance_mm / 1000.0;
+    result.new_wall_max_distance_m = config.stop_go_corner_new_wall_max_distance_mm / 1000.0;
+    result.new_wall_stationary_resample_attempts = static_cast<std::size_t>(config.stop_go_corner_new_wall_stationary_resample_attempts);
+    result.new_wall_acquisition_max_forward_steps = static_cast<std::size_t>(config.stop_go_corner_new_wall_acquisition_max_forward_steps);
+    result.post_corner_required_follow_steps = static_cast<std::size_t>(config.stop_go_corner_post_corner_required_follow_steps);
     return result;
 }
 
@@ -204,6 +280,27 @@ struct StopGoReplayRecord {
     LeftWallControlDecision control_decision;
     bool post_turn_verified = false;
     std::uint64_t frame_transform_epoch = 0;
+    bool corner_candidate = false;
+    bool corner_confirmation = false;
+    bool corner_confirmed = false;
+    bool corner_right_clearance_passed = false;
+    bool corner_main_turn = false;
+    bool corner_residual_correction = false;
+    bool corner_residual_right = false;
+    bool post_corner_sensor_verified = false;
+    bool new_wall_reacquisition = false;
+    std::size_t post_corner_follow_steps = 0;
+    std::size_t corner_confirmation_samples = 0;
+    std::size_t corner_confirmation_rejects = 0;
+    std::size_t corner_right_clearance_checks = 0;
+    std::uint64_t wall_segment_id = 1;
+    std::uint64_t corner_transition_id = 0;
+    std::uint64_t corner_main_command_id = 0;
+    std::uint64_t corner_residual_command_id = 0;
+    double pre_turn_odom_yaw_rad = 0.0;
+    double post_turn_odom_yaw_rad = 0.0;
+    double actual_turn_delta_rad = 0.0;
+    double turn_residual_rad = 0.0;
     std::vector<StopGoReplayOdomSample> odom_samples;
 };
 
@@ -308,6 +405,48 @@ struct StopGoMappingRunReport {
     std::vector<std::string> state_trace;
     std::vector<std::uint64_t> command_ids;
     std::vector<StopGoReplayRecord> replay_records;
+    // P5 single-corner audit.  Angles are radians internally; formal output
+    // converts them to degrees at the runner boundary.
+    std::size_t completed_forward_steps_before_corner = 0;
+    std::size_t completed_forward_steps_after_corner = 0;
+    std::size_t corner_candidate_count = 0;
+    std::size_t corner_confirmation_count = 0;
+    std::size_t corner_confirmation_reject_count = 0;
+    std::size_t corner_right_clearance_check_count = 0;
+    std::size_t corner_right_clearance_reject_count = 0;
+    std::size_t corner_main_turn_command_count = 0;
+    std::size_t corner_right_turn_command_count = 0;
+    std::size_t corner_left_turn_command_count = 0;
+    std::uint64_t corner_main_command_id = 0;
+    double pre_turn_odom_yaw_rad = 0.0;
+    double post_main_turn_odom_yaw_rad = 0.0;
+    double verified_corner_turn_delta_rad = 0.0;
+    double final_corner_turn_error_rad = 0.0;
+    std::size_t corner_residual_correction_count = 0;
+    std::size_t corner_residual_right_count = 0;
+    std::size_t corner_residual_left_count = 0;
+    std::size_t post_turn_sensor_verify_count = 0;
+    std::uint64_t old_wall_segment_id = 1;
+    std::uint64_t new_wall_segment_id = 1;
+    std::size_t wall_model_reset_due_to_corner_count = 0;
+    std::size_t new_wall_reacquisition_samples = 0;
+    std::size_t new_wall_acquisition_steps = 0;
+    bool new_wall_model_valid = false;
+    std::size_t post_corner_follow_steps = 0;
+    std::uint64_t map_revision_before_corner = 0;
+    std::uint64_t map_revision_after_corner = 0;
+    std::size_t map_writes_during_corner_confirm = 0;
+    std::size_t map_writes_during_corner_turn = 0;
+    std::size_t map_writes_during_turn_verification = 0;
+    std::uint64_t wall_segment_id = 1;
+    std::uint64_t corner_transition_id = 0;
+    std::uint64_t old_wall_point_hash = 1469598103934665603ULL;
+    std::uint64_t new_wall_point_hash = 1469598103934665603ULL;
+    std::uint64_t old_wall_model_hash = 1469598103934665603ULL;
+    std::uint64_t new_wall_model_hash = 1469598103934665603ULL;
+    std::uint64_t corner_event_sequence_hash = 1469598103934665603ULL;
+    std::uint64_t corner_command_sequence_hash = 1469598103934665603ULL;
+    std::string corner_failure_reason;
 };
 
 class StopGoMappingController final {
@@ -334,6 +473,7 @@ public:
     }
 
     bool tick(double now_s) {
+        if (single_corner_mode()) return tick_single_corner(now_s);
         if (left_wall_mode()) return tick_left_wall(now_s);
         if (terminal()) return report_.ok;
         if (!snapshot_reader_ || !motion_.ready()) return fail("controller_port_or_sensor_not_ready", now_s);
@@ -461,7 +601,13 @@ public:
             state_ == StopGoMappingControllerState::WaitMappingSettle ||
             state_ == StopGoMappingControllerState::WaitTurnDone ||
             state_ == StopGoMappingControllerState::WaitTurnSettle ||
-            state_ == StopGoMappingControllerState::VerifyAfterTurn) {
+            state_ == StopGoMappingControllerState::VerifyAfterTurn ||
+            state_ == StopGoMappingControllerState::WaitCornerTurnDone ||
+            state_ == StopGoMappingControllerState::WaitCornerTurnSettle ||
+            state_ == StopGoMappingControllerState::VerifyCornerTurn ||
+            state_ == StopGoMappingControllerState::WaitCornerResidualDone ||
+            state_ == StopGoMappingControllerState::WaitCornerResidualSettle ||
+            state_ == StopGoMappingControllerState::PostCornerTurnSensorVerify) {
             last_motion_ = result;
             transition(StopGoMappingControllerState::Fault);
             report_.termination_reason = "cancelled_by_stop";
@@ -479,8 +625,13 @@ public:
 
     bool terminal() const {
         return state_ == StopGoMappingControllerState::Completed ||
+               state_ == StopGoMappingControllerState::SingleCornerComplete ||
                state_ == StopGoMappingControllerState::WallLost ||
                state_ == StopGoMappingControllerState::FrontBlocked ||
+               state_ == StopGoMappingControllerState::TurnClearanceBlocked ||
+               state_ == StopGoMappingControllerState::CornerTurnVerificationFailed ||
+               state_ == StopGoMappingControllerState::PostTurnFrontBlocked ||
+               state_ == StopGoMappingControllerState::NewLeftWallReacquisitionFailed ||
                state_ == StopGoMappingControllerState::Fault ||
                state_ == StopGoMappingControllerState::Estop;
     }
@@ -489,6 +640,741 @@ public:
 
 private:
     bool left_wall_mode() const { return config_.mode == "left_wall_follow"; }
+    bool single_corner_mode() const { return config_.mode == "single_corner"; }
+
+    static double minimum_corner_trigger_distance_m(
+        const StopGoMappingControllerConfig &config) {
+        return std::max(0.0, config.robot_turning_sweep_radius_m +
+            config.turn_clearance_margin_m - config.front_tof_forward_offset_m) +
+            config.forward_step_mm / 1000.0 + config.expected_forward_overrun_m;
+    }
+
+    bool corner_safety_config_valid() const {
+        return config_.maximum_corner_transitions == 1 &&
+               config_.corner_confirmation_resamples > 0 &&
+               config_.corner_confirmation_required_hits > 0 &&
+               config_.corner_confirmation_required_hits <= config_.corner_confirmation_resamples &&
+               std::isfinite(config_.main_turn_deg) &&
+               std::fabs(config_.main_turn_deg - 90.0) < 1e-9 &&
+               config_.right_clearance_resample_attempts > 0 &&
+               config_.corner_turn_max_residual_corrections > 0 &&
+               config_.post_turn_sensor_resample_attempts > 0 &&
+               config_.new_wall_stationary_resample_attempts > 0 &&
+               config_.new_wall_acquisition_max_forward_steps > 0 &&
+               config_.post_corner_required_follow_steps > 0 &&
+               config_.new_wall_min_distance_m <= config_.new_wall_max_distance_m &&
+               config_.corner_trigger_distance_m + 1e-9 >=
+                   minimum_corner_trigger_distance_m(config_);
+    }
+
+    bool tick_single_corner(double now_s) {
+        if (terminal()) return report_.ok;
+        if (!corner_safety_config_valid()) return fail("invalid_single_corner_config", now_s);
+        if (!snapshot_reader_ || !motion_.ready() || !sampler_.ready()) {
+            return fail("single_corner_port_or_sensor_not_ready", now_s);
+        }
+        const auto snapshot = snapshot_reader_(now_s);
+        const auto &core = application_.core();
+
+        if (state_ == StopGoMappingControllerState::WaitingForCoreReady) {
+            report_.core_wait_ticks++;
+            if (!snapshot.has_wheel || !snapshot.has_imu || !snapshot.wheel.valid) return true;
+            const auto stepped = application_.step(make_odom_only(snapshot), now_s);
+            if (core.localization_ready()) {
+                report_.core_ready_observed = true;
+                gate_.reset();
+                transition(StopGoMappingControllerState::InitialSettle);
+                return true;
+            }
+            const auto &cr = core.report();
+            if (!core.relocalization_required() && !cr.relocalization_active &&
+                !cr.localization_stop_required &&
+                (cr.initialization_status == "fault" ||
+                 cr.initialization_status == "gyro_calibration_failed" ||
+                 cr.initialization_status == "wheel_baseline_failed" ||
+                 cr.last_fault != "none")) {
+                return fail("core_initialization_failed:" +
+                    (stepped.reason.empty() ? cr.last_message : stepped.reason), now_s);
+            }
+            return true;
+        }
+
+        if (!core.localization_ready() ||
+            core.localization_health_state() == LocalizationHealthState::Lost ||
+            core.report().localization_stop_required || core.relocalization_required()) {
+            (void)motion_.stop(now_s);
+            clear_wall_window("core_not_ready_or_recovering", true);
+            reset_corner_flow_for_recovery();
+            transition(StopGoMappingControllerState::WaitingForCoreReady);
+            if (snapshot.has_wheel && snapshot.has_imu && snapshot.wheel.valid) {
+                (void)application_.step(make_odom_only(snapshot), now_s);
+            }
+            return true;
+        }
+        if (wall_epoch_ != 0 && core.frame_transform_epoch() != wall_epoch_) {
+            (void)motion_.stop(now_s);
+            clear_wall_window("frame_transform_epoch_changed_during_corner", true);
+            reset_corner_flow_for_recovery();
+            transition(StopGoMappingControllerState::WaitingForCoreReady);
+            return true;
+        }
+        if (!snapshot.has_wheel || !snapshot.has_imu || !snapshot.wheel.valid) {
+            return fail("canonical_wheel_or_imu_feedback_invalid", now_s);
+        }
+
+        const bool mapping_sample_state =
+            state_ == StopGoMappingControllerState::InitialSample ||
+            state_ == StopGoMappingControllerState::WallAcquisition ||
+            state_ == StopGoMappingControllerState::AcquireThreeTof ||
+            state_ == StopGoMappingControllerState::CornerCandidate ||
+            state_ == StopGoMappingControllerState::CornerConfirming ||
+            state_ == StopGoMappingControllerState::PostCornerTurnSensorVerify ||
+            state_ == StopGoMappingControllerState::NewLeftWallReacquisition;
+        if (!mapping_sample_state) {
+            const auto before = core.report().current_map_revision;
+            const auto stepped = application_.step(make_odom_only(snapshot), now_s);
+            if (!stepped.ok || !stepped.core_step_executed) {
+                return fail("application_core_step_failed:" + stepped.reason, now_s);
+            }
+            const auto after = core.report().current_map_revision;
+            if (state_ == StopGoMappingControllerState::CornerConfirming ||
+                state_ == StopGoMappingControllerState::CornerCandidate) {
+                if (after != before) report_.map_writes_during_corner_confirm++;
+            } else if (state_ == StopGoMappingControllerState::WaitCornerTurnDone ||
+                       state_ == StopGoMappingControllerState::WaitCornerTurnSettle ||
+                       state_ == StopGoMappingControllerState::WaitCornerResidualDone ||
+                       state_ == StopGoMappingControllerState::WaitCornerResidualSettle) {
+                if (after != before) report_.map_writes_during_corner_turn++;
+            } else if (state_ == StopGoMappingControllerState::VerifyCornerTurn) {
+                if (after != before) report_.map_writes_during_turn_verification++;
+            }
+            pending_replay_odom_samples_.push_back({snapshot.wheel, snapshot.imu});
+        }
+
+        switch (state_) {
+        case StopGoMappingControllerState::InitialSettle: {
+            RelativeMotionStepResult initial;
+            initial.state = RelativeMotionStepState::Done;
+            const auto settled = gate_.update(initial, make_odom_only(snapshot),
+                                              monotonic_us(now_s), true);
+            if (settled.stable) transition(StopGoMappingControllerState::InitialSample);
+            return true;
+        }
+        case StopGoMappingControllerState::InitialSample:
+            transition(StopGoMappingControllerState::WallAcquisition);
+            return acquire_single_corner_sample(snapshot, now_s, 0);
+        case StopGoMappingControllerState::WallAcquisition:
+        case StopGoMappingControllerState::AcquireThreeTof:
+            return acquire_single_corner_sample(snapshot, now_s, report_.completed_steps + 1);
+        case StopGoMappingControllerState::IssueForwardStep:
+            return issue_single_corner_forward(now_s);
+        case StopGoMappingControllerState::WaitMotionDone: {
+            const auto result = motion_.poll(now_s);
+            if (!motion_result_matches_command(result)) return fail("forward_command_id_mismatch", now_s);
+            last_motion_ = result;
+            if (motion_failed(result)) return fail("motion_failed:" + result.reason, now_s);
+            if (result.state == RelativeMotionStepState::Done) {
+                gate_.reset();
+                transition(StopGoMappingControllerState::WaitMappingSettle);
+            }
+            return true;
+        }
+        case StopGoMappingControllerState::WaitMappingSettle: {
+            last_motion_ = motion_.poll(now_s);
+            if (!motion_result_matches_command(last_motion_)) return fail("forward_settle_command_id_mismatch", now_s);
+            const auto settled = gate_.update(last_motion_, make_odom_only(snapshot), monotonic_us(now_s));
+            if (settled.stable) transition(StopGoMappingControllerState::AcquireThreeTof);
+            return true;
+        }
+        case StopGoMappingControllerState::CornerCandidate:
+        case StopGoMappingControllerState::CornerConfirming:
+            return confirm_corner(snapshot, now_s);
+        case StopGoMappingControllerState::IssueCornerRightTurn:
+            return issue_corner_right_turn(now_s);
+        case StopGoMappingControllerState::WaitCornerTurnDone:
+            return poll_corner_turn(now_s, false);
+        case StopGoMappingControllerState::WaitCornerTurnSettle:
+            return settle_corner_turn(snapshot, now_s, false);
+        case StopGoMappingControllerState::VerifyCornerTurn:
+            return verify_corner_turn(now_s);
+        case StopGoMappingControllerState::IssueCornerResidualCorrection:
+            return issue_corner_residual_correction(now_s);
+        case StopGoMappingControllerState::WaitCornerResidualDone:
+            return poll_corner_turn(now_s, true);
+        case StopGoMappingControllerState::WaitCornerResidualSettle:
+            return settle_corner_turn(snapshot, now_s, true);
+        case StopGoMappingControllerState::PostCornerTurnSensorVerify:
+            return post_corner_sensor_verify(snapshot, now_s);
+        case StopGoMappingControllerState::NewLeftWallReacquisition:
+            return acquire_new_wall_sample(snapshot, now_s);
+        case StopGoMappingControllerState::CheckLimit:
+            return check_single_corner_limit(now_s);
+        case StopGoMappingControllerState::Completed:
+        case StopGoMappingControllerState::SingleCornerComplete:
+        case StopGoMappingControllerState::WallLost:
+        case StopGoMappingControllerState::FrontBlocked:
+        case StopGoMappingControllerState::TurnClearanceBlocked:
+        case StopGoMappingControllerState::CornerTurnVerificationFailed:
+        case StopGoMappingControllerState::PostTurnFrontBlocked:
+        case StopGoMappingControllerState::NewLeftWallReacquisitionFailed:
+        case StopGoMappingControllerState::Fault:
+        case StopGoMappingControllerState::Estop:
+        case StopGoMappingControllerState::Idle:
+        case StopGoMappingControllerState::WaitingForCoreReady:
+        case StopGoMappingControllerState::CommitMappingSample:
+        case StopGoMappingControllerState::IssueTurnCorrection:
+        case StopGoMappingControllerState::WaitTurnDone:
+        case StopGoMappingControllerState::WaitTurnSettle:
+        case StopGoMappingControllerState::VerifyAfterTurn:
+            return true;
+        }
+        return true;
+    }
+
+    void reset_corner_flow_for_recovery() {
+        corner_candidate_pending_ = false;
+        corner_confirmed_ = false;
+        main_turn_finished_ = false;
+        post_turn_sensor_verified_ = false;
+        new_wall_mode_ = false;
+        corner_confirmation_attempts_ = 0;
+        corner_confirmation_hits_ = 0;
+        right_clearance_attempts_ = 0;
+        post_turn_sensor_attempts_ = 0;
+        new_wall_resample_attempts_ = 0;
+        new_wall_acquisition_steps_ = 0;
+        corner_residual_corrections_ = 0;
+        corner_main_command_id_ = 0;
+        corner_residual_command_id_ = 0;
+        pre_turn_odom_yaw_rad_ = 0.0;
+        post_main_odom_yaw_rad_ = 0.0;
+        verified_turn_delta_rad_ = 0.0;
+        final_turn_error_rad_ = 0.0;
+    }
+
+    bool issue_single_corner_forward(double now_s) {
+        if (report_.completed_steps >= static_cast<std::size_t>(config_.max_steps) ||
+            total_distance_mm_ >= config_.max_total_distance_mm - 1e-9) {
+            return fail("corner_not_reached_before_motion_limit", now_s);
+        }
+        command_ = {};
+        command_.command_id = next_command_id_++;
+        command_.action = RelativeMotionStepAction::Forward;
+        command_.target_amount = config_.forward_step_mm;
+        command_.max_rpm = config_.motion_max_rpm;
+        command_.timeout_ms = config_.motion_timeout_ms;
+        const auto accepted = motion_.submit(command_, now_s);
+        if (accepted.state != RelativeMotionStepState::Accepted) {
+            return fail("motion_submit_failed:" + accepted.reason, now_s);
+        }
+        report_.commands_submitted++;
+        report_.forward_command_count++;
+        report_.command_ids.push_back(command_.command_id);
+        if (new_wall_mode_ && !wall_model_.valid) {
+            ++new_wall_acquisition_steps_;
+            report_.new_wall_acquisition_steps = new_wall_acquisition_steps_;
+        } else if (!wall_model_.valid) {
+            report_.wall_acquisition_steps++;
+        }
+        transition(StopGoMappingControllerState::WaitMotionDone);
+        return true;
+    }
+
+    bool stable_front_is_corner_hit(const StableTofReading &reading) const {
+        return reading.valid && reading.usable_for_mapping &&
+               reading.confidence >= config_.tof.mapping_min_confidence &&
+               static_cast<double>(reading.distance_mm) <=
+                   config_.corner_trigger_distance_m * 1000.0 + 1e-9;
+    }
+
+    bool core_accepts_no_map_snapshot(const RobotSlamSensorSnapshot &base,
+                                      const StableThreeTofSample &stable,
+                                      double now_s, const char *failure_reason) {
+        const auto full = make_stable_snapshot(base, stable);
+        const auto before = application_.core().report().current_map_revision;
+        const auto poses_before = application_.core().report().measurement_pose_set_success_count;
+        const auto stepped = application_.step(full, now_s, {},
+            ActiveObservationControl::None, false);
+        const auto after = application_.core().report().current_map_revision;
+        if (!stepped.ok || after != before ||
+            application_.core().report().measurement_pose_set_success_count <= poses_before ||
+            !application_.core().localization_ready() ||
+            application_.core().frame_transform_epoch() != wall_epoch_) {
+            if (after != before) {
+                if (state_ == StopGoMappingControllerState::CornerCandidate ||
+                    state_ == StopGoMappingControllerState::CornerConfirming) {
+                    report_.map_writes_during_corner_confirm++;
+                } else {
+                    report_.map_writes_during_turn_verification++;
+                }
+            }
+            return fail(failure_reason, now_s);
+        }
+        pending_replay_odom_samples_.push_back({full.wheel, full.imu});
+        return true;
+    }
+
+    bool confirm_corner(const RobotSlamSensorSnapshot &base, double now_s) {
+        if (!wall_model_.valid || wall_model_.frame_transform_epoch !=
+                application_.core().frame_transform_epoch()) {
+            return fail("corner_confirmation_without_valid_wall_model", now_s);
+        }
+        transition(StopGoMappingControllerState::CornerConfirming);
+        const auto stable = sampler_.acquire();
+        report_.stable_samples++;
+        ++corner_confirmation_attempts_;
+        report_.corner_confirmation_count++;
+        const bool front_hit = stable_front_is_corner_hit(stable.front);
+        const bool left_hit = stable.left.valid && stable.left.usable_for_mapping;
+        if (front_hit && left_hit) {
+            if (!core_accepts_no_map_snapshot(base, stable, now_s,
+                                              "corner_confirmation_core_rejected")) return false;
+            ++corner_confirmation_hits_;
+            pending_replay_corner_confirmation_ = true;
+            if (corner_confirmation_hits_ >= config_.corner_confirmation_required_hits) {
+                corner_confirmed_ = true;
+                report_.map_revision_before_corner = application_.core().report().current_map_revision;
+                report_.old_wall_segment_id = wall_segment_id_;
+                pre_turn_odom_yaw_rad_ = application_.core().report().last_odom_pose.yaw_rad;
+                pre_turn_map_yaw_rad_ = application_.core().current_map_pose().map_T_base.yaw_rad;
+                report_.pre_turn_odom_yaw_rad = pre_turn_odom_yaw_rad_;
+                transition(StopGoMappingControllerState::IssueCornerRightTurn);
+                return true;
+            }
+        }
+        if (corner_confirmation_attempts_ >= config_.corner_confirmation_resamples) {
+            ++report_.corner_confirmation_reject_count;
+            corner_candidate_pending_ = false;
+            corner_confirmation_attempts_ = 0;
+            corner_confirmation_hits_ = 0;
+            if (!stable.front.usable_for_mapping || !stable.left.usable_for_mapping) {
+                if (new_wall_mode_) return fail_new_wall("corner_confirmation_sensor_invalid", now_s);
+                return front_blocked("corner_confirmation_sensor_invalid", now_s);
+            }
+            transition(StopGoMappingControllerState::IssueForwardStep);
+        }
+        return true;
+    }
+
+    bool issue_corner_right_turn(double now_s) {
+        if (!corner_confirmed_ || report_.corner_main_turn_command_count != 0 ||
+            report_.corner_right_turn_command_count != 0) {
+            return fail("invalid_corner_turn_lifecycle", now_s);
+        }
+        right_clearance_attempts_++;
+        report_.corner_right_clearance_check_count++;
+        // The actual stable right sample is checked in confirm_corner's next
+        // pass.  This state is intentionally a separate gate: no direction
+        // decision is derived from it, and RIGHT remains fixed.
+        if (!right_clearance_passed_) {
+            const auto stable = sampler_.acquire();
+            report_.stable_samples++;
+            if (!stable.right.usable_for_mapping) {
+                if (right_clearance_attempts_ < config_.right_clearance_resample_attempts) return true;
+                ++report_.corner_right_clearance_reject_count;
+                return turn_clearance_blocked("right_clearance_invalid", now_s);
+            }
+            if (static_cast<double>(stable.right.distance_mm) <
+                    config_.minimum_right_turn_clearance_m * 1000.0 - 1e-9) {
+                ++report_.corner_right_clearance_reject_count;
+                return turn_clearance_blocked("right_turn_clearance_too_small", now_s);
+            }
+            right_clearance_passed_ = true;
+            pending_replay_corner_clearance_ = true;
+        }
+        command_ = {};
+        command_.command_id = next_command_id_++;
+        command_.action = RelativeMotionStepAction::Right;
+        command_.target_amount = config_.main_turn_deg;
+        command_.max_rpm = config_.motion_max_rpm;
+        command_.timeout_ms = config_.motion_timeout_ms;
+        const auto accepted = motion_.submit(command_, now_s);
+        if (accepted.state != RelativeMotionStepState::Accepted) {
+            return fail("corner_right_turn_submit_failed:" + accepted.reason, now_s);
+        }
+        report_.commands_submitted++;
+        report_.corner_main_turn_command_count++;
+        report_.corner_right_turn_command_count++;
+        report_.corner_main_command_id = command_.command_id;
+        corner_main_command_id_ = command_.command_id;
+        report_.command_ids.push_back(command_.command_id);
+        hash_mix(report_.corner_command_sequence_hash, command_.command_id);
+        hash_mix(report_.corner_command_sequence_hash, static_cast<std::uint64_t>(command_.action));
+        hash_mix(report_.corner_command_sequence_hash, quantized(command_.target_amount));
+        pending_replay_corner_main_turn_ = true;
+        transition(StopGoMappingControllerState::WaitCornerTurnDone);
+        return true;
+    }
+
+    bool poll_corner_turn(double now_s, bool residual) {
+        const auto result = motion_.poll(now_s);
+        if (!motion_result_matches_command(result)) {
+            return fail(residual ? "corner_residual_command_id_mismatch" : "corner_turn_command_id_mismatch", now_s);
+        }
+        last_motion_ = result;
+        if (motion_failed(result)) {
+            return fail(residual ? "corner_residual_motion_failed:" + result.reason
+                                 : "corner_turn_motion_failed:" + result.reason, now_s);
+        }
+        if (result.state == RelativeMotionStepState::Done) {
+            gate_.reset();
+            transition(residual ? StopGoMappingControllerState::WaitCornerResidualSettle
+                                : StopGoMappingControllerState::WaitCornerTurnSettle);
+        }
+        return true;
+    }
+
+    bool settle_corner_turn(const RobotSlamSensorSnapshot &snapshot,
+                            double now_s, bool residual) {
+        last_motion_ = motion_.poll(now_s);
+        if (!motion_result_matches_command(last_motion_)) {
+            return fail(residual ? "corner_residual_settle_command_id_mismatch"
+                                 : "corner_turn_settle_command_id_mismatch", now_s);
+        }
+        const auto settled = gate_.update(last_motion_, make_odom_only(snapshot), monotonic_us(now_s));
+        if (settled.stable) {
+            transition(residual ? StopGoMappingControllerState::VerifyCornerTurn
+                                : StopGoMappingControllerState::VerifyCornerTurn);
+        }
+        return true;
+    }
+
+    bool verify_corner_turn(double now_s) {
+        if (application_.core().frame_transform_epoch() != wall_epoch_) {
+            return fail("frame_transform_epoch_changed_during_corner_verification", now_s);
+        }
+        const double post = application_.core().report().last_odom_pose.yaw_rad;
+        if (!std::isfinite(post) || !std::isfinite(pre_turn_odom_yaw_rad_)) {
+            return corner_turn_verification_failed("corner_odom_yaw_invalid", now_s);
+        }
+        post_main_odom_yaw_rad_ = post;
+        const double actual = sparse_slam_shortest_yaw_delta(pre_turn_odom_yaw_rad_, post);
+        const double target = -3.14159265358979323846 / 2.0;
+        const double residual = sparse_slam_normalize_yaw(target - actual);
+        verified_turn_delta_rad_ = actual;
+        final_turn_error_rad_ = residual;
+        if (corner_residual_corrections_ == 0) {
+            report_.post_main_turn_odom_yaw_rad = post;
+        }
+        report_.verified_corner_turn_delta_rad = actual;
+        report_.final_corner_turn_error_rad = residual;
+        if (std::fabs(residual) <= config_.corner_turn_acceptance_tolerance_rad + 1e-9) {
+            main_turn_finished_ = true;
+            transition(StopGoMappingControllerState::PostCornerTurnSensorVerify);
+            return true;
+        }
+        if (std::fabs(residual) > config_.corner_turn_max_residual_correction_rad + 1e-9 ||
+            corner_residual_corrections_ >= config_.corner_turn_max_residual_corrections) {
+            return corner_turn_verification_failed("corner_turn_residual_out_of_bounds", now_s);
+        }
+        pending_corner_residual_rad_ = residual;
+        transition(StopGoMappingControllerState::IssueCornerResidualCorrection);
+        return true;
+    }
+
+    bool issue_corner_residual_correction(double now_s) {
+        const double residual_deg = std::fabs(pending_corner_residual_rad_) *
+            180.0 / 3.14159265358979323846;
+        const double amount = std::clamp(residual_deg,
+            config_.min_corner_residual_correction_deg,
+            config_.corner_turn_max_residual_correction_rad *
+                180.0 / 3.14159265358979323846);
+        command_ = {};
+        command_.command_id = next_command_id_++;
+        command_.action = pending_corner_residual_rad_ < 0.0
+            ? RelativeMotionStepAction::Right : RelativeMotionStepAction::Left;
+        command_.target_amount = amount;
+        command_.max_rpm = config_.motion_max_rpm;
+        command_.timeout_ms = config_.motion_timeout_ms;
+        const auto accepted = motion_.submit(command_, now_s);
+        if (accepted.state != RelativeMotionStepState::Accepted) {
+            return fail("corner_residual_submit_failed:" + accepted.reason, now_s);
+        }
+        ++corner_residual_corrections_;
+        report_.corner_residual_correction_count = corner_residual_corrections_;
+        if (command_.action == RelativeMotionStepAction::Right) {
+            ++report_.corner_residual_right_count;
+            ++report_.corner_right_turn_command_count;
+        } else {
+            ++report_.corner_residual_left_count;
+            ++report_.corner_left_turn_command_count;
+        }
+        report_.commands_submitted++;
+        report_.command_ids.push_back(command_.command_id);
+        hash_mix(report_.corner_command_sequence_hash, command_.command_id);
+        hash_mix(report_.corner_command_sequence_hash, static_cast<std::uint64_t>(command_.action));
+        hash_mix(report_.corner_command_sequence_hash, quantized(command_.target_amount));
+        pending_replay_corner_residual_ = true;
+        pending_replay_corner_residual_right_ = command_.action == RelativeMotionStepAction::Right;
+        corner_residual_command_id_ = command_.command_id;
+        transition(StopGoMappingControllerState::WaitCornerResidualDone);
+        return true;
+    }
+
+    bool post_corner_sensor_verify(const RobotSlamSensorSnapshot &base, double now_s) {
+        ++post_turn_sensor_attempts_;
+        ++report_.post_turn_sensor_verify_count;
+        const auto stable = sampler_.acquire();
+        report_.stable_samples++;
+        if (!stable.front.usable_for_mapping ||
+            stable.front.distance_mm <= config_.post_turn_front_stop_threshold_m * 1000.0 + 1e-9) {
+            if (post_turn_sensor_attempts_ < config_.post_turn_sensor_resample_attempts) return true;
+            return post_turn_front_blocked("post_turn_front_blocked", now_s);
+        }
+        if (!stable.left.usable_for_mapping) {
+            if (post_turn_sensor_attempts_ < config_.post_turn_sensor_resample_attempts) return true;
+            return begin_new_wall_reacquisition(now_s);
+        }
+        if (!stable.right.usable_for_mapping) {
+            if (post_turn_sensor_attempts_ < config_.post_turn_sensor_resample_attempts) return true;
+            return turn_clearance_blocked("post_turn_right_sample_invalid", now_s);
+        }
+        if (!core_accepts_no_map_snapshot(base, stable, now_s,
+                                          "post_corner_sensor_core_rejected")) return false;
+        post_turn_sensor_verified_ = true;
+        pending_replay_post_corner_verify_ = true;
+        return begin_new_wall_reacquisition(now_s);
+    }
+
+    bool begin_new_wall_reacquisition(double now_s) {
+        (void)now_s;
+        if (!main_turn_finished_ || report_.corner_main_turn_command_count == 0) {
+            return corner_turn_verification_failed("corner_turn_not_verified", now_s);
+        }
+        old_wall_points_hash_ = segment_wall_point_hash_;
+        old_wall_models_hash_ = segment_wall_model_hash_;
+        report_.old_wall_point_hash = old_wall_points_hash_;
+        report_.old_wall_model_hash = old_wall_models_hash_;
+        wall_points_.clear();
+        wall_model_ = {};
+        pending_decision_ = {};
+        ++wall_segment_id_;
+        ++corner_transition_id_;
+        report_.old_wall_segment_id = wall_segment_id_ - 1;
+        report_.new_wall_segment_id = wall_segment_id_;
+        report_.wall_segment_id = wall_segment_id_;
+        report_.corner_transition_id = corner_transition_id_;
+        ++report_.wall_model_reset_due_to_corner_count;
+        segment_wall_point_hash_ = 1469598103934665603ULL;
+        segment_wall_model_hash_ = 1469598103934665603ULL;
+        report_.new_wall_point_hash = segment_wall_point_hash_;
+        report_.new_wall_model_hash = segment_wall_model_hash_;
+        corner_transition_event("wall_segment_reset");
+        new_wall_mode_ = true;
+        new_wall_resample_attempts_ = 0;
+        new_wall_acquisition_steps_ = 0;
+        report_.new_wall_model_valid = false;
+        transition(StopGoMappingControllerState::NewLeftWallReacquisition);
+        return true;
+    }
+
+    bool acquire_new_wall_sample(const RobotSlamSensorSnapshot &base, double now_s) {
+        ++report_.new_wall_reacquisition_samples;
+        const auto stable = sampler_.acquire();
+        report_.stable_samples++;
+        if (!stable.front.usable_for_mapping ||
+            stable.front.distance_mm <= config_.post_turn_front_stop_threshold_m * 1000.0 + 1e-9) {
+            if (++new_wall_resample_attempts_ < config_.new_wall_stationary_resample_attempts) return true;
+            return post_turn_front_blocked("new_wall_front_not_safe", now_s);
+        }
+        if (!stable.left.usable_for_mapping ||
+            stable.left.distance_mm < config_.new_wall_min_distance_m * 1000.0 - 1e-9 ||
+            stable.left.distance_mm > config_.new_wall_max_distance_m * 1000.0 + 1e-9) {
+            ++new_wall_resample_attempts_;
+            if (new_wall_resample_attempts_ < config_.new_wall_stationary_resample_attempts) return true;
+            if (new_wall_acquisition_steps_ < config_.new_wall_acquisition_max_forward_steps) {
+                new_wall_resample_attempts_ = 0;
+                transition(StopGoMappingControllerState::IssueForwardStep);
+                return true;
+            }
+            return fail_new_wall("new_left_wall_reacquisition_failed", now_s);
+        }
+        if (!stable.right.usable_for_mapping) {
+            if (++new_wall_resample_attempts_ < config_.new_wall_stationary_resample_attempts) return true;
+            return fail_new_wall("new_wall_right_sample_invalid", now_s);
+        }
+        new_wall_resample_attempts_ = 0;
+        const auto full = make_stable_snapshot(base, stable);
+        const auto before = application_.core().report().current_map_revision;
+        const auto committed = application_.step(full, now_s);
+        const auto after = application_.core().report().current_map_revision;
+        const auto &accepted = application_.core().last_accepted_map_observation();
+        if (!committed.ok || after <= before || !accepted.valid || !accepted.backend_accepted ||
+            !accepted.measurement_poses.left.valid || accepted.frame_transform_epoch != wall_epoch_) {
+            return fail_new_wall("new_wall_mapping_commit_failed", now_s);
+        }
+        ++report_.map_commits;
+        const auto point = project_left_wall_point(stable.left,
+            accepted.measurement_poses.left.base_pose_in_map, after,
+            accepted.frame_transform_epoch, report_.completed_steps);
+        if (!point) return fail_new_wall("new_wall_point_projection_failed", now_s);
+        LeftWallPoint segmented = *point;
+        segmented.wall_segment_id = wall_segment_id_;
+        wall_points_.push_back(segmented);
+        while (wall_points_.size() > config_.wall_estimator.window_max_points) wall_points_.erase(wall_points_.begin());
+        hash_wall_point(segmented);
+        wall_model_ = wall_estimator_.fit(wall_points_,
+            application_.core().current_map_pose().map_T_base, wall_epoch_);
+        wall_model_.wall_segment_id = wall_segment_id_;
+        hash_wall_model(wall_model_);
+        update_wall_fit_report();
+        StopGoReplayRecord replay = make_replay_record(full, stable, before, after,
+            report_.completed_steps, 0);
+        replay.controller_state = StopGoMappingControllerState::CommitMappingSample;
+        replay.left_wall_point_accepted = true;
+        replay.left_wall_point = segmented;
+        replay.wall_model = wall_model_;
+        replay.wall_segment_id = wall_segment_id_;
+        replay.corner_transition_id = corner_transition_id_;
+        replay.post_corner_sensor_verified = pending_replay_post_corner_verify_;
+        replay.new_wall_reacquisition = wall_segment_id_ >= 2;
+        replay.post_corner_follow_steps = report_.post_corner_follow_steps;
+        replay.corner_confirmation_samples = report_.corner_confirmation_count;
+        replay.corner_confirmation_rejects = report_.corner_confirmation_reject_count;
+        replay.corner_right_clearance_checks = report_.corner_right_clearance_check_count;
+        replay.odom_samples = std::move(pending_replay_odom_samples_);
+        pending_replay_odom_samples_.clear();
+        pending_replay_post_corner_verify_ = false;
+        pending_replay_corner_candidate_ = false;
+        pending_replay_corner_confirmation_ = false;
+        pending_replay_corner_clearance_ = false;
+        pending_replay_corner_main_turn_ = false;
+        pending_replay_corner_residual_ = false;
+        pending_replay_corner_residual_right_ = false;
+        report_.replay_records.push_back(replay);
+        write_log(replay, now_s);
+        if (wall_model_.valid) {
+            report_.new_wall_model_valid = true;
+            new_wall_mode_ = false;
+            transition(StopGoMappingControllerState::CheckLimit);
+            return check_single_corner_limit(now_s);
+        }
+        if (new_wall_acquisition_steps_ >= config_.new_wall_acquisition_max_forward_steps) {
+            return fail_new_wall("new_wall_fit_limit_reached", now_s);
+        }
+        transition(StopGoMappingControllerState::IssueForwardStep);
+        return true;
+    }
+
+    bool check_single_corner_limit(double now_s) {
+        report_.map_revision_after_corner = application_.core().report().current_map_revision;
+        if (!new_wall_mode_ && wall_model_.valid && report_.corner_main_turn_command_count != 0) {
+            if (report_.post_corner_follow_steps >= config_.post_corner_required_follow_steps) {
+                report_.wall_segment_id = wall_segment_id_;
+                report_.new_wall_point_hash = segment_wall_point_hash_;
+                report_.new_wall_model_hash = segment_wall_model_hash_;
+                return complete_single_corner(now_s);
+            }
+        }
+        if (report_.completed_steps >= static_cast<std::size_t>(config_.max_steps) ||
+            total_distance_mm_ >= config_.max_total_distance_mm - 1e-9) {
+            return fail("single_corner_follow_limit_reached", now_s);
+        }
+        transition(StopGoMappingControllerState::IssueForwardStep);
+        return true;
+    }
+
+    bool complete_single_corner(double) {
+        motion_.stop(0.0);
+        report_.map_revision = application_.core().report().current_map_revision;
+        report_.map_cells = application_.core().report().sparse_map_cell_count;
+        report_.map_revision_after_corner = report_.map_revision;
+        report_.wall_segment_id = wall_segment_id_;
+        report_.new_wall_point_hash = segment_wall_point_hash_;
+        report_.new_wall_model_hash = segment_wall_model_hash_;
+        report_.ok = true;
+        report_.termination_reason = "single_corner_complete";
+        transition(StopGoMappingControllerState::SingleCornerComplete);
+        return true;
+    }
+
+    bool turn_clearance_blocked(const char *reason, double now_s) {
+        motion_.stop(now_s);
+        report_.corner_failure_reason = reason;
+        report_.ok = false;
+        report_.termination_reason = "turn_clearance_blocked";
+        report_.map_revision = application_.core().report().current_map_revision;
+        report_.map_cells = application_.core().report().sparse_map_cell_count;
+        transition(StopGoMappingControllerState::TurnClearanceBlocked);
+        return false;
+    }
+
+    bool corner_turn_verification_failed(const char *reason, double now_s) {
+        motion_.stop(now_s);
+        report_.corner_failure_reason = reason;
+        report_.ok = false;
+        report_.termination_reason = "corner_turn_verification_failed";
+        transition(StopGoMappingControllerState::CornerTurnVerificationFailed);
+        return false;
+    }
+
+    bool post_turn_front_blocked(const char *reason, double now_s) {
+        motion_.stop(now_s);
+        report_.corner_failure_reason = reason;
+        report_.ok = false;
+        report_.termination_reason = "post_turn_front_blocked";
+        transition(StopGoMappingControllerState::PostTurnFrontBlocked);
+        return false;
+    }
+
+    bool fail_new_wall(const char *reason, double now_s) {
+        motion_.stop(now_s);
+        report_.corner_failure_reason = reason;
+        report_.ok = false;
+        report_.termination_reason = "new_left_wall_reacquisition_failed";
+        transition(StopGoMappingControllerState::NewLeftWallReacquisitionFailed);
+        return false;
+    }
+
+    void corner_transition_event(const char *name) {
+        for (const unsigned char ch : std::string(name)) hash_mix(report_.corner_event_sequence_hash, ch);
+    }
+
+    void update_wall_fit_report() {
+        report_.frame_transform_epoch = wall_epoch_;
+        report_.wall_fit_input_points = wall_model_.input_point_count;
+        report_.wall_fit_inliers = wall_model_.inlier_point_count;
+        report_.wall_fit_baseline_m = wall_model_.baseline_m;
+        report_.wall_fit_rms_m = wall_model_.rms_residual_m;
+        if (wall_model_.valid) ++report_.wall_model_valid_count;
+    }
+
+    StopGoReplayRecord make_replay_record(const RobotSlamSensorSnapshot &full,
+        const StableThreeTofSample &stable, std::uint64_t before,
+        std::uint64_t after, std::size_t cycle, std::uint64_t command_id) const {
+        StopGoReplayRecord replay;
+        replay.cycle_index = cycle;
+        replay.command_id = command_id;
+        replay.motion = last_motion_;
+        replay.snapshot = full;
+        replay.stable_sample = stable;
+        replay.map_revision_before = before;
+        replay.map_revision_after = after;
+        replay.motor_settled_timestamp_us = monotonic_us(last_motion_.final_feedback.wheel.timestamp_s);
+        replay.mapping_ready_timestamp_us = gate_.last_result().stable_timestamp_us;
+        replay.settle_frame_count = gate_.last_result().consecutive_frames;
+        replay.settle_duration_ms = gate_.last_result().stable_duration_ms;
+        replay.odom_pose = application_.core().report().last_odom_pose;
+        replay.map_from_odom = application_.core().frame_state().current_map_from_odom().map_T_odom;
+        replay.frame_transform_epoch = wall_epoch_;
+        replay.wall_segment_id = wall_segment_id_;
+        replay.corner_transition_id = corner_transition_id_;
+        replay.corner_candidate = pending_replay_corner_candidate_;
+        replay.corner_confirmation = pending_replay_corner_confirmation_;
+        replay.corner_confirmed = corner_confirmed_;
+        replay.corner_right_clearance_passed = pending_replay_corner_clearance_;
+        replay.corner_main_turn = pending_replay_corner_main_turn_;
+        replay.corner_residual_correction = pending_replay_corner_residual_;
+        replay.corner_residual_right = pending_replay_corner_residual_right_;
+        replay.post_corner_sensor_verified = pending_replay_post_corner_verify_;
+        replay.corner_main_command_id = corner_main_command_id_;
+        replay.corner_residual_command_id = corner_residual_command_id_;
+        replay.pre_turn_odom_yaw_rad = pre_turn_odom_yaw_rad_;
+        replay.post_turn_odom_yaw_rad = post_main_odom_yaw_rad_;
+        replay.actual_turn_delta_rad = verified_turn_delta_rad_;
+        replay.turn_residual_rad = final_turn_error_rad_;
+        return replay;
+    }
 
     bool tick_left_wall(double now_s) {
         if (terminal()) return report_.ok;
@@ -864,6 +1750,142 @@ private:
         return check_left_wall_limit(now_s);
     }
 
+    bool acquire_single_corner_sample(const RobotSlamSensorSnapshot &base,
+                                      double now_s, std::size_t cycle) {
+        transition(StopGoMappingControllerState::AcquireThreeTof);
+        const auto stable = sampler_.acquire();
+        report_.stable_samples++;
+        if (!stable.front.usable_for_mapping) {
+            if (++front_invalid_samples_ <= config_.front_max_invalid_samples) return true;
+            return front_blocked("front_sample_invalid", now_s);
+        }
+        front_invalid_samples_ = 0;
+        if (stable.front.distance_mm <= config_.front_stop_threshold_m * 1000.0 + 1e-9 &&
+            (!wall_model_.valid || new_wall_mode_)) {
+            return front_blocked("front_obstacle_below_stop_threshold", now_s);
+        }
+        if (!stable.left.usable_for_mapping) {
+            ++stationary_resample_attempts_;
+            if (new_wall_mode_) {
+                if (stationary_resample_attempts_ < config_.new_wall_stationary_resample_attempts) return true;
+                stationary_resample_attempts_ = 0;
+                if (new_wall_acquisition_steps_ < config_.new_wall_acquisition_max_forward_steps) {
+                    transition(StopGoMappingControllerState::IssueForwardStep);
+                    return true;
+                }
+                return fail_new_wall("new_left_wall_reacquisition_failed", now_s);
+            }
+            if (stationary_resample_attempts_ <= config_.max_stationary_resample_attempts) return true;
+            return wall_lost("initial_left_wall_resample_exhausted", now_s);
+        }
+        stationary_resample_attempts_ = 0;
+        if (!stable.right.usable_for_mapping) return fail("right_measurement_unusable_for_core_map_commit", now_s);
+
+        const auto full = make_stable_snapshot(base, stable);
+        const std::uint64_t before = application_.core().report().current_map_revision;
+        const auto committed = application_.step(full, now_s);
+        const std::uint64_t after = application_.core().report().current_map_revision;
+        const auto &accepted = application_.core().last_accepted_map_observation();
+        if (!committed.ok || after <= before || !accepted.valid || !accepted.backend_accepted ||
+            accepted.map_revision_before != before || accepted.map_revision_after != after ||
+            !accepted.measurement_poses.left.valid ||
+            accepted.frame_transform_epoch != application_.core().frame_transform_epoch()) {
+            return fail(new_wall_mode_ ? "new_wall_mapping_commit_failed" : "stable_snapshot_map_commit_failed", now_s);
+        }
+        report_.map_commits++;
+        if (cycle != 0) {
+            ++report_.completed_steps;
+            ++report_.commands_completed;
+            total_distance_mm_ += last_motion_.actual_distance_mm;
+            if (report_.corner_main_turn_command_count == 0) {
+                report_.completed_forward_steps_before_corner = report_.completed_steps;
+            } else {
+                report_.completed_forward_steps_after_corner = report_.completed_steps -
+                    report_.completed_forward_steps_before_corner;
+                if (new_wall_mode_ || wall_segment_id_ > 1) {
+                    ++report_.post_corner_follow_steps;
+                }
+            }
+        }
+        const auto projected = project_left_wall_point(stable.left,
+            accepted.measurement_poses.left.base_pose_in_map, after,
+            accepted.frame_transform_epoch, cycle);
+        if (!projected) return fail("left_wall_point_projection_failed", now_s);
+        LeftWallPoint point = *projected;
+        point.wall_segment_id = wall_segment_id_;
+        if (wall_epoch_ == 0) wall_epoch_ = accepted.frame_transform_epoch;
+        if (point.frame_transform_epoch != wall_epoch_) {
+            clear_wall_window("frame_transform_epoch_changed_at_point", true);
+            reset_corner_flow_for_recovery();
+            transition(StopGoMappingControllerState::WaitingForCoreReady);
+            return true;
+        }
+        wall_points_.push_back(point);
+        while (wall_points_.size() > config_.wall_estimator.window_max_points) wall_points_.erase(wall_points_.begin());
+        hash_wall_point(point);
+        wall_model_ = wall_estimator_.fit(wall_points_,
+            application_.core().current_map_pose().map_T_base, wall_epoch_);
+        wall_model_.wall_segment_id = wall_segment_id_;
+        hash_wall_model(wall_model_);
+        update_wall_fit_report();
+        if (wall_model_.valid) {
+            if (!desired_distance_captured_ && config_.desired_distance_mode == "capture_initial") {
+                desired_distance_m_ = wall_model_.signed_base_to_wall_distance_m;
+                desired_distance_captured_ = true;
+            }
+            pending_decision_ = decide_left_wall_control(
+                wall_model_, application_.core().current_map_pose().map_T_base,
+                desired_distance_m_, config_);
+            update_control_metrics(pending_decision_);
+            if (wall_model_.signed_base_to_wall_distance_m < config_.min_allowed_base_to_wall_distance_m ||
+                wall_model_.signed_base_to_wall_distance_m > config_.max_allowed_base_to_wall_distance_m) {
+                return wall_lost("base_to_wall_distance_out_of_safe_range", now_s);
+            }
+        }
+
+        const bool corner_candidate = wall_model_.valid && !new_wall_mode_ &&
+            wall_segment_id_ == 1 && stable_front_is_corner_hit(stable.front) &&
+            stable.left.usable_for_mapping;
+        if (corner_candidate) {
+            ++report_.corner_candidate_count;
+            corner_candidate_pending_ = true;
+            corner_confirmation_attempts_ = 0;
+            corner_confirmation_hits_ = 0;
+            pending_replay_corner_candidate_ = true;
+            corner_transition_event("corner_candidate");
+        }
+        StopGoReplayRecord replay = make_replay_record(full, stable, before, after,
+            cycle, cycle == 0 ? 0 : command_.command_id);
+        replay.controller_state = StopGoMappingControllerState::CommitMappingSample;
+        replay.left_wall_point_accepted = true;
+        replay.left_wall_point = point;
+        replay.wall_model = wall_model_;
+        replay.control_decision = pending_decision_;
+        replay.odom_samples = std::move(pending_replay_odom_samples_);
+        pending_replay_odom_samples_.clear();
+        report_.replay_records.push_back(replay);
+        write_log(replay, now_s);
+        pending_replay_corner_candidate_ = false;
+        pending_replay_corner_confirmation_ = false;
+        pending_replay_corner_clearance_ = false;
+        pending_replay_corner_main_turn_ = false;
+        pending_replay_corner_residual_ = false;
+        pending_replay_post_corner_verify_ = false;
+
+        if (corner_candidate) {
+            transition(StopGoMappingControllerState::CornerCandidate);
+            return true;
+        }
+        if (new_wall_mode_ && wall_model_.valid) {
+            report_.new_wall_model_valid = true;
+            report_.new_wall_point_hash = segment_wall_point_hash_;
+            report_.new_wall_model_hash = segment_wall_model_hash_;
+            new_wall_mode_ = false;
+        }
+        transition(StopGoMappingControllerState::CheckLimit);
+        return check_single_corner_limit(now_s);
+    }
+
     std::optional<LeftWallPoint> project_left_wall_point(
         const StableTofReading &reading,
         const MapPose2D &measurement_base_pose,
@@ -908,6 +1930,11 @@ private:
         hash_mix(report_.wall_point_sequence_hash, quantized(point.y_m));
         hash_mix(report_.wall_point_sequence_hash, point.cycle_index);
         hash_mix(report_.wall_point_sequence_hash, point.frame_transform_epoch);
+        hash_mix(report_.wall_point_sequence_hash, point.wall_segment_id);
+        hash_mix(segment_wall_point_hash_, quantized(point.x_m));
+        hash_mix(segment_wall_point_hash_, quantized(point.y_m));
+        hash_mix(segment_wall_point_hash_, point.cycle_index);
+        hash_mix(segment_wall_point_hash_, point.wall_segment_id);
     }
 
     void hash_wall_model(const LeftWallModel &model) {
@@ -919,6 +1946,14 @@ private:
         hash_mix(report_.wall_model_sequence_hash, quantized(model.rms_residual_m));
         hash_mix(report_.wall_model_sequence_hash, model.inlier_point_count);
         hash_mix(report_.wall_model_sequence_hash, model.frame_transform_epoch);
+        hash_mix(report_.wall_model_sequence_hash, model.wall_segment_id);
+        hash_mix(segment_wall_model_hash_, model.valid ? 1U : 0U);
+        hash_mix(segment_wall_model_hash_, quantized(model.wall_heading_rad));
+        hash_mix(segment_wall_model_hash_, quantized(model.signed_base_to_wall_distance_m));
+        hash_mix(segment_wall_model_hash_, quantized(model.baseline_m));
+        hash_mix(segment_wall_model_hash_, quantized(model.rms_residual_m));
+        hash_mix(segment_wall_model_hash_, model.inlier_point_count);
+        hash_mix(segment_wall_model_hash_, model.wall_segment_id);
     }
 
     void update_control_metrics(const LeftWallControlDecision &decision) {
@@ -1243,7 +2278,21 @@ private:
              << ",\"correction_amount_deg\":"
              << record.control_decision.correction_amount_deg
              << ",\"post_turn_verified\":"
-             << (record.post_turn_verified ? 1 : 0);
+             << (record.post_turn_verified ? 1 : 0)
+             << ",\"corner_candidate\":" << (record.corner_candidate ? 1 : 0)
+             << ",\"corner_confirmation\":" << (record.corner_confirmation ? 1 : 0)
+             << ",\"corner_confirmed\":" << (record.corner_confirmed ? 1 : 0)
+             << ",\"corner_clearance_passed\":" << (record.corner_right_clearance_passed ? 1 : 0)
+             << ",\"corner_main_turn\":" << (record.corner_main_turn ? 1 : 0)
+             << ",\"corner_residual_correction\":" << (record.corner_residual_correction ? 1 : 0)
+             << ",\"post_corner_sensor_verified\":" << (record.post_corner_sensor_verified ? 1 : 0)
+             << ",\"wall_segment_id\":" << record.wall_segment_id
+             << ",\"corner_transition_id\":" << record.corner_transition_id
+             << ",\"corner_main_command_id\":" << record.corner_main_command_id
+             << ",\"pre_turn_odom_yaw_rad\":" << record.pre_turn_odom_yaw_rad
+             << ",\"post_turn_odom_yaw_rad\":" << record.post_turn_odom_yaw_rad
+             << ",\"actual_turn_delta_rad\":" << record.actual_turn_delta_rad
+             << ",\"turn_residual_rad\":" << record.turn_residual_rad;
         log_ << ",\"controller_state\":\"" << to_string(record.controller_state)
              << "\"}\n";
         if (!log_) report_.log_error = "stop_go_log_write_failed";
@@ -1274,6 +2323,40 @@ private:
     bool have_control_metrics_ = false;
     std::vector<StopGoReplayOdomSample> pending_replay_odom_samples_;
     bool post_turn_verified_since_last_commit_ = false;
+    bool corner_candidate_pending_ = false;
+    bool corner_confirmed_ = false;
+    bool main_turn_finished_ = false;
+    bool post_turn_sensor_verified_ = false;
+    bool new_wall_mode_ = false;
+    bool right_clearance_passed_ = false;
+    std::size_t corner_confirmation_attempts_ = 0;
+    std::size_t corner_confirmation_hits_ = 0;
+    std::size_t right_clearance_attempts_ = 0;
+    std::size_t post_turn_sensor_attempts_ = 0;
+    std::size_t new_wall_resample_attempts_ = 0;
+    std::size_t new_wall_acquisition_steps_ = 0;
+    std::size_t corner_residual_corrections_ = 0;
+    std::uint64_t wall_segment_id_ = 1;
+    std::uint64_t corner_transition_id_ = 0;
+    std::uint64_t corner_main_command_id_ = 0;
+    std::uint64_t corner_residual_command_id_ = 0;
+    double pre_turn_odom_yaw_rad_ = 0.0;
+    double pre_turn_map_yaw_rad_ = 0.0;
+    double post_main_odom_yaw_rad_ = 0.0;
+    double verified_turn_delta_rad_ = 0.0;
+    double final_turn_error_rad_ = 0.0;
+    double pending_corner_residual_rad_ = 0.0;
+    std::uint64_t segment_wall_point_hash_ = 1469598103934665603ULL;
+    std::uint64_t segment_wall_model_hash_ = 1469598103934665603ULL;
+    std::uint64_t old_wall_points_hash_ = 1469598103934665603ULL;
+    std::uint64_t old_wall_models_hash_ = 1469598103934665603ULL;
+    bool pending_replay_corner_candidate_ = false;
+    bool pending_replay_corner_confirmation_ = false;
+    bool pending_replay_corner_clearance_ = false;
+    bool pending_replay_corner_main_turn_ = false;
+    bool pending_replay_corner_residual_ = false;
+    bool pending_replay_corner_residual_right_ = false;
+    bool pending_replay_post_corner_verify_ = false;
     std::ofstream log_;
 };
 

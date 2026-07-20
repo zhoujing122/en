@@ -19,6 +19,7 @@ struct LeftWallPoint {
     std::size_t cycle_index = 0;
     std::uint64_t map_revision = 0;
     std::uint64_t frame_transform_epoch = 0;
+    std::uint64_t wall_segment_id = 1;
 };
 
 struct LeftWallLineEstimatorConfig {
@@ -39,6 +40,7 @@ struct LeftWallModel {
     std::size_t input_point_count = 0;
     std::size_t inlier_point_count = 0;
     std::uint64_t frame_transform_epoch = 0;
+    std::uint64_t wall_segment_id = 1;
     std::string reason = "not_fitted";
 };
 
@@ -76,17 +78,21 @@ public:
 
         std::vector<LeftWallPoint> finite;
         finite.reserve(std::min(config_.window_max_points, points.size()));
+        std::uint64_t segment_id = 0;
         for (const auto &point : points) {
             if (finite.size() >= config_.window_max_points) break;
             if (point.frame_transform_epoch != frame_transform_epoch ||
+                (segment_id != 0 && point.wall_segment_id != segment_id) ||
                 !std::isfinite(point.x_m) || !std::isfinite(point.y_m) ||
                 !std::isfinite(point.timestamp_s) ||
                 !std::isfinite(point.confidence)) {
                 continue;
             }
+            if (segment_id == 0) segment_id = point.wall_segment_id;
             finite.push_back(point);
         }
         result.input_point_count = finite.size();
+        result.wall_segment_id = segment_id == 0 ? 1 : segment_id;
         if (finite.size() < config_.min_fit_points) {
             result.reason = "insufficient_fit_points";
             return result;

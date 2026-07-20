@@ -254,6 +254,31 @@ struct Config {
     double stop_go_wall_max_allowed_distance_mm = 500.0;
     double stop_go_front_stop_threshold_mm = 200.0;
     int stop_go_front_max_invalid_samples = 2;
+    // P5 single-corner parameters.  These are deliberately separate from
+    // the P4 wall-follow parameters so Real cannot silently inherit the
+    // Simulation provisional geometry.
+    int stop_go_corner_maximum_transitions = 1;
+    int stop_go_corner_confirmation_resamples = 2;
+    int stop_go_corner_confirmation_required_hits = 2;
+    double stop_go_corner_robot_turning_sweep_radius_mm = 80.0;
+    double stop_go_corner_turn_clearance_margin_mm = 20.0;
+    double stop_go_corner_front_tof_forward_offset_mm = 100.0;
+    double stop_go_corner_expected_forward_overrun_mm = 10.0;
+    double stop_go_corner_trigger_distance_mm = 350.0;
+    double stop_go_corner_minimum_right_turn_clearance_mm = 200.0;
+    int stop_go_corner_right_clearance_resample_attempts = 2;
+    double stop_go_corner_main_turn_deg = 90.0;
+    double stop_go_corner_turn_acceptance_tolerance_deg = 3.0;
+    double stop_go_corner_max_residual_correction_deg = 8.0;
+    int stop_go_corner_max_residual_corrections = 2;
+    double stop_go_corner_min_residual_correction_deg = 1.0;
+    double stop_go_corner_post_turn_front_stop_threshold_mm = 200.0;
+    int stop_go_corner_post_turn_sensor_resample_attempts = 3;
+    double stop_go_corner_new_wall_min_distance_mm = 80.0;
+    double stop_go_corner_new_wall_max_distance_mm = 500.0;
+    int stop_go_corner_new_wall_stationary_resample_attempts = 3;
+    int stop_go_corner_new_wall_acquisition_max_forward_steps = 8;
+    int stop_go_corner_post_corner_required_follow_steps = 5;
     std::string sparse_slam_map_startup_mode = "create_new";
     std::string sparse_slam_initial_pose_mode = "startup_zero";
     bool sparse_slam_has_configured_pose = false;

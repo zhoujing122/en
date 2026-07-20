@@ -10,6 +10,7 @@
 #include "robot_slamd/replay/stop_go_replay_codec.hpp"
 
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <memory>
 #include <string>
@@ -20,13 +21,16 @@ class StopGoStraightWallSimulationRunner final {
 public:
     StopGoMappingRunReport run(const Config &input_config,
                                const std::string &run_dir) const {
-        return run_scenario(input_config, run_dir, "straight");
+        return run_scenario(input_config, run_dir,
+            input_config.stop_go_mapping_mode == "single_corner"
+                ? "nominal_single_corner" : "straight");
     }
 
     StopGoMappingRunReport run_scenario(const Config &input_config,
                                         const std::string &run_dir,
                                         const std::string &scenario) const {
         Config config = input_config;
+        if (!run_dir.empty()) std::filesystem::create_directories(run_dir);
         StopGoMappingRunReport failed;
         SensorSource source;
         OperationMode operation;
@@ -43,6 +47,17 @@ public:
         if (!world->add_axis_aligned_room(-2.0, -2.0, 2.0, 2.0) ||
             !world->add_axis_aligned_obstacle(-1.8, 0.60, 1.8, 0.605)) {
             failed.termination_reason = "straight_wall_world_setup_failed";
+            return failed;
+        }
+        const bool single_corner = config.stop_go_mapping_mode == "single_corner";
+        if (single_corner &&
+            !world->add_axis_aligned_obstacle(-0.455, -1.8, -0.445, 0.60)) {
+            failed.termination_reason = "single_corner_world_setup_failed";
+            return failed;
+        }
+        if (scenario == "right_turn_clearance_blocked" &&
+            !world->add_axis_aligned_obstacle(-0.95, 0.22, -0.70, 0.30)) {
+            failed.termination_reason = "right_turn_clearance_world_setup_failed";
             return failed;
         }
         if (scenario == "front_blocked" &&
@@ -109,7 +124,11 @@ public:
             failed.termination_reason = initialized.reason;
             return failed;
         }
-        SimRelativeMotionStepPort motion(plant);
+        double corner_turn_rate_scale = 1.0;
+        if (scenario == "under_rotation") corner_turn_rate_scale = 0.95;
+        if (scenario == "over_rotation") corner_turn_rate_scale = 1.05;
+        if (scenario == "corner_turn_verification_failed") corner_turn_rate_scale = 0.70;
+        SimRelativeMotionStepPort motion(plant, corner_turn_rate_scale);
         const auto stop_go_config = stop_go_mapping_config_from(config);
         auto front_reader = SimStopGoTofReader(
             clock, world, plant, SimThreeScalarTof(tof_config), StableTofDirection::Front);
@@ -117,11 +136,28 @@ public:
             clock, world, plant, SimThreeScalarTof(tof_config), StableTofDirection::Left);
         auto right_reader = SimStopGoTofReader(
             clock, world, plant, SimThreeScalarTof(tof_config), StableTofDirection::Right);
+        auto false_front_reads = std::make_shared<std::size_t>(
+            scenario == "false_front_measurement" ? stop_go_config.tof.samples_per_sensor : 0U);
         StableThreeTofSampler sampler({
-            [&front_reader]() { return front_reader.read(); },
+            [&front_reader, &clock, &plant, &false_front_reads]() {
+                if (*false_front_reads > 0 && plant->state().pose.x_m <= -0.84 &&
+                    plant->state().pose.x_m >= -0.96) {
+                    --*false_front_reads;
+                    const auto parsed = parse_nuona_tof_i2c_frame(
+                        encode_nuona_tof_i2c_frame(100, 100));
+                    auto frame = front_reader.read();
+                    frame.frame = parsed;
+                    return frame;
+                }
+                return front_reader.read();
+            },
             [&left_reader, &plant, &scenario]() {
                 if (scenario == "left_wall_loss" &&
                     plant->state().pose.x_m > -0.95) {
+                    return TimedTofFrame{};
+                }
+                if (scenario == "new_left_wall_missing" &&
+                    plant->state().pose.yaw_rad < -0.8) {
                     return TimedTofFrame{};
                 }
                 return left_reader.read();
@@ -192,7 +228,17 @@ public:
                 report.log_error = replay_reason;
             }
         }
-        if (config.stop_go_mapping_mode == "left_wall_follow") {
+        if (config.stop_go_mapping_mode == "single_corner") {
+            report.ok = report.ok && report.termination_reason == "single_corner_complete" &&
+                        report.corner_main_turn_command_count == 1 &&
+                        report.corner_right_turn_command_count >= 1 &&
+                        report.collision_count == 0 &&
+                        report.map_writes_during_corner_confirm == 0 &&
+                        report.map_writes_during_corner_turn == 0 &&
+                        report.map_writes_during_turn_verification == 0 &&
+                        report.command_target_used_as_odometry == false &&
+                        report.ground_truth_used_by_algorithm == false;
+        } else if (config.stop_go_mapping_mode == "left_wall_follow") {
             report.ok = report.ok && report.completed_steps > 0 &&
                         !report.replay_records.empty() &&
                         report.map_commits == report.replay_records.size() &&

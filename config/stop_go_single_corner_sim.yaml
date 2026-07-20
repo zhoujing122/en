@@ -1,0 +1,128 @@
+robot:
+  wheel_base_m: 0.180
+  wheel_radius_left_m: 0.032
+  wheel_radius_right_m: 0.032
+  encoder_ticks_per_rev: 1024
+encoder:
+  source: sim
+  max_pair_skew_us: 10000
+  max_read_latency_us: 10000
+  require_pair_skew_ok_for_odometry: true
+imu:
+  source: sim
+  mode: localization
+  gyro_bias_static_calib_s: 0
+tof:
+  source: sim
+  frequency_hz: 50
+  min_range_m: 0.02
+  max_range_m: 4.5
+  protocol_min_range_m: 0.02
+  protocol_max_range_m: 4.5
+  mapping_min_range_m: 0.03
+  mapping_max_range_m: 4.5
+  mapping_min_confidence: 70
+runtime:
+  sensor_source: simulation
+  operation: stop_go_wall_mapping
+  mapping_hz: 50
+  tof_read_hz: 50
+stop_go_mapping:
+  enabled: true
+  mode: single_corner
+  forward_step_mm: 20
+  max_steps: 80
+  max_total_distance_mm: 1600
+  motion_max_rpm: 12
+  motion_timeout_ms: 6000
+  log_path: ""
+  settle:
+    wheel_rpm_threshold: 1.0
+    imu_gyro_threshold_deg_s: 1.0
+    consecutive_frames: 3
+    hold_ms: 200
+  tof:
+    samples_per_sensor: 5
+    min_valid_samples: 3
+    protocol_min_distance_mm: 20
+    protocol_max_distance_mm: 4500
+    mapping_min_distance_mm: 30
+    mapping_max_distance_mm: 4500
+    mapping_min_confidence: 70
+  wall:
+    desired_distance_mode: configured
+    desired_base_to_wall_distance_mm: 150
+    window_max_points: 10
+    min_fit_points: 5
+    min_baseline_mm: 50
+    max_fit_rms_mm: 30
+    outlier_min_threshold_mm: 20
+    outlier_mad_scale: 3.0
+    acquisition_max_forward_steps: 12
+    max_stationary_resample_attempts: 3
+    max_consecutive_wall_misses: 2
+    heading_deadband_deg: 1.0
+    distance_deadband_mm: 10
+    distance_to_heading_gain_deg_per_m: 20
+    max_distance_bias_deg: 3
+    min_correction_deg: 1
+    max_correction_deg: 3
+    min_allowed_base_to_wall_distance_mm: 50
+    max_allowed_base_to_wall_distance_mm: 500
+  front_safety:
+    stop_threshold_mm: 200
+    max_invalid_samples: 2
+  corner:
+    maximum_corner_transitions: 1
+    confirmation_resamples: 2
+    confirmation_required_hits: 2
+    robot_turning_sweep_radius_mm: 80
+    turn_clearance_margin_mm: 20
+    front_tof_forward_offset_mm: 100
+    expected_forward_overrun_mm: 10
+    trigger_distance_mm: 350
+    minimum_right_turn_clearance_mm: 200
+    right_clearance_resample_attempts: 2
+    main_turn_deg: 90
+    turn_acceptance_tolerance_deg: 3
+    max_residual_correction_deg: 8
+    max_residual_corrections: 2
+    min_residual_correction_deg: 1
+    post_turn_front_stop_threshold_mm: 200
+    post_turn_sensor_resample_attempts: 3
+    new_wall_min_distance_mm: 80
+    new_wall_max_distance_mm: 500
+    new_wall_stationary_resample_attempts: 3
+    new_wall_acquisition_max_forward_steps: 8
+    post_corner_required_follow_steps: 5
+mapping:
+  resolution_m: 0.05
+  chunk_cells: 64
+  initial_width_m: 10
+  initial_height_m: 10
+  ray_step_deg: 2
+  hit_thickness_m: 0.08
+sparse_slam:
+  map_startup_mode: create_new
+  initial_pose_mode: startup_zero
+  planar_tof_extrinsics_configured: true
+  allow_legacy_mount_yaw_extrinsics: false
+  front_tof_x_m: 0.10
+  front_tof_y_m: 0.00
+  front_tof_yaw_rad: 0.0
+  left_tof_x_m: 0.00
+  left_tof_y_m: 0.08
+  left_tof_yaw_rad: 1.5707963267948966
+  right_tof_x_m: 0.00
+  right_tof_y_m: -0.08
+  right_tof_yaw_rad: -1.5707963267948966
+  map_id: stop_go_single_corner
+  map_run_id: deterministic_p5
+  startup_min_imu_samples: 1
+exploration:
+  simulation_fixed_dt_s: 0.02
+  simulation_initial_x_m: -1.2
+  simulation_initial_y_m: 0.45
+  simulation_initial_yaw_rad: 0.0
+logging:
+  output_dir: /tmp/robot_slamd_stop_go_p5

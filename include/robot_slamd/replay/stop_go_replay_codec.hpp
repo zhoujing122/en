@@ -86,6 +86,7 @@ public:
             << " wall_point_confidence=" << record.left_wall_point.confidence
             << " wall_point_cycle=" << record.left_wall_point.cycle_index
             << " wall_point_revision=" << record.left_wall_point.map_revision
+            << " wall_point_segment=" << record.left_wall_point.wall_segment_id
             << " wall_model_valid=" << (record.wall_model.valid ? 1 : 0)
             << " wall_heading=" << record.wall_model.wall_heading_rad
             << " wall_distance=" << record.wall_model.signed_base_to_wall_distance_m
@@ -93,6 +94,7 @@ public:
             << " wall_baseline=" << record.wall_model.baseline_m
             << " wall_input=" << record.wall_model.input_point_count
             << " wall_inliers=" << record.wall_model.inlier_point_count
+            << " wall_model_segment=" << record.wall_model.wall_segment_id
             << " control_action=" << static_cast<int>(record.control_decision.action)
             << " heading_error=" << record.control_decision.heading_error_rad
             << " distance_error=" << record.control_decision.distance_error_m
@@ -100,6 +102,27 @@ public:
             << " turn_error=" << record.control_decision.turn_error_rad
             << " correction_deg=" << record.control_decision.correction_amount_deg
             << " post_turn_verified=" << (record.post_turn_verified ? 1 : 0)
+            << " corner_candidate=" << (record.corner_candidate ? 1 : 0)
+            << " corner_confirmation=" << (record.corner_confirmation ? 1 : 0)
+            << " corner_confirmed=" << (record.corner_confirmed ? 1 : 0)
+            << " corner_clearance=" << (record.corner_right_clearance_passed ? 1 : 0)
+            << " corner_main_turn=" << (record.corner_main_turn ? 1 : 0)
+            << " corner_residual=" << (record.corner_residual_correction ? 1 : 0)
+            << " corner_residual_right=" << (record.corner_residual_right ? 1 : 0)
+            << " post_corner_sensor_verified=" << (record.post_corner_sensor_verified ? 1 : 0)
+            << " new_wall_reacquisition=" << (record.new_wall_reacquisition ? 1 : 0)
+            << " post_corner_follow_steps=" << record.post_corner_follow_steps
+            << " corner_confirmation_samples=" << record.corner_confirmation_samples
+            << " corner_confirmation_rejects=" << record.corner_confirmation_rejects
+            << " corner_right_clearance_checks=" << record.corner_right_clearance_checks
+            << " wall_segment_id=" << record.wall_segment_id
+            << " corner_transition_id=" << record.corner_transition_id
+            << " corner_main_command_id=" << record.corner_main_command_id
+            << " corner_residual_command_id=" << record.corner_residual_command_id
+            << " pre_turn_odom_yaw=" << record.pre_turn_odom_yaw_rad
+            << " post_turn_odom_yaw=" << record.post_turn_odom_yaw_rad
+            << " actual_turn_delta=" << record.actual_turn_delta_rad
+            << " turn_residual=" << record.turn_residual_rad
             << " odom_count=" << record.odom_samples.size();
         for (std::size_t index = 0; index < record.odom_samples.size(); ++index) {
             const auto &sample = record.odom_samples[index];
@@ -177,6 +200,7 @@ public:
             read_optional(fields, "wall_point_confidence", result.record.left_wall_point.confidence);
             read_optional(fields, "wall_point_cycle", result.record.left_wall_point.cycle_index);
             read_optional(fields, "wall_point_revision", result.record.left_wall_point.map_revision);
+            read_optional(fields, "wall_point_segment", result.record.left_wall_point.wall_segment_id);
             read_optional(fields, "wall_model_valid", result.record.wall_model.valid);
             read_optional(fields, "wall_heading", result.record.wall_model.wall_heading_rad);
             read_optional(fields, "wall_distance", result.record.wall_model.signed_base_to_wall_distance_m);
@@ -184,6 +208,7 @@ public:
             read_optional(fields, "wall_baseline", result.record.wall_model.baseline_m);
             read_optional(fields, "wall_input", result.record.wall_model.input_point_count);
             read_optional(fields, "wall_inliers", result.record.wall_model.inlier_point_count);
+            read_optional(fields, "wall_model_segment", result.record.wall_model.wall_segment_id);
             int control_action = 0;
             read_optional(fields, "control_action", control_action);
             if (control_action >= 0 && control_action <= 2) {
@@ -196,6 +221,27 @@ public:
             read_optional(fields, "turn_error", result.record.control_decision.turn_error_rad);
             read_optional(fields, "correction_deg", result.record.control_decision.correction_amount_deg);
             read_optional(fields, "post_turn_verified", result.record.post_turn_verified);
+            read_optional(fields, "corner_candidate", result.record.corner_candidate);
+            read_optional(fields, "corner_confirmation", result.record.corner_confirmation);
+            read_optional(fields, "corner_confirmed", result.record.corner_confirmed);
+            read_optional(fields, "corner_clearance", result.record.corner_right_clearance_passed);
+            read_optional(fields, "corner_main_turn", result.record.corner_main_turn);
+            read_optional(fields, "corner_residual", result.record.corner_residual_correction);
+            read_optional(fields, "corner_residual_right", result.record.corner_residual_right);
+            read_optional(fields, "post_corner_sensor_verified", result.record.post_corner_sensor_verified);
+            read_optional(fields, "new_wall_reacquisition", result.record.new_wall_reacquisition);
+            read_optional(fields, "post_corner_follow_steps", result.record.post_corner_follow_steps);
+            read_optional(fields, "corner_confirmation_samples", result.record.corner_confirmation_samples);
+            read_optional(fields, "corner_confirmation_rejects", result.record.corner_confirmation_rejects);
+            read_optional(fields, "corner_right_clearance_checks", result.record.corner_right_clearance_checks);
+            read_optional(fields, "wall_segment_id", result.record.wall_segment_id);
+            read_optional(fields, "corner_transition_id", result.record.corner_transition_id);
+            read_optional(fields, "corner_main_command_id", result.record.corner_main_command_id);
+            read_optional(fields, "corner_residual_command_id", result.record.corner_residual_command_id);
+            read_optional(fields, "pre_turn_odom_yaw", result.record.pre_turn_odom_yaw_rad);
+            read_optional(fields, "post_turn_odom_yaw", result.record.post_turn_odom_yaw_rad);
+            read_optional(fields, "actual_turn_delta", result.record.actual_turn_delta_rad);
+            read_optional(fields, "turn_residual", result.record.turn_residual_rad);
             std::size_t odom_count = 0;
             read_optional(fields, "odom_count", odom_count);
             if (odom_count > 10000U) {
